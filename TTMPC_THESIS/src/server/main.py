@@ -2812,18 +2812,30 @@ async def get_cashier_ready_for_disbursement_loans():
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
     try:
-        response = (
-            supabase.table("loans")
-            .select(
-                "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_status,application_date," \
-                "applicant_full_name," \
-                "member:member_id(first_name,last_name)," \
-                "loan_type:loan_type_id(name,interest_rate)"
-            )
-            .order("application_date", desc=True)
-            .execute()
-        )
-        rows = response.data or []
+        # Page through the full table — PostgREST caps an unbounded response
+        # at its max-rows setting, which can drop older loans off the end.
+        rows = []
+        page_size = 1000
+        offset = 0
+        while True:
+            batch = (
+                supabase.table("loans")
+                .select(
+                    "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_status,application_date," \
+                    "applicant_full_name," \
+                    "member:member_id(first_name,last_name)," \
+                    "loan_type:loan_type_id(name,interest_rate)"
+                )
+                .order("application_date", desc=True)
+                .range(offset, offset + page_size - 1)
+                .execute()
+            ).data or []
+            if not batch:
+                break
+            rows.extend(batch)
+            if len(batch) < page_size:
+                break
+            offset += page_size
 
         filtered = [
             row
@@ -3045,18 +3057,31 @@ async def get_treasurer_priority_queue(limit: int = 10, offset: int = 0):
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
     try:
-        response = (
-            supabase.table("loans")
-            .select(
-                "control_number,loan_amount,principal_amount,loan_status,application_status,application_date,"
-                "applicant_full_name,"
-                "member:member_id(membership_id,first_name,last_name,is_bona_fide),"
-                "loan_type:loan_type_id(name)"
-            )
-            .order("application_date", desc=False)  # oldest first within a rank
-            .execute()
-        )
-        rows = response.data or []
+        # Page through the full table — PostgREST caps an unbounded response
+        # at its max-rows setting, which silently drops the newest loans off
+        # the end of an oldest-first query once the table passes that cap.
+        rows = []
+        page_size = 1000
+        page_offset = 0
+        while True:
+            batch = (
+                supabase.table("loans")
+                .select(
+                    "control_number,loan_amount,principal_amount,loan_status,application_status,application_date,"
+                    "applicant_full_name,"
+                    "member:member_id(membership_id,first_name,last_name,is_bona_fide),"
+                    "loan_type:loan_type_id(name)"
+                )
+                .order("application_date", desc=False)  # oldest first within a rank
+                .range(page_offset, page_offset + page_size - 1)
+                .execute()
+            ).data or []
+            if not batch:
+                break
+            rows.extend(batch)
+            if len(batch) < page_size:
+                break
+            page_offset += page_size
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to fetch priority queue: {err}")
 
@@ -5209,16 +5234,31 @@ def _compute_vault_available() -> dict:
         balance = Decimal("0")
 
     try:
-        loans_resp = (
-            supabase.table("loans")
-            .select(
-                "control_number,member_id,loan_amount,principal_amount,loan_status,application_type,"
-                f"application_date,term,interest_rate,{LOAN_FEE_SNAPSHOT_COLUMNS},loan_type:loan_type_id(name,code)"
-            )
-            .execute()
-        )
+        # PostgREST caps an unbounded response at its max-rows setting, which
+        # silently dropped newer loans off the end of an unordered 1000-row
+        # page (the coop now has 1400+ loan rows). Page through the full
+        # table, same as the decision-queue endpoint.
+        all_loans = []
+        page_size = 1000
+        offset = 0
+        while True:
+            batch = (
+                supabase.table("loans")
+                .select(
+                    "control_number,member_id,loan_amount,principal_amount,loan_status,application_type,"
+                    f"application_date,term,interest_rate,{LOAN_FEE_SNAPSHOT_COLUMNS},loan_type:loan_type_id(name,code)"
+                )
+                .range(offset, offset + page_size - 1)
+                .execute()
+            ).data or []
+            if not batch:
+                break
+            all_loans.extend(batch)
+            if len(batch) < page_size:
+                break
+            offset += page_size
         ready_loans = [
-            r for r in (loans_resp.data or [])
+            r for r in all_loans
             if str(r.get("loan_status") or "").strip().lower() == "ready for disbursement"
         ]
     except Exception as err:

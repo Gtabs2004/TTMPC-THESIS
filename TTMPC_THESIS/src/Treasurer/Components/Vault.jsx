@@ -166,6 +166,14 @@ const Vault = () => {
     return entries.filter((e) => e.change_type === typeFilter);
   }, [entries, typeFilter]);
 
+  useEffect(() => { setCurrentPage(1); }, [typeFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredEntries.length / ITEMS_PER_PAGE));
+  const paginatedEntries = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredEntries.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredEntries, currentPage]);
+
   const totals = useMemo(() => {
     const t = { deposit: 0, withdrawal: 0, adjustment: 0, disbursement: 0, opening_balance: 0 };
     for (const e of entries) t[e.change_type] = (t[e.change_type] || 0) + Number(e.amount || 0);
@@ -403,7 +411,7 @@ const Vault = () => {
           <div className="rounded-xl bg-white border border-gray-200 shadow-sm">
             <TableToolbar
               title="Ledger"
-              subtitle={`Newest entries first. ${entries.length} shown (max 100).`}
+              subtitle={`Newest entries first. Showing ${paginatedEntries.length} of ${filteredEntries.length} (max 100 loaded).`}
             >
               <select
                 value={typeFilter}
@@ -443,7 +451,7 @@ const Vault = () => {
                       sublabel="Click Update Balance to record the first one."
                     />
                   )}
-                  {!loading && filteredEntries.map((row) => {
+                  {!loading && paginatedEntries.map((row) => {
                     const type = CHANGE_TYPES.find((t) => t.value === row.change_type);
                     const isCredit = Number(row.amount) >= 0;
                     return (
@@ -465,6 +473,9 @@ const Vault = () => {
                 </tbody>
               </table>
             </div>
+            {filteredEntries.length > ITEMS_PER_PAGE && (
+              <Pagination page={currentPage} totalPages={totalPages} onChange={setCurrentPage} />
+            )}
           </div>
         </main>
       </div>

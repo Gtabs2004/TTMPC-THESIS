@@ -135,7 +135,7 @@ const Treasurer_Dashboard = () => {
               subtext="Approved, not yet released by Cashier"
             />
             <StatCard
-              label="Free to Lend"
+              label=" Available Cash on Hand"
               value={
                 decisionQuery.error ? "—" : (
                   <span className={available < 0 ? "text-red-700" : "text-green-700"}>{PHP_FULL(available)}</span>
