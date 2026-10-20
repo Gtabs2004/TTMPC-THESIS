@@ -109,20 +109,20 @@ const TreasuryCashPosition = ({ data, loading, error }) => {
                 <span className="w-2 h-2 rounded-full bg-amber-400" /> Reserved {committedPct.toFixed(0)}%
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-green-500/80" /> Free to lend {(100 - committedPct).toFixed(0)}%
+                <span className="w-2 h-2 rounded-full bg-green-500/80" /> Net Available Cash {(100 - committedPct).toFixed(0)}%
               </span>
             </div>
 
             <div className="mt-4 divide-y divide-gray-100">
               <Row label="Total cash in vault" hint="All physical cash on hand" value={PHP_FULL(balance)} />
               <Row
-                label="− Reserved for approved loans"
+                label="− Queued for Cashier Release"
                 hint="Net cash out of loans awaiting Cashier release"
                 value={PHP_FULL(committed)}
                 tone="text-amber-700"
               />
               <Row
-                label="= Free to lend"
+                label="= Net Available Cash"
                 value={PHP_FULL(vault?.available)}
                 strong
                 tone={Number(vault?.available) < 0 ? "text-red-700" : "text-green-700"}
@@ -152,14 +152,14 @@ const TreasuryCashPosition = ({ data, loading, error }) => {
             <p className="text-xs text-gray-500 mt-2">{meta.explain(status)}</p>
 
             <div className="mt-3 divide-y divide-gray-100">
-              <Row label="Free to lend" value={PHP_FULL(status.available)} />
+              <Row label="Net Available Cash" value={PHP_FULL(status.available)} />
               <Row
-                label="Awaiting your decision"
+                label="Under Review"
                 hint={`${summary.total_count} loan${summary.total_count === 1 ? "" : "s"} · net cash out`}
                 value={PHP_FULL(status.pending)}
               />
               <Row
-                label="Remaining if all approved"
+                label="Projected Remaining Cash"
                 value={PHP_FULL(status.remaining)}
                 strong
                 tone={meta.tone}

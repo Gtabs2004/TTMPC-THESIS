@@ -39,9 +39,6 @@ const nextMonthTarget = () => {
 };
 
 // Forecast per loan type — pull enough periods to reach next month.
-// Bonus is never fetched: there is no Bonus SARIMAX model (demand_model.py
-// only trains Consolidated and Emergency), so its tile says so instead of
-// showing a number that would look model-generated.
 async function fetchNextMonthForecast(loanType, targetKey) {
   const res = await fetch(
     `${API_BASE_URL}/api/analytics/demand/forecast?loan_type=${loanType}&periods=60`,
@@ -58,6 +55,17 @@ async function fetchNextMonthForecast(loanType, targetKey) {
 // Forecasts are model output that only changes when the model is retrained,
 // so they're treated as fresh for 10 minutes instead of refetched per visit.
 const FORECAST_STALE_TIME = 10 * 60_000;
+
+// Bonus loans only ever disburse in May/November (BONUS_LOAN_PLAN.md), so
+// demand_model.py forecasts Bonus with a seasonal-naive method instead of
+// SARIMAX. fetchNextMonthForecast still works for it (same endpoint, same
+// {period, predicted} shape) — it just returns null for any target month
+// outside that cycle, which the tile below treats as "no cycle this month"
+// rather than an error.
+const isBonusCycleMonth = (targetKey) => {
+  const month = Number(targetKey.split("-")[1]);
+  return month === 5 || month === 11;
+};
 
 const ForecastTile = ({ label, value, loading, sub, muted = false }) => (
   <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 min-w-0">
@@ -91,6 +99,13 @@ const Treasurer_Dashboard = () => {
     queryKey: ["demand-forecast", "next-month", "emergency", target.key],
     queryFn: () => fetchNextMonthForecast("emergency", target.key),
     staleTime: FORECAST_STALE_TIME,
+  });
+  const bonusCycleMonth = isBonusCycleMonth(target.key);
+  const bonusQuery = useQuery({
+    queryKey: ["demand-forecast", "next-month", "bonus", target.key],
+    queryFn: () => fetchNextMonthForecast("bonus", target.key),
+    staleTime: FORECAST_STALE_TIME,
+    enabled: bonusCycleMonth,
   });
 
   const vault = decisionQuery.data?.vault;
@@ -202,9 +217,16 @@ const Treasurer_Dashboard = () => {
               />
               <ForecastTile
                 label="Bonus"
-                value="Forecast unavailable"
-                muted
-                sub="No Bonus forecasting model configured"
+                value={!bonusCycleMonth || bonusQuery.data == null ? "—" : PHP_COMPACT(bonusQuery.data)}
+                loading={bonusCycleMonth && bonusQuery.isPending}
+                muted={!bonusCycleMonth}
+                sub={
+                  !bonusCycleMonth
+                    ? "No Bonus cycle this month (May/Nov only)"
+                    : bonusQuery.error
+                    ? "Forecast service unavailable"
+                    : `Seasonal · ${target.label}`
+                }
               />
             </div>
           </section>
