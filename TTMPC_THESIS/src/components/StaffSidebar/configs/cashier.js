@@ -13,7 +13,7 @@ import {
 export const cashierNav = [
   { name: "Dashboard",             icon: LayoutDashboard, path: "/Cashier_Dashboard" },
   { name: "Loan Payments",         icon: ArrowUpRight,    path: "/Cashier_Payments" },
-  { name: "Loan Disbursement",     icon: Send,            path: "/Cashier_Disbursement" },
+  { name: "Loan Disbursement",     icon: Send,            path: "/Cashier_Disbursement", badgeKey: "loan_disbursement" },
   { name: "Membership Payments",   icon: UserPlus,        path: "/Cashier_MembershipPayments" },
   {
     name: "Account Transactions",
@@ -22,7 +22,7 @@ export const cashierNav = [
     subItems: [
       { name: "Savings Accounts",           path: "/Cashier_Savings" },
       { name: "Capital Build-Up",  path: "/Cashier_CBU" },
-      { name: "CBU Exit Payout",   path: "/Cashier_CBU_Exit_Payout" },
+      { name: "CBU Exit Payout",   path: "/Cashier_CBU_Exit_Payout", badgeKey: "cbu_payouts" },
     ],
   },
   { name: "Savings Withdrawals Ledger", icon: ArrowDownLeft, path: "/Cashier_Withdrawals" },

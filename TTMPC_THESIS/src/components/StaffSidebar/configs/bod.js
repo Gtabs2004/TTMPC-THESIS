@@ -15,9 +15,9 @@ import {
 // backend) only lets the BOD holding can_manage_accounts use it.
 export const bodNav = [
   { name: "Dashboard",         icon: LayoutDashboard, path: "/BOD-dashboard" },
-  { name: "Member Approvals",  icon: UserRoundCheck,           path: "/member-approvals" },
+  { name: "Member Approvals",  icon: UserRoundCheck,           path: "/member-approvals", badgeKey: "member_approvals" },
   { name: "Manage Member",     icon: Users,           path: "/bod-manage-member" },
-  { name: "Loan Approvals",    icon: ShieldCheck,     path: "/bod-loan-approvals" },
+  { name: "Loan Approvals",    icon: ShieldCheck,     path: "/bod-loan-approvals", badgeKey: "loan_approvals" },
   { name: "Loan Ledger",       icon: CreditCard,      path: "/bod-manage-loans" },
   { name: "Account Management", icon: UserCog,        path: "/bod-account-management" },
   { name: "Interest Policies", icon: FileText,        path: "/bod-loan-policies" },

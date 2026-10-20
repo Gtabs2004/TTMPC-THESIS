@@ -7060,6 +7060,68 @@ def get_bookkeeper_pending_counts(current_user: dict = _Depends(_get_current_use
     }
 
 
+@app.get("/api/staff/pending-counts")
+def get_staff_pending_counts(current_user: dict = _Depends(_get_current_user)):
+    """Pending-work counts for the sidebar badges of the Manager, Treasurer,
+    Cashier and BOD portals (the Bookkeeper has its own endpoint above).
+
+    Each count mirrors the queue its page shows:
+      - manager   loan_approval:   loans + non-member loans 'recommended for approval'
+      - treasurer loan_approval:   loans + non-member loans 'to be disbursed'
+      - cashier   loan_disbursement: loans 'ready for disbursement'
+                  cbu_payouts:       terminated members still owed CBU
+      - bod       loan_approvals:    loans 'recommended for bod approval'
+                  member_approvals:  member applications still 'pending'
+    Head-only count queries: no rows are transferred.
+    """
+    global supabase
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    role = _resolve_staff_role(current_user["id"], current_user.get("email") or "")
+
+    def head_count(table: str, column: str, status: str) -> int:
+        # ilike with no wildcard = case-insensitive equality, as the pages do.
+        query = supabase.table(table).select("*", count="exact", head=True).ilike(column, status)
+        return int(getattr(query.execute(), "count", None) or 0)
+
+    def compute() -> dict:
+        if role == "manager":
+            return {"loan_approval": head_count("loans", "loan_status", "recommended for approval")
+                    + head_count("non_member_loans", "loan_status", "recommended for approval")}
+        if role == "treasurer":
+            return {"loan_approval": head_count("loans", "loan_status", "to be disbursed")
+                    + head_count("non_member_loans", "loan_status", "to be disbursed")}
+        if role == "cashier":
+            owed = [r for r in _settlement_rows(["terminated"]) if r["status"] == "terminated" and r["remaining"] > 0]
+            return {
+                "loan_disbursement": head_count("loans", "loan_status", "ready for disbursement"),
+                "cbu_payouts": len(owed),
+            }
+        if role == "bod":
+            return {
+                "loan_approvals": head_count("loans", "loan_status", "recommended for bod approval"),
+                "member_approvals": head_count("member_applications", "application_status", "pending"),
+            }
+        return {}
+
+    try:
+        data = compute()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        if "server disconnected" in str(exc).lower() and url and key:
+            supabase = create_client(url, key, options=_SUPABASE_CLIENT_OPTIONS)
+            try:
+                data = compute()
+            except Exception as retry_exc:
+                raise HTTPException(status_code=500, detail=f"Could not load pending counts: {retry_exc}") from retry_exc
+        else:
+            raise HTTPException(status_code=500, detail=f"Could not load pending counts: {exc}") from exc
+
+    return {"success": True, "data": data}
+
+
 @app.get("/api/bookkeeper/loan-approval-queue")
 async def get_bookkeeper_loan_approval_queue(current_user: dict = _Depends(_get_current_user)):
     """Return the Bookkeeper queue through the authenticated server client."""

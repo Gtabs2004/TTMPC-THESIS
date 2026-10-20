@@ -7,6 +7,7 @@ import { usePortalRole } from "../../utils/usePortalRole";
 import { PortalSidebarIdentity } from "../PortalIdentity";
 import { useStaffLayout } from "../../contex/StaffLayoutContext";
 import { useBookkeeperPendingCounts } from "../../hooks/useBookkeeperPendingCounts";
+import { useStaffPendingCounts } from "../../hooks/useStaffPendingCounts";
 
 const navLinkClass = ({ isActive }) =>
   `flex items-center gap-3 p-2 rounded-md transition-colors ${
@@ -80,7 +81,9 @@ export default function StaffSidebar({ portal, items, sections }) {
   const portalRole = usePortalRole();
   // Pending-work counts (Bookkeeper only for now). Entries opt in with a
   // `badgeKey`; a group shows the sum of its sub-items.
-  const pendingCounts = useBookkeeperPendingCounts(portal === "Bookkeeper");
+  const bookkeeperCounts = useBookkeeperPendingCounts(portal === "Bookkeeper");
+  const staffCounts = useStaffPendingCounts(["Manager", "Treasurer", "Cashier", "BOD"].includes(portal));
+  const pendingCounts = portal === "Bookkeeper" ? bookkeeperCounts : staffCounts;
   const countFor = (entry) => (entry.badgeKey ? Number(pendingCounts[entry.badgeKey]) || 0 : 0);
   const groupCount = (item) => (item.subItems || []).reduce((sum, sub) => sum + countFor(sub), 0);
   const { sidebarOpen, setSidebarOpen, collapsed, setCollapsed, toggleCollapsed } =
@@ -260,8 +263,17 @@ export default function StaffSidebar({ portal, items, sections }) {
         onFocus={(e) => showFlyout(e, item.name)}
         onBlur={hideFlyout}
       >
-        <Icon size={20} className="shrink-0" />
+        <span className="relative shrink-0">
+          <Icon size={20} />
+          {countFor(item) > 0 && collapsed && (
+            <span
+              aria-label={`${countFor(item)} pending`}
+              className="absolute -right-1 -top-1 hidden h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-white lg:block"
+            />
+          )}
+        </span>
         {renderLabel(item.name)}
+        <CountBadge count={countFor(item)} className={`ml-auto ${collapsed ? "lg:hidden" : ""}`} />
       </NavLink>
     );
   };

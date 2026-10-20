@@ -13,7 +13,7 @@ import {
 // Manager portal navigation. Same list on every Manager page.
 export const managerNav = [
   { name: "Dashboard",      icon: LayoutDashboard, path: "/manager-dashboard" },
-  { name: "Loan Approval",  icon: ClipboardCheck,  path: "/loan-approval" },
+  { name: "Loan Approval",  icon: ClipboardCheck,  path: "/loan-approval", badgeKey: "loan_approval" },
   { name: "Credit Risk",    icon: Brain,           path: "/manager-credit-risk" },
   { name: "Manage Loans",   icon: Briefcase,       path: "/manager-manage-loans" },
   { name: "Manage Member",  icon: Users,           path: "/manager-manage-member" },
