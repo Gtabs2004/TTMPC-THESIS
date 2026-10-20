@@ -48,7 +48,13 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-import { SERIES_PRIMARY, SEMANTIC_COLORS } from "../../lib/chartColors";
+import { SERIES_PRIMARY, GREEN } from "../../lib/chartColors";
+
+// Collection Performance series, from the shared cooperative-green palette:
+// Expected is the mid green, Collected the dark headline green. The bars and
+// their legend swatches both read these so they can't drift apart.
+const EXPECTED_COLOR = GREEN.mid;
+const COLLECTED_COLOR = SERIES_PRIMARY;
 import { formatRelativeTime } from "../../utils/relativeTime";
 import { TableToolbar } from "../../components/TableToolbar";
 import { loanStatusBadge, paymentStatusBadge, STATUS_BADGE_CLASSES } from "../../utils/transactionStatus";
@@ -445,8 +451,8 @@ const Dashboard = () => {
               )}
 
               <div className="flex flex-wrap gap-4 text-xs font-medium mb-3">
-                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: SERIES_PRIMARY }}></span><span className="text-gray-500">Expected</span></div>
-                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: SEMANTIC_COLORS.warning }}></span><span className="text-gray-500">Collected</span></div>
+                <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: EXPECTED_COLOR }}></span><span className="text-gray-500">Expected</span></div>
+                <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLLECTED_COLOR }}></span><span className="text-gray-500">Collected</span></div>
               </div>
               <div className="h-48">
                 {loading ? <SkeletonChart /> : <ResponsiveContainer debounce={200} width="100%" height="100%" minWidth={1} minHeight={1}>
@@ -481,14 +487,14 @@ const Dashboard = () => {
                           <div className="bg-white rounded-md border border-gray-200 shadow-sm px-3 py-2 text-xs">
                             <div className="font-semibold text-gray-800 mb-1">{r.name} {chartYear}</div>
                             <div className="text-gray-700">Expected: {formatPeso(r.expected)}</div>
-                            <div className="text-amber-600">Collected: {formatPeso(r.collected)}</div>
+                            <div className="text-green-700 font-medium">Collected: {formatPeso(r.collected)}</div>
                             <div className="text-red-600">Outstanding: {formatPeso(r.outstanding)}</div>
                           </div>
                         );
                       }}
                     />
-                    <Bar dataKey="expected" name="Expected" fill={SERIES_PRIMARY} radius={[4, 4, 0, 0]} barSize={14} fillOpacity={0.35} />
-                    <Bar dataKey="collected" name="Collected" fill={SEMANTIC_COLORS.warning} radius={[4, 4, 0, 0]} barSize={14} />
+                    <Bar dataKey="expected" name="Expected" fill={EXPECTED_COLOR} radius={[4, 4, 0, 0]} barSize={14} />
+                    <Bar dataKey="collected" name="Collected" fill={COLLECTED_COLOR} radius={[4, 4, 0, 0]} barSize={14} />
                   </BarChart>
                 </ResponsiveContainer>}
               </div>
