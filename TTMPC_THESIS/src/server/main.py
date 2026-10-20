@@ -11570,6 +11570,14 @@ def _require_manager(current_user: dict) -> None:
         raise HTTPException(status_code=403, detail="Only the Manager can reverse a savings interest posting.")
 
 
+def _require_savings_interest_viewer(current_user: dict) -> None:
+    """Cashier sees the accrued-interest preview on their Savings Detail page
+    (read-only); Bookkeeper sees it too, since they're the one who posts."""
+    role = _resolve_staff_role(current_user["id"], current_user.get("email") or "")
+    if role not in ("cashier", "bookkeeper"):
+        raise HTTPException(status_code=403, detail="Only the Cashier or Bookkeeper can view savings interest.")
+
+
 def _savings_quarter_candidates(opening_date: date, limit: int = 8) -> list[date]:
     """Quarter-end dates strictly after opening_date, up to today, oldest first."""
     today = date.today()
@@ -11660,15 +11668,22 @@ def _run_savings_ledger_engine(account_number: str, upto: date | None = None) ->
     _original_rate = _engine_mod.ANNUAL_RATE
     _engine_mod.ANNUAL_RATE = annual_rate_pct / Decimal("100")
     try:
-        for row in ledger_rows:
-            txn_date = date.fromisoformat(str(row["posted_at"])[:10])
-            code = "CD" if row["entry_type"] == "credit" else "WD"
-            engine.post_transaction(_SavingsTxn(txn_date=txn_date, code=code, amount=_savings_money(Decimal(str(row["amount"])))))
+        transactions = [
+            _SavingsTxn(
+                txn_date=date.fromisoformat(str(row["posted_at"])[:10]),
+                code="CD" if row["entry_type"] == "credit" else "WD",
+                amount=_savings_money(Decimal(str(row["amount"]))),
+            )
+            for row in ledger_rows
+        ]
 
         all_quarters = _savings_quarter_candidates(opening_date)
         pending_quarters = [q for q in all_quarters if q <= (upto or date.today())]
-        for q in pending_quarters:
-            engine.post_quarter_close(q)
+        # run() interleaves transactions and quarter-closes in date order —
+        # posting all transactions first (as a naive loop would) makes a
+        # quarter-close whose date falls before a later transaction look like
+        # it "precedes" the ledger, since the engine enforces date order.
+        engine.run(transactions, pending_quarters)
     finally:
         _engine_mod.ANNUAL_RATE = _original_rate
 
@@ -11733,17 +11748,27 @@ async def get_savings_interest_passbook(
     _engine_mod.ANNUAL_RATE = annual_rate_pct / Decimal("100")
     row_ids: list[str | None] = []
     try:
-        for row in ledger_rows:
-            txn_date = date.fromisoformat(str(row["posted_at"])[:10])
-            code = "CD" if row["entry_type"] == "credit" else "WD"
-            engine.post_transaction(_SavingsTxn(txn_date=txn_date, code=code, amount=_savings_money(Decimal(str(row["amount"])))))
-            row_ids.append(row.get("id"))
-
         all_quarters = _savings_quarter_candidates(opening_date)
         pending_quarters = [q for q in all_quarters if q <= date.today()]
+
+        # Interleave transactions and quarter-closes in date order (same rule
+        # as SavingsLedgerEngine.run()) while tracking each posted row's
+        # savings_ledger id (quarter-closes have none — they're synthesized).
+        events: list[tuple[date, int, dict | date]] = []
+        for row in ledger_rows:
+            events.append((date.fromisoformat(str(row["posted_at"])[:10]), 0, row))
         for q in pending_quarters:
-            engine.post_quarter_close(q)
-            row_ids.append(None)  # quarter-close rows have no savings_ledger id of their own yet
+            events.append((q, 1, q))  # quarter-close sorts after same-day transactions
+        events.sort(key=lambda e: (e[0], e[1]))
+
+        for txn_date, kind, payload in events:
+            if kind == 0:
+                code = "CD" if payload["entry_type"] == "credit" else "WD"
+                engine.post_transaction(_SavingsTxn(txn_date=txn_date, code=code, amount=_savings_money(Decimal(str(payload["amount"])))))
+                row_ids.append(payload.get("id"))
+            else:
+                engine.post_quarter_close(payload)
+                row_ids.append(None)  # quarter-close rows have no savings_ledger id of their own yet
     finally:
         _engine_mod.ANNUAL_RATE = _original_rate
 
@@ -11774,8 +11799,9 @@ async def preview_savings_interest(
 ):
     """Computes (without posting) the interest due for the next unposted
     quarter-close on this account. Used by the Cashier's 'Post Quarterly
-    Interest' confirmation modal."""
-    _require_bookkeeper(current_user)
+    Interest' confirmation modal. Cashier and Bookkeeper can both view this
+    (read-only) — only the Bookkeeper can actually post (see below)."""
+    _require_savings_interest_viewer(current_user)
 
     engine, pending_quarters, _last_posted = _run_savings_ledger_engine(account_number)
     if not pending_quarters:
@@ -17765,13 +17791,11 @@ async def backfill_member_auth(dry_run: bool = False, limit: int | None = None):
             # stored signal and these accounts reach the portal on a fake email.
             "is_email_dummy": is_placeholder_email,
         }
-        # Only set user_id when we created a brand-new auth user (in that
-        # case the new auth UUID is also intended to become the member-row
-        # link). When linking an existing orphan, leave user_id alone — it
-        # already points at the correct member.id and overwriting could
-        # break the FK to public.member.
-        if link_mode == "created":
-            update_payload["user_id"] = auth_user_id
+        # user_id is never touched here: this call only UPDATEs an existing
+        # member_account row, whose user_id already points at the correct
+        # member.id (set by the on_member_created trigger when the member row
+        # was inserted). Overwriting it with the new auth UUID breaks the FK
+        # to public.member, since that UUID is never a member.id.
         if password:
             update_payload["password"] = password
 

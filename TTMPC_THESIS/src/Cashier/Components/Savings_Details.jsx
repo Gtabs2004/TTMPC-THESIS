@@ -5,7 +5,8 @@ import ReceiptModal from "../../components/Receipt/ReceiptModal";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { cashierNav } from "../../components/StaffSidebar/configs/cashier";
-import { NavLink, useNavigate, useParams } from "react-router-dom";
+import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
+import { NavLink, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   AlertCircle,
   ArrowDownCircle,
@@ -187,8 +188,17 @@ const useSavingsInterest = (accountNumber) => {
 const Savings_Details = () => {
   const { id: accountParam } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
     const { addNotification } = useNotification();
   const confirm = useConfirm();
+
+  // Shared by the Cashier and Bookkeeper savings account lists — the linking
+  // page passes state.fromPortal so this page shows the right sidebar/back
+  // link instead of always assuming Cashier.
+  const fromPortal = location.state?.fromPortal === "bookkeeper" ? "bookkeeper" : "cashier";
+  const portalLabel = fromPortal === "bookkeeper" ? "Bookkeeper" : "Cashier";
+  const portalNav = fromPortal === "bookkeeper" ? bookkeeperNav : cashierNav;
+  const backRoute = fromPortal === "bookkeeper" ? "/bookkeeper-savings-accounts" : "/Cashier_Savings";
 
   const { data, ledger, status, error, refresh, submitTransaction } =
     useSavingsAccount(accountParam);
@@ -381,16 +391,16 @@ const Savings_Details = () => {
   return (
     <div className="flex min-h-screen bg-gray-50">
       {/* SIDEBAR */}
-      <StaffSidebar portal="Cashier" items={cashierNav} />
+      <StaffSidebar portal={portalLabel} items={portalNav} />
 
       {/* MAIN */}
       <div className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
-        <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
+        <StaffTopbar portal={portalLabel} notifications={<LoanNotificationBell role={fromPortal} />} />
 
         <main className="animate-page-in p-8 overflow-auto">
           {/* BACK + TITLE */}
           <button
-            onClick={() => navigate("/Cashier_Savings")}
+            onClick={() => navigate(backRoute)}
             className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-green-700 mb-4 transition"
           >
             <ArrowLeft size={16} />

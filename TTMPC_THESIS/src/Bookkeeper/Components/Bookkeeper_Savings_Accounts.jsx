@@ -359,7 +359,9 @@ const Bookkeeper_Savings_Accounts = () => {
                         key={row.account_number}
                         className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors cursor-pointer"
                         onClick={() =>
-                          navigate(`/Savings_Details/${encodeURIComponent(row.account_number)}`)
+                          navigate(`/Savings_Details/${encodeURIComponent(row.account_number)}`, {
+                            state: { fromPortal: "bookkeeper" },
+                          })
                         }
                       >
                         <td className="p-5 text-sm font-mono text-gray-800">{row.account_number}</td>
@@ -396,7 +398,8 @@ const Bookkeeper_Savings_Accounts = () => {
                           <TableActionButton
                             onClick={() =>
                               navigate(
-                                `/Savings_Details/${encodeURIComponent(row.account_number)}`
+                                `/Savings_Details/${encodeURIComponent(row.account_number)}`,
+                                { state: { fromPortal: "bookkeeper" } }
                               )
                             }
                           >

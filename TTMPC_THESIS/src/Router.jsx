@@ -215,7 +215,7 @@ export const router = createBrowserRouter([
     {path: "/Cashier_Savings", element: cashierGuarded(<Cashier_Savings/>)},
     {path: "/add_savings", element: cashierGuarded(<Add_Savings/>)},
     {path: "/open_time_deposit", element: cashierGuarded(<Open_Time_Deposit/>)},
-    {path: "/Savings_Details/:id", element: cashierGuarded(<Savings_Details/>)},
+    {path: "/Savings_Details/:id", element: <RequireRole allow={["cashier", "bookkeeper"]}><Savings_Details/></RequireRole>},
     {path: "/Secretary_Attendance", element: secretaryGuarded(<Secretary_Attendance/>)},
     {path: "/Secretary_General_Assembly", element: secretaryGuarded(<Secretary_General_Assembly/>)},
     {path: "/Secretary_Records", element: secretaryGuarded(<Secretary_Records/>)},
