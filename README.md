@@ -154,7 +154,7 @@ to enable **data-driven decision-making and proactive financial management**.
 ## ⚙️ Analytical Models Used
 
 - 📊 **Gradient Boosting (HistGradientBoostingClassifier)** → Default & delinquency prediction
-- 📈 **Seasonal ARIMA (SARIMAX)** → Loan demand forecasting
+- 📈 **MA 12 for Consolidated and Emergency Loan & Seasonal Naive for Bonus Loan ** → Loan demand forecasting
 - ⚖️ **Multi-Criteria Decision Analysis (MCDA)** → Member Classification (MIGS)
 - 📉 **Rule-Based Engine** → Debt capacity enforcement
 
