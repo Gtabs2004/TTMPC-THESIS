@@ -811,7 +811,7 @@ const LoanApprovalDetails = () => {
     if (!loanDetails?.id || !stage || !action) return;
     try {
       const { data: { user } = {} } = (await supabase.auth.getUser()) || {};
-      await fetch(`${API_BASE_URL}/api/loans/email/dispatch`, {
+      const response = await fetch(`${API_BASE_URL}/api/loans/email/dispatch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -824,8 +824,12 @@ const LoanApprovalDetails = () => {
           override_member_email: overrideMemberEmail || null,
         }),
       });
-    } catch (_err) {
-      // Email dispatch must never block the approval workflow.
+      if (!response.ok) {
+        console.warn(`Loan email dispatch (${stage}/${action}) failed: HTTP ${response.status}`);
+      }
+    } catch (err) {
+      // Email dispatch must never block the approval workflow, but leave a trace.
+      console.warn(`Loan email dispatch (${stage}/${action}) could not reach the server:`, err);
     }
   };
 
@@ -1417,7 +1421,7 @@ const LoanApprovalDetails = () => {
       //   Bookkeeper recommend -> in-app notification to Manager + member email ("recommended").
       //   Bookkeeper reject    -> in-app notification to Manager + member email ("declined").
       //   Manager proceed      -> in-app notification to Treasurer + member email.
-      //   Manager reject/revise-> in-app notification only (Bookkeeper side, future). No member email.
+      //   Manager reject/revise-> in-app notification to Bookkeeper + member email (with remarks).
       // The treasurer 'released/disbursed' member email is fired server-side from
       // the /api/cashier/disbursements/{loan_id}/disburse endpoint.
       if (isBookkeeperFlow && modalType === 'recommend') {
@@ -1452,8 +1456,24 @@ const LoanApprovalDetails = () => {
         }
       } else if (!isBookkeeperFlow && modalType === 'reject') {
         dispatchInAppNotification({ recipientRole: 'bookkeeper', notificationType: 'reject' });
+        if (sendEmail !== false) {
+          dispatchLoanEmail({
+            stage: 'manager',
+            action: 'reject',
+            remarks: remarks?.trim() || null,
+            overrideMemberEmail: loanDetails?.summary?.memberEmail || null,
+          });
+        }
       } else if (!isBookkeeperFlow && modalType === 'revise') {
         dispatchInAppNotification({ recipientRole: 'bookkeeper', notificationType: 'revise' });
+        if (sendEmail !== false) {
+          dispatchLoanEmail({
+            stage: 'manager',
+            action: 'revise',
+            remarks: remarks?.trim() || null,
+            overrideMemberEmail: loanDetails?.summary?.memberEmail || null,
+          });
+        }
       }
     } catch (err) {
       const message = err.message || 'Unable to update loan application status.';

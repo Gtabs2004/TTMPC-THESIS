@@ -15601,525 +15601,490 @@ def build_loan_pdf_response(
                 return f"Others: {purpose_other}"
             return purpose
 
-        def escape_pdf_text(value: str) -> str:
-            return (
-                value.replace("\\", "\\\\")
-                .replace("(", "\\(")
-                .replace(")", "\\)")
-                .replace("\r", " ")
-                .replace("\n", " ")
-            )
+        # Helvetica advance widths (1/1000 em) for ASCII 32..126. The overlay
+        # uses the built-in Helvetica, so measuring with the real metrics lets
+        # text be sized to fit its blank instead of guessing at a char count.
+        HELV_WIDTHS = (
+            [278, 278, 355, 556, 556, 889, 667, 222, 333, 333, 389, 584, 278, 333, 278, 278]
+            + [556] * 10
+            + [278, 278, 584, 584, 584, 556, 1015]
+            + [667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611]
+            + [278, 278, 278, 469, 556, 222]
+            + [556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556, 556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500]
+            + [334, 260, 334, 584]
+        )
 
-        def estimate_max_chars(max_width: float, font_size: float) -> int:
-            return max(1, int(max_width / max(font_size * 0.45, 1)))
+        def text_width(text: str, font_size: float) -> float:
+            total = 0
+            for ch in text:
+                code = ord(ch)
+                total += HELV_WIDTHS[code - 32] if 32 <= code <= 126 else 556
+            return total * font_size / 1000.0
 
-        def wrap_text_by_words(text: str, max_width: float, font_size: float, max_lines: int = 2) -> list[str]:
-            content = clean(text)
-            if not content:
-                return []
-
-            max_chars = estimate_max_chars(max_width, font_size)
-            words = content.split()
-            lines: list[str] = []
-            current_line = ""
-
-            for word in words:
-                candidate = word if not current_line else f"{current_line} {word}"
-                if len(candidate) <= max_chars:
-                    current_line = candidate
-                    continue
-
-                if current_line:
-                    lines.append(current_line)
+        def pdf_literal(value: str) -> str:
+            """Escape for a PDF string literal. The font uses WinAnsiEncoding, so
+            accented letters (Peña, Muñoz) are emitted as their cp1252 byte in
+            octal instead of the garbage a raw UTF-8 write produced."""
+            out: list[str] = []
+            for ch in value.replace("\r", " ").replace("\n", " "):
+                if ch in "\\()":
+                    out.append("\\" + ch)
+                elif 32 <= ord(ch) <= 126:
+                    out.append(ch)
                 else:
-                    lines.append(word[:max_chars])
-                    word = word[max_chars:]
+                    try:
+                        out.append("\\%03o" % ch.encode("cp1252")[0])
+                    except UnicodeEncodeError:
+                        out.append("?")
+            return "".join(out)
 
-                current_line = word
-                if len(lines) >= max_lines:
-                    break
-
-            if current_line and len(lines) < max_lines:
-                lines.append(current_line)
-
-            return lines[:max_lines]
+        def wrap_words(text: str, max_width: float, font_size: float) -> list[str]:
+            """Greedy word wrap by real width; over-long single tokens (emails,
+            IDs) are split by character."""
+            lines: list[str] = []
+            current = ""
+            for word in clean(text).split():
+                candidate = word if not current else f"{current} {word}"
+                if text_width(candidate, font_size) <= max_width:
+                    current = candidate
+                    continue
+                if current:
+                    lines.append(current)
+                    current = ""
+                while text_width(word, font_size) > max_width and len(word) > 1:
+                    cut = len(word) - 1
+                    while cut > 1 and text_width(word[:cut], font_size) > max_width:
+                        cut -= 1
+                    lines.append(word[:cut])
+                    word = word[cut:]
+                current = word
+            if current:
+                lines.append(current)
+            return lines
 
         def truncate_to_width(text: str, max_width: float, font_size: float) -> str:
             content = clean(text)
-            if not content:
-                return ""
-
-            max_chars = estimate_max_chars(max_width, font_size)
-            if len(content) <= max_chars:
+            if text_width(content, font_size) <= max_width:
                 return content
-
-            if max_chars <= 3:
-                return content[:max_chars]
-
-            return content[: max_chars - 3].rstrip() + "..."
+            while content and text_width(content + "...", font_size) > max_width:
+                content = content[:-1]
+            return content.rstrip() + "..."
 
         def build_text_commands() -> str:
             commands: list[str] = []
 
-            def add_text(x: float, y: float, text: str, font_size: float = 7.5, font_name: str = "/F1") -> None:
+            # Type is set a little above the printed rule so descenders
+            # (g, y, p) clear it.
+            LIFT = 2.0
+            PREF = 10.0   # preferred size for a value in a blank
+            MIN = 7.0     # smallest size before a value wraps/truncates
+
+            def add_text(x: float, y: float, text: str, font_size: float = PREF, font_name: str = "/F1") -> None:
                 content = clean(text)
                 if not content:
                     return
-                commands.append(f"BT {font_name} {font_size:.2f} Tf {x:.2f} {y:.2f} Td ({escape_pdf_text(content)}) Tj ET")
-
-            def add_wrapped_text(x: float, y: float, text: str, max_width: float, font_size: float = 7.0, line_height: float = 8.5, max_lines: int = 2) -> None:
-                lines = wrap_text_by_words(text, max_width, font_size, max_lines=max_lines)
-                for index, line in enumerate(lines):
-                    add_text(x, y - (index * line_height), line, font_size)
+                commands.append(f"BT {font_name} {font_size:.2f} Tf {x:.2f} {y:.2f} Td ({pdf_literal(content)}) Tj ET")
 
             def add_checkbox(x: float, y: float) -> None:
                 add_text(x, y, "3", 15.0, "/F2")
 
-            # Client Information rows for the EMERGENCY LOAN A4 template.
+            def fit_size(text: str, max_width: float, pref: float, min_size: float) -> float:
+                size = pref
+                while size > min_size and text_width(text, size) > max_width:
+                    size -= 0.25
+                return max(size, min_size)
+
+            def add_field(x0: float, x1: float, base: float, text: str, pref: float = PREF, min_size: float = MIN,
+                          align: str = "l", overhang: float = 0.0, two_lines: bool = False, wrap_size: float | None = None) -> None:
+                """One value in a ruled blank spanning x0..x1 (underline baseline
+                `base`). Shrinks to fit; `overhang` lets it run past the rule's
+                end when the margin is clear; `two_lines` wraps rather than
+                truncating when it still does not fit at min_size."""
+                content = clean(text)
+                if not content:
+                    return
+                width = (x1 + overhang) - x0 - 3
+                size = fit_size(content, width, pref, min_size)
+                if text_width(content, size) <= width:
+                    x = x0 + 2
+                    if align == "c":
+                        x = x0 + ((x1 - x0) - text_width(content, size)) / 2
+                    elif align == "r":
+                        x = x1 - 1 - text_width(content, size)
+                    add_text(x, base + LIFT, content, size)
+                    return
+                if two_lines:
+                    ws = wrap_size or min_size
+                    lines = wrap_words(content, width, ws)[:2]
+                    if len(lines) == 2 and text_width(lines[1], ws) > width:
+                        lines[1] = truncate_to_width(lines[1], width, ws)
+                    # Two stacked lines straddle the rule instead of piling up
+                    # above it into the row above.
+                    for i, line in enumerate(lines):
+                        add_text(x0 + 2, base + LIFT + 3.5 - i * (ws + 0.5), line, ws)
+                    return
+                add_text(x0 + 2, base + LIFT, truncate_to_width(content, width, min_size), min_size)
+
+            def add_flow(segments: list, text: str, pref: float = PREF, min_size: float = MIN) -> None:
+                """Value that runs across several blanks in reading order (e.g.
+                an amount in words that starts at the end of one line and
+                continues on the rule beneath). `segments` = [(x0, x1, base)]."""
+                words = clean(text).split()
+                if not words:
+                    return
+                size = pref
+                placed: list[str] = []
+                remaining: list[str] = []
+                while True:
+                    placed = []
+                    remaining = list(words)
+                    for x0, x1, _base in segments:
+                        line = ""
+                        while remaining:
+                            candidate = remaining[0] if not line else f"{line} {remaining[0]}"
+                            if text_width(candidate, size) <= (x1 - x0 - 3):
+                                line = candidate
+                                remaining.pop(0)
+                            else:
+                                break
+                        placed.append(line)
+                    if not remaining or size <= min_size:
+                        break
+                    size -= 0.25
+                if remaining:
+                    last = f"{placed[-1]} {' '.join(remaining)}".strip()
+                    x0, x1, _base = segments[-1]
+                    placed[-1] = truncate_to_width(last, x1 - x0 - 3, size)
+                for (x0, x1, base), line in zip(segments, placed):
+                    add_text(x0 + 2, base + LIFT, line, size)
+
+            def add_cell(x0: float, x1: float, base: float, text: str, pref: float = 8.0, min_size: float = 5.5,
+                         max_lines: int = 2, line_height: float | None = None) -> None:
+                """Value inside a table cell. Emails break after the '@'."""
+                content = clean(text)
+                if not content:
+                    return
+                width = x1 - x0 - 4
+                size = fit_size(content, width, pref, min_size)
+                if text_width(content, size) <= width:
+                    add_text(x0 + 2, base, content, size)
+                    return
+                if "@" in content and " " not in content:
+                    local, _, domain = content.partition("@")
+                    lines = [local + "@", domain]
+                else:
+                    lines = wrap_words(content, width, min_size)
+                lines = lines[:max_lines]
+                size = fit_size(max(lines, key=lambda s: text_width(s, 1)), width, pref, min_size)
+                step = line_height or (size + 0.8)
+                for i, line in enumerate(lines):
+                    add_text(x0 + 2, base - i * step, truncate_to_width(line, width, size), size)
+
+            def initial_name() -> str:
+                middle = clean(payload.middle_name)
+                mid = f" {middle[0].upper()}." if middle else ""
+                return " ".join(part for part in [f"{clean(payload.first_name)}{mid}".strip(), clean(payload.surname)] if part)
+
+            def sign_name(x0: float, x1: float, rule_base: float) -> None:
+                add_field(x0, x1, rule_base, initial_name(), 11.0, 8.0, align="c")
+
+            # ------------------------------------------------------------------
+            # Template geometry. Every number below is measured from the template
+            # PDF itself (text baselines and the x-extent of each underscore run,
+            # via PyMuPDF), in PDF points with the origin at the bottom-left. The
+            # earlier version estimated these as page-size fractions and drifted
+            # off the lines; re-measure rather than nudge by eye if a template is
+            # ever re-exported.
             #
-            # That template is landscape (842x595), not portrait like the
-            # consolidated form these coordinates were first tuned against, so
-            # the hand-picked round fractions below (0.75, 0.72, 0.70 ...)
-            # drifted further off with every row -- 13pt at Residence Address
-            # growing to 37pt by Spouse Occupation, which printed each value
-            # above its own label instead of on the line.
-            #
-            # These are measured from the template itself: y is the label text
-            # baseline (pypdf extract_text visitor_text), x is where that
-            # label's underscore run actually starts. Rows sit a uniform 0.02785
-            # apart. Re-measure rather than nudge by eye if the template is ever
-            # re-exported.
-            EMERGENCY_IDENTITY_ROWS = {
-                # Header boxes: New (21.2,559.0,20.3,16.8), Renewal
-                # (75.7,559.0,22.4,17.7), Control No (194.2,549.65,63.75,14.25).
-                # The control box is wide enough here for the number to sit
-                # inside it at 7pt.
-                "checkbox_new":      (0.0302, 0.9408),
-                "checkbox_renewal":  (0.0962, 0.9416),
-                "control_no":        (0.2342, 0.9277),
-                "date_applied":      (0.0963, 0.9093),
-                # The name row is built differently from every other field on
-                # this form: the ruled line sits at 0.8220 and "Surname /
-                # First Name / Middle Name" are CAPTIONS printed 12pt BELOW it
-                # at 0.8017, rather than labels preceding a blank. Writing at
-                # the caption baseline lands the values on top of the caption
-                # text, so these three use the line above it.
-                "surname":           (0.0245, 0.8220),
-                "first_name":        (0.1302, 0.8220),
-                "middle_name":       (0.2438, 0.8220),
-                "contact_no":        (0.1461, 0.7554),
-                "residence_address": (0.1639, 0.7275),
-                "latest_net_pay":    (0.1112, 0.6996),
-                "share_capital":     (0.2649, 0.6996),
-                "date_of_birth":     (0.0867, 0.6721),
-                "age":               (0.2062, 0.6721),
-                "civil_status":      (0.1171, 0.6442),
-                "gender":            (0.2160, 0.6442),
-                "tin_no":            (0.1143, 0.6163),
-                "gsis_sss_no":       (0.1625, 0.5884),
-                "employer_name":     (0.1186, 0.5608),
-                "office_address":    (0.1250, 0.5329),
-                "spouse_name":       (0.1233, 0.5050),
-                "spouse_occupation": (0.1487, 0.4772),
+            # Identity row = (x_start, x_end, rule_baseline).
+            # ------------------------------------------------------------------
+            STD_CONSOLIDATED = {
+                "control_box": (196.1, 250.1, 549.5, 563.8),
+                "date_applied": (83.4, 178.4, 541.2),
+                "name": (22.6, 258.1, 489.2, (22.6, 101.4, 186.4)),
+                "contact_no": (69.6, 193.6, 457.4),
+                "residence_address": (98.9, 235.1, 442.5),
+                "latest_net_pay": (79.4, 139.4, 428.0),
+                "share_capital": (198.4, 238.6, 428.0),
+                "date_of_birth": (69.2, 133.2, 413.1),
+                "age": (158.4, 234.4, 413.1),
+                "civil_status": (64.0, 128.0, 398.5),
+                "gender": (162.2, 234.1, 398.5),
+                "tin_no": (49.8, 233.7, 383.7),
+                "gsis_sss_no": (73.9, 233.9, 369.1),
+                "employer_name": (93.2, 233.1, 354.3),
+                "office_address": (81.7, 229.6, 339.5),
+                "spouse_name": (88.5, 232.6, 324.9),
+                "spouse_occupation": (107.5, 231.4, 310.1),
+            }
+            CONSOLIDATED_500K = {
+                "control_box": (229.5, 276.0, 556.7, 577.4),
+                "date_applied": (88.0, 183.1, 544.6),
+                "name": (21.0, 267.5, 492.6, (21.0, 127.6, 223.2)),
+                "contact_no": (73.7, 213.3, 446.4),
+                "residence_address": (106.9, 259.9, 429.8),
+                "latest_net_pay": (84.9, 143.5, 413.1),
+                "share_capital": (209.9, 259.5, 413.1),
+                "date_of_birth": (73.4, 145.5, 396.5),
+                "age": (174.1, 259.5, 396.5),
+                "civil_status": (67.5, 139.5, 380.1),
+                "gender": (177.8, 258.8, 380.1),
+                "tin_no": (51.6, 258.5, 363.5),
+                "gsis_sss_no": (78.5, 258.7, 346.9),
+                "employer_name": (100.2, 257.7, 330.3),
+                "office_address": (87.5, 254.1, 313.7),
+                "spouse_name": (95.1, 257.3, 297.3),
+                "spouse_occupation": (116.5, 260.5, 280.7),
+            }
+            EMERGENCY = {
+                "control_box": (194.2, 258.0, 549.7, 563.9),
+                "date_applied": (81.4, 176.4, 541.4),
+                "name": (20.6, 256.1, 489.4, (20.6, 109.6, 205.2)),
+                "contact_no": (73.3, 212.9, 449.8),
+                "residence_address": (106.5, 259.5, 433.1),
+                "latest_net_pay": (84.5, 152.1, 416.5),
+                "share_capital": (218.6, 263.8, 416.5),
+                "date_of_birth": (73.0, 145.1, 400.1),
+                "age": (173.6, 259.1, 400.1),
+                "civil_status": (67.1, 139.1, 383.5),
+                "gender": (177.4, 258.4, 383.5),
+                "tin_no": (51.2, 258.1, 366.9),
+                "gsis_sss_no": (78.1, 258.3, 350.3),
+                "employer_name": (99.8, 257.3, 333.9),
+                "office_address": (87.1, 253.7, 317.3),
+                "spouse_name": (94.7, 256.9, 300.7),
+                "spouse_occupation": (116.1, 255.7, 284.1),
+            }
+            # Bonus carries a reduced field set: no TIN, GSIS/SSS, Share Capital
+            # or Spouse, and "Latest Net Pay" is printed as "Basic Pay". Rows
+            # absent here are skipped rather than stamped into blank space.
+            BONUS = {
+                "control_box": (194.1, 264.1, 543.8, 564.1),
+                "date_applied": (81.4, 176.4, 541.4),
+                "name": (20.6, 266.9, 491.4, (20.6, 117.3, 206.2)),
+                "contact_no": (68.0, 222.6, 454.4),
+                "residence_address": (97.0, 231.4, 436.0),
+                "latest_net_pay": (60.8, 215.2, 417.8),
+                "date_of_birth": (71.6, 151.5, 399.4),
+                "age": (38.8, 133.5, 381.1),
+                "civil_status": (64.2, 144.1, 362.7),
+                "gender": (178.1, 267.6, 362.7),
+                "employer_name": (93.4, 237.8, 344.5),
+                "office_address": (80.6, 245.0, 326.1),
             }
 
-            # Same idea for CONSOLIDATED LOAN-500,000 AND UP.pdf, which is also
-            # landscape but has its own row pitch and label widths, so it cannot
-            # share the emergency table. Measured the same way.
-            CONSOLIDATED_500K_ROWS = {
-                # Header. Box rects: New (21.2,559.0,20.3,16.8), Renewal
-                # (75.7,559.0,22.4,17.7), Control No (229.5,556.7,46.5,20.7).
-                # The tick is a 15pt ZapfDingbats glyph centred in its box. The
-                # control number is too long to fit inside a 46.5pt-wide box at
-                # a legible size, so it sits on the clear band just beneath it
-                # (box bottom 556.7, "Date Applied" baseline 544.6).
-                "checkbox_new":      (0.0302, 0.9408),
-                "checkbox_renewal":  (0.0962, 0.9416),
-                "control_no":        (0.2553, 0.9190),
-                "date_applied":      (0.0968, 0.9147),
-                # Name row: the rule is at 0.8273 and the Surname / First Name /
-                # Middle Name captions print BELOW it at 0.8072.
-                "surname":           (0.0249, 0.8273),
-                "first_name":        (0.1515, 0.8273),
-                "middle_name":       (0.2651, 0.8273),
-                "contact_no":        (0.0861, 0.7497),
-                "residence_address": (0.1235, 0.7219),
-                "latest_net_pay":    (0.1075, 0.6938),
-                "share_capital":     (0.2582, 0.6938),
-                "date_of_birth":     (0.0968, 0.6659),
-                "age":               (0.2057, 0.6659),
-                "civil_status":      (0.0914, 0.6384),
-                "gender":            (0.2108, 0.6384),
-                "tin_no":            (0.0647, 0.6105),
-                "gsis_sss_no":       (0.0968, 0.5826),
-                "employer_name":     (0.1135, 0.5548),
-                "office_address":    (0.1075, 0.5269),
-                "spouse_name":       (0.1075, 0.4993),
-                "spouse_occupation": (0.1342, 0.4714),
-            }
-
-            # BONUS LOAN A4.pdf. Also landscape, and it carries a REDUCED field
-            # set: there is no TIN, GSIS/SSS, Share Capital or Spouse line on
-            # this form, and "Latest Net Pay" is printed as "Basic Pay". Rows
-            # absent from this table are suppressed rather than stamped into
-            # blank space (see the `rows` handling in slot()).
-            BONUS_IDENTITY_ROWS = {
-                # Header boxes: New (21.2,559.0,20.3,16.8), Renewal
-                # (75.7,559.0,22.4,17.7), Control No (194.05,543.75,70.1,20.35).
-                "checkbox_new":      (0.0302, 0.9408),
-                "checkbox_renewal":  (0.0962, 0.9416),
-                "control_no":        (0.2340, 0.9229),
-                "date_applied":      (0.0963, 0.9093),
-                # Name rule at 0.8253; Surname / First Name / Middle Name are
-                # captions printed below it at 0.8042.
-                "surname":           (0.0245, 0.8253),
-                "first_name":        (0.1641, 0.8253),
-                "middle_name":       (0.2874, 0.8253),
-                "contact_no":        (0.0856, 0.7632),
-                "residence_address": (0.1230, 0.7321),
-                "latest_net_pay":    (0.0803, 0.7017),  # labelled "Basic Pay:"
-                "date_of_birth":     (0.0963, 0.6708),
-                "age":               (0.0482, 0.6401),
-                "civil_status":      (0.0910, 0.6092),
-                "gender":            (0.2192, 0.6092),
-                "employer_name":     (0.1124, 0.5786),
-                "office_address":    (0.1070, 0.5477),
-            }
-
-            def render_common_identity_fields(rows: dict | None = None) -> str:
-                """Shared Client Information block.
-
-                `rows` overrides the default portrait-tuned placements with a
-                template-measured table. Callers that pass nothing keep the
-                exact coordinates they had before.
-                """
-                # Lift the baseline clear of the ruled line so descenders
-                # (g, y, p) do not sit on top of it.
-                BASELINE_LIFT = 2.0
-
-                def slot(key: str, default_x: float, default_y: float):
-                    """Placement for one field, or None if this template has no
-                    such field.
-
-                    When a measured table is supplied it is authoritative: a key
-                    missing from it means the template genuinely lacks that line
-                    (the bonus form has no TIN / GSIS / Share Capital / Spouse),
-                    so the value is skipped rather than stamped into blank space
-                    at the portrait default.
-                    """
-                    if rows is not None:
-                        if key not in rows:
-                            return None
-                        fx, fy = rows[key]
-                        return page_width * fx, page_height * fy + BASELINE_LIFT
-                    return default_x, default_y
-
-                def put(key: str, default_x: float, default_y: float, value: str, size: float = 7.0) -> None:
-                    placement = slot(key, default_x, default_y)
-                    if placement is None:
-                        return
-                    add_text(placement[0], placement[1], value, size)
-
-                def put_wrapped(key: str, default_x: float, default_y: float, value: str, max_lines: int = 2) -> None:
-                    placement = slot(key, default_x, default_y)
-                    if placement is None:
-                        return
-                    add_wrapped_text(placement[0], placement[1], value, page_width * 0.26, 7.0, 8.2, max_lines)
-
-                # Header: application-type tick, control number, date applied.
-                # The tick glyph is drawn at 15pt, so its placement is the box
-                # centre rather than a rule baseline.
+            def render_identity(rows: dict) -> None:
+                """Header (type tick, control no., date) + Client Information."""
                 application_type = clean(payload.application_type).lower()
                 if application_type in ("new", "renewal"):
-                    box_key = "checkbox_new" if application_type == "new" else "checkbox_renewal"
-                    box = slot(box_key, page_width * (0.03 if application_type == "new" else 0.10), top_y)
-                    if box is not None:
-                        add_checkbox(box[0], box[1])
+                    # The tick is a 15pt ZapfDingbats glyph centred in its box
+                    # (New 21.2..41.5, Renewal 75.7..98.1; both y 559..576).
+                    add_checkbox(25.4 if application_type == "new" else 79.6, 560.2)
 
-                # 7pt on the measured templates: a 16-char control number at
-                # 7.5pt overruns the narrow >500k header band.
-                put("control_no", page_width * 0.23, top_y - 8, clean(payload.control_no), 7.0 if rows else 7.5)
-                put("date_applied", page_width * 0.105, page_height * 0.915, format_date(payload.date_applied), 7.5)
-
-                put("surname", left_x, info_y - 20, clean(payload.surname))
-                put("first_name", page_width * 0.125, info_y - 20, clean(payload.first_name))
-                put("middle_name", page_width * 0.245, info_y - 20, clean(payload.middle_name))
-
-                put("contact_no", page_width * 0.125, info_y - 50, clean(payload.contact_no))
-                put_wrapped("residence_address", page_width * 0.125, page_height * 0.75, clean(payload.residence_address))
-                put("latest_net_pay", page_width * 0.115, page_height * 0.72, format_amount(payload.latest_net_pay))
-                put("share_capital", page_width * 0.245, page_height * 0.72, format_amount(payload.share_capital))
-                put("date_of_birth", page_width * 0.105, page_height * 0.70, format_date(payload.date_of_birth))
-                put("age", page_width * 0.205, page_height * 0.70, clean(payload.age))
-                put("civil_status", page_width * 0.105, page_height * 0.67, clean(payload.civil_status))
-                put("gender", page_width * 0.205, page_height * 0.67, clean(payload.gender))
-                put("tin_no", page_width * 0.105, page_height * 0.65, clean(payload.tin_no))
-                put("gsis_sss_no", page_width * 0.105, page_height * 0.62, clean(payload.gsis_sss_no))
-                put_wrapped("employer_name", page_width * 0.120, page_height * 0.60, clean(payload.employer_name))
-                put_wrapped("office_address", page_width * 0.120, page_height * 0.58, clean(payload.office_address))
-
-                if clean(payload.spouse_name):
-                    put_wrapped("spouse_name", page_width * 0.120, page_height * 0.56, clean(payload.spouse_name), max_lines=1)
-                if clean(payload.spouse_occupation):
-                    put_wrapped("spouse_occupation", page_width * 0.120, page_height * 0.54, clean(payload.spouse_occupation), max_lines=1)
-
-                borrower_name = " ".join(part for part in [clean(payload.first_name), clean(payload.middle_name), ".", clean(payload.surname)] if part)
-                add_text(page_width * 0.125, page_height * 0.09, borrower_name, 9.0)
-                return borrower_name
-
-            def render_consolidated_fields() -> None:
-                is_large = amount_number > 500000
-
-                if is_large:
-                    # The >500k template is landscape with its own row pitch, so
-                    # it needs its own measured table (see CONSOLIDATED_500K_ROWS).
-                    render_common_identity_fields(CONSOLIDATED_500K_ROWS)
-                    LIFT = 2.0
-                    # Amount in words sits on its own full-width rule beneath
-                    # "I hereby apply for a loan in the amount of".
-                    add_wrapped_text(page_width * 0.0249, page_height * 0.3697 + LIFT, clean(payload.loan_amount_words), page_width * 0.30, 7.0, 8.2, 1)
-                    add_text(page_width * 0.0487, page_height * 0.3448 + LIFT, format_amount(payload.loan_amount_numeric), 7.0)
-                    # "...for the purpose of" ends the line above; the blank for
-                    # the purpose itself is the full-width rule under it.
-                    add_wrapped_text(page_width * 0.0249, page_height * 0.3203 + LIFT, loan_purpose_text(), page_width * 0.27, 7.0, 8.2, 1)
-                    add_text(page_width * 0.0701, page_height * 0.2954 + LIFT, clean(payload.loan_term_months), 7.0)
-                    add_text(page_width * 0.0297, page_height * 0.2706 + LIFT, format_amount(payload.monthly_amortization), 7.0)
+                control = clean(payload.control_no)
+                bx0, bx1, by0, by1 = rows["control_box"]
+                inside = fit_size(control, bx1 - bx0 - 4, 9.0, 4.0)
+                if inside >= 6.5:
+                    add_text(bx0 + ((bx1 - bx0) - text_width(control, inside)) / 2, by0 + ((by1 - by0) - inside * 0.72) / 2, control, inside)
                 else:
-                    render_common_identity_fields()
-                    add_wrapped_text(page_width *0.245, page_height * 0.41, clean(payload.loan_amount_words), page_width * 0.24, 7.0, 8.2, 2)
-                    add_text(page_width * 0.245, page_height * 0.38, format_amount(payload.loan_amount_numeric), 7.0)
-                    add_wrapped_text(page_width * 0.155, page_height * 0.36, loan_purpose_text(), page_width * 0.16, 7.0, 8.2, 2)
-                    add_text(page_width * 0.255, page_height * 0.33, clean(payload.loan_term_months), 7.0)
-                    add_text(page_width * 0.205, page_height * 0.31, format_amount(payload.monthly_amortization), 7.0)
+                    # Box too narrow for a legible size: sit it on the clear band
+                    # directly beneath, right-aligned to the box.
+                    size = 8.0
+                    add_text(bx1 - text_width(control, size), by0 - 9.0, control, size)
 
-                borrower_name = " ".join(part for part in [clean(payload.first_name), clean(payload.middle_name), ".", clean(payload.surname)] if part)
+                x0, x1, base = rows["date_applied"][:3]
+                add_field(x0, x1, base, format_date(payload.date_applied))
 
-                if is_large:
-                    # Loan Contract panel. Measured from the template the same
-                    # way as the identity rows; the portrait info_y/footer_y
-                    # anchors used below put these ~19pt low, and the additional
-                    # information row a full 87pt off (it landed on the approver
-                    # names instead of inside its table).
-                    LIFT = 2.0
-                    add_text(page_width * 0.3758, page_height * 0.8814 + LIFT, borrower_name, 9.0)
-                    add_wrapped_text(page_width * 0.4106, page_height * 0.8320 + LIFT, clean(payload.loan_amount_words), page_width * 0.20, 7.0, 8.2, 1)
-                    add_text(page_width * 0.5450, page_height * 0.8075 + LIFT, format_amount(payload.loan_amount_numeric), 7.0)
-                    # Signature-over-printed-name rule above its caption.
-                    add_text(page_width * 0.3799, page_height * 0.5329 + LIFT, borrower_name, 9.0)
+                nx0, nx1, nbase, caps = rows["name"]
+                cap_first, cap_middle = caps[1], caps[2]
+                add_field(nx0, cap_first - 4, nbase, clean(payload.surname))
+                add_field(cap_first, cap_middle - 4, nbase, clean(payload.first_name))
+                add_field(cap_middle, nx1, nbase, clean(payload.middle_name))
 
-                    # Borrower's Additional Information table. The grid rects
-                    # put the header row at y 149.1-184.5 and the empty DATA row
-                    # at 126.5-148.4, so values go on a baseline inside the
-                    # latter -- writing at the header caption baseline (0.2660)
-                    # would print them over "E-mail Address" / "Tel. No.".
-                    # Column x from the same rects: 296.7 / 357.9 / 426.3.
-                    CELL_Y = 0.2242
-                    add_wrapped_text(page_width * 0.3553, page_height * CELL_Y, clean(payload.user_email), page_width * 0.068, 6.0, 6.5, 2)
-                    add_text(page_width * 0.4280, page_height * CELL_Y, clean(payload.contact_no), 6.0)
-                    add_wrapped_text(page_width * 0.5093, page_height * CELL_Y, clean(payload.residence_address), page_width * 0.069, 6.0, 6.5, 2)
-                else:
-                    add_text(page_width * 0.405, info_y - 8, borrower_name, 9.0)
-                    add_wrapped_text(page_width *0.455,  info_y - 35, clean(payload.loan_amount_words), page_width * 0.24, 7.0, 8.2, 2)
-                    add_text(page_width *0.565, info_y - 50, format_amount(payload.loan_amount_numeric), 7.0)
-                    add_text(page_width *0.455, page_height * 0.50, borrower_name, 10.0)
-
-                    footer_email = clean(payload.user_email)
-                    if footer_email:
-                        email_parts = footer_email.split("@", 1)
-                        if len(email_parts) == 2:
-                            add_text(center_x, footer_y + 4, f"{email_parts[0]}@", 8.6)
-                            add_text(center_x, footer_y - 4, email_parts[1], 8.6)
-                        else:
-                            add_wrapped_text(center_x, footer_y + 2, footer_email, page_width * 0.09, 7.2, 7.2, 3)
-                    add_text(page_width * 0.48, footer_y, clean(payload.contact_no), 8.6)
-                    add_wrapped_text(page_width * 0.58, footer_y, clean(payload.residence_address), page_width * 0.13, 8.6, 8.2, 2)
-
-                # The >500k template shifts the oath block, so pick the layout
-                # from the same threshold the endpoint uses to pick the template.
-                render_co_makers_oath(is_large_format=amount_number > 500000)
-
-            def render_bonus_fields() -> None:
-                render_common_identity_fields(BONUS_IDENTITY_ROWS)
-
-                # Loan Agreement. This template carries only three blanks --
-                # amount in words (its own full-width rule), the "(Php ___)"
-                # figure, and the purpose. There is no term or monthly
-                # amortization line on the bonus form (it is repaid single-shot
-                # from the mid-year / year-end bonus), so neither is stamped.
-                LIFT = 2.0
-                add_wrapped_text(page_width * 0.0245, page_height * 0.3720 + LIFT, clean(payload.loan_amount_words), page_width * 0.30, 7.0, 8.2, 1)
-                add_text(page_width * 0.0480, page_height * 0.3462 + LIFT, format_amount(payload.loan_amount_numeric), 7.0)
-                add_wrapped_text(page_width * 0.0245, page_height * 0.3200 + LIFT, loan_purpose_text(), page_width * 0.30, 7.0, 8.2, 1)
-
-                # Applicant's Authorization for Salary Deduction (middle panel):
-                # "...deduct from it the amount of ____ (Php ____)".
-                bonus_words = clean(payload.bonus_amount_words) or clean(payload.loan_amount_words)
-                bonus_numeric = clean(payload.bonus_amount_numeric) or clean(payload.loan_amount_numeric)
-                add_wrapped_text(page_width * 0.3497, page_height * 0.6673 + LIFT, bonus_words, page_width * 0.12, 7.0, 8.2, 1)
-                add_text(page_width * 0.5620, page_height * 0.6673 + LIFT, format_amount(bonus_numeric), 7.0)
-
-            def render_emergency_fields() -> None:
-                render_common_identity_fields(EMERGENCY_IDENTITY_ROWS)
-
-                # Loan Agreement paragraph. Same story as the identity rows
-                # above: these were carried over from the portrait consolidated
-                # form and sat a uniform ~28pt too high on this landscape
-                # template, so every value floated above its ruled line.
-                # Baselines and blank-start offsets below are measured from
-                # EMERGENCY LOAN A4.pdf.
-                LIFT = 2.0
-                # "...in the amount of ______" (amount in words, wraps to the
-                # full-width line beneath it).
-                add_wrapped_text(page_width * 0.2245, page_height * 0.3592 + LIFT, clean(payload.loan_amount_words), page_width * 0.15, 7.0, 8.2, 2)
-                # "(Php____)" on the following line.
-                add_text(page_width * 0.2217, page_height * 0.3344 + LIFT, format_amount(payload.loan_amount_numeric), 7.0)
-                # "the purpose of ______" -- blank runs to the right margin.
-                add_wrapped_text(page_width * 0.1000, page_height * 0.3098 + LIFT, loan_purpose_text(), page_width * 0.21, 7.0, 8.2, 1)
-                # "for a term of ___ months" -- short blank between the words.
-                add_text(page_width * 0.2549, page_height * 0.2850 + LIFT, clean(payload.loan_term_months), 7.0)
-                # "with a monthly amortization of ______".
-                add_text(page_width * 0.1710, page_height * 0.2601 + LIFT, format_amount(payload.monthly_amortization), 7.0)
-                render_emergency_co_makers()
+                values = {
+                    "contact_no": clean(payload.contact_no),
+                    "residence_address": clean(payload.residence_address),
+                    "latest_net_pay": format_amount(payload.latest_net_pay),
+                    "share_capital": format_amount(payload.share_capital),
+                    "date_of_birth": format_date(payload.date_of_birth),
+                    "age": clean(payload.age),
+                    "civil_status": clean(payload.civil_status),
+                    "gender": clean(payload.gender),
+                    "tin_no": clean(payload.tin_no),
+                    "gsis_sss_no": clean(payload.gsis_sss_no),
+                    "employer_name": clean(payload.employer_name),
+                    "office_address": clean(payload.office_address),
+                    "spouse_name": clean(payload.spouse_name),
+                    "spouse_occupation": clean(payload.spouse_occupation),
+                }
+                long_text = {"residence_address", "employer_name", "office_address"}
+                for key, value in values.items():
+                    if key not in rows or not value:
+                        continue
+                    x0, x1, base = rows[key][:3]
+                    # Long free text may run past the rule (the panel border is
+                    # ~20pt further right) and wraps as a last resort.
+                    if key in long_text:
+                        add_field(x0, x1, base, value, min_size=6.5, overhang=18.0, two_lines=True, wrap_size=7.0)
+                    else:
+                        add_field(x0, x1, base, value)
 
             def co_maker(index: int):
                 makers = payload.co_makers or []
                 return makers[index] if index < len(makers) else None
 
-            def render_co_makers_oath(is_large_format: bool) -> None:
-                """Co-Makers' Oath block on the right-hand column.
+            # Co-Makers' Oath rows, each a (x0, x1, base). A slot missing from a
+            # layout means that line is not on this template.
+            STD_OATH = {
+                "we": [(595.7, 699.7, 529.8), (712.8, 816.8, 529.8)],
+                "of": (642.5, 794.1, 515.8),
+                "makers": [
+                    {"sig": (588.5, 815.7, 372.3), "id_type": (690.9, 753.0, 347.3), "id_no": (654.8, 753.2, 330.9),
+                     "address": (680.0, 756.6, 314.5), "email": (663.6, 754.8, 299.3), "mobile": (662.2, 749.6, 284.1)},
+                    {"sig": (592.5, 811.4, 255.3), "id_type": (690.9, 767.6, 230.9), "id_no": (651.2, 771.6, 214.5),
+                     "address": (676.3, 774.8, 198.1), "email": (661.8, 774.7, 182.9), "mobile": (662.1, 778.7, 167.7)},
+                ],
+            }
+            OATH_500K = {
+                "we": [(589.9, 697.5, 541.8), (709.8, 817.4, 541.8)],
+                "of": (633.3, 757.1, 527.8),
+                "makers": [
+                    {"sig": (579.5, 818.7, 383.9), "id_type": (718.1, 804.5, 362.1), "id_no": (655.8, 771.0, 349.1)},
+                    {"sig": (578.9, 819.0, 321.9), "id_type": (718.2, 804.5, 290.7), "id_no": (655.7, 770.9, 277.7)},
+                ],
+            }
+            OATH_RIGHT_LIMIT = 818.0
 
-                Two identical field groups stacked vertically. The oath's
-                opening sentence names both co-makers and the borrower; each
-                group below carries name/ID/address/email/mobile.
-                """
-                first = co_maker(0)
-                second = co_maker(1)
+            def render_co_makers_oath(layout: dict) -> None:
+                first, second = co_maker(0), co_maker(1)
                 if not first and not second:
                     return
+                for (x0, x1, base), maker in zip(layout["we"], (first, second)):
+                    if maker:
+                        add_field(x0, x1, base, clean(maker.name), 9.5, 6.5)
+                x0, x1, base = layout["of"]
+                add_field(x0, x1, base, initial_name(), 9.5, 6.5)
 
-                first_name_text = clean(first.name) if first else ""
-                second_name_text = clean(second.name) if second else ""
-                borrower_name = " ".join(
-                    part for part in [clean(payload.first_name), clean(payload.middle_name), clean(payload.surname)] if part
-                )
-
-                # "We, ____ and ____, the co-makers oF ____ hereby..."
-                oath_y = page_height * (0.9099 if is_large_format else 0.8898)
-                add_text(page_width * 0.712, oath_y + 2, truncate_to_width(first_name_text, page_width * 0.085, 6.5), 6.5)
-                add_text(page_width * 0.850, oath_y + 2, truncate_to_width(second_name_text, page_width * 0.110, 6.5), 6.5)
-                add_text(
-                    page_width * 0.772,
-                    page_height * (0.8863 if is_large_format else 0.8663) + 2,
-                    truncate_to_width(borrower_name, page_width * 0.150, 6.5),
-                    6.5,
-                )
-
-                # Per-co-maker detail groups. Baselines differ between the
-                # standard A4 template and the >500k large-format one.
-                if is_large_format:
-                    # Signature rules sit at .6448/.5407 (the .63/.51 values are
-                    # the captions below them). Email/mobile/residence live in a
-                    # separate "Co-maker's Additional Information" table here,
-                    # not on this block, so those slots stay unused.
-                    groups = [(0.6448, 0.6082, 0.5864, None, None, None), (0.5407, 0.4882, 0.4664, None, None, None)]
-                else:
-                    groups = [
-                        (0.6253, 0.5833, 0.5558, 0.5282, 0.5027, 0.4772),
-                        (0.4288, 0.3878, 0.3603, 0.3327, 0.3072, 0.2817),
-                    ]
-
-                for index, rows in enumerate(groups):
+                for index, slots in enumerate(layout["makers"]):
                     maker = co_maker(index)
                     if not maker:
                         continue
+                    values = {
+                        "sig": clean(maker.name), "id_type": clean(maker.id_type), "id_no": clean(maker.id_no),
+                        "address": clean(maker.address), "email": clean(maker.email), "mobile": clean(maker.mobile),
+                    }
+                    for key, (sx0, sx1, sbase) in slots.items():
+                        value = values[key]
+                        if not value:
+                            continue
+                        if key == "sig":
+                            add_field(sx0, sx1, sbase, value, 10.0, 7.0, align="c")
+                        else:
+                            # Short blanks: let the value run to the panel edge
+                            # and shrink to fit rather than spilling over it.
+                            add_field(sx0, sx1, sbase, value, 9.0, 6.0, overhang=max(0.0, OATH_RIGHT_LIMIT - sx1))
 
-                    name_y, id_type_y, id_no_y, address_y, email_y, mobile_y = rows
+            def render_additional_info_table(columns: list, first_base: float, line_height: float, max_lines: int, pref: float, min_size: float) -> None:
+                """Borrower's Additional Information (e-mail / tel / residence)."""
+                values = (clean(payload.user_email), clean(payload.contact_no), clean(payload.residence_address))
+                for (cx0, cx1), value in zip(columns, values):
+                    add_cell(cx0, cx1, first_base, value, pref, min_size, max_lines, line_height)
 
-                    # Signature-over-printed-name line sits just above its caption.
-                    add_text(
-                        page_width * 0.700,
-                        page_height * name_y + 3,
-                        truncate_to_width(clean(maker.name), page_width * 0.230, 7.0),
-                        7.0,
-                    )
-                    add_text(
-                        page_width * (0.860 if is_large_format else 0.836),
-                        page_height * id_type_y,
-                        truncate_to_width(clean(maker.id_type), page_width * (0.080 if is_large_format else 0.105), 6.5),
-                        6.5,
-                    )
-                    add_text(
-                        page_width * (0.790 if is_large_format else 0.780),
-                        page_height * id_no_y,
-                        truncate_to_width(clean(maker.id_no), page_width * 0.150, 6.5),
-                        6.5,
-                    )
+            def render_consolidated_fields() -> None:
+                if amount_number > 500000:
+                    render_identity(CONSOLIDATED_500K)
+                    add_flow([(21.0, 273.0, 220.1)], clean(payload.loan_amount_words))
+                    add_field(39.0, 123.0, 205.3, format_amount(payload.loan_amount_numeric))
+                    add_flow([(21.0, 253.1, 190.7)], loan_purpose_text())
+                    add_field(54.6, 114.6, 175.9, clean(payload.loan_term_months), align="c")
+                    add_field(21.0, 109.0, 161.1, format_amount(payload.monthly_amortization))
+                    sign_name(21.0, 272.0, 42.8)
 
-                    if address_y is not None:
-                        add_text(
-                            page_width * 0.822,
-                            page_height * address_y,
-                            truncate_to_width(clean(maker.address), page_width * 0.122, 6.5),
-                            6.5,
-                        )
-                    if email_y is not None:
-                        add_text(
-                            page_width * 0.790,
-                            page_height * email_y,
-                            truncate_to_width(clean(maker.email), page_width * 0.155, 6.5),
-                            6.5,
-                        )
-                    if mobile_y is not None:
-                        add_text(
-                            page_width * 0.793,
-                            page_height * mobile_y,
-                            truncate_to_width(clean(maker.mobile), page_width * 0.150, 6.5),
-                            6.5,
-                        )
-
-                if is_large_format:
+                    # Loan Contract panel.
+                    add_field(307.1, 455.1, 524.8, initial_name(), 10.0, 7.0)
+                    add_flow([(345.7, 489.7, 495.4), (300.9, 420.9, 480.8)], clean(payload.loan_amount_words))
+                    add_field(453.1, 505.1, 480.8, format_amount(payload.loan_amount_numeric), 9.0, 6.5)
+                    sign_name(319.9, 531.6, 317.3)
+                    # Table columns 296.7 / 357.9 / 426.3 / 489; the data row is
+                    # y 126.5..148.4, so two short lines fit (baselines 140.5/132.3).
+                    render_additional_info_table([(296.7, 357.9), (357.9, 426.3), (426.3, 489.0)], 140.5, 8.2, 2, 7.5, 5.5)
+                    render_co_makers_oath(OATH_500K)
                     render_co_maker_additional_info()
+                else:
+                    render_identity(STD_CONSOLIDATED)
+                    add_flow([(191.1, 267.2, 240.7), (22.6, 154.6, 225.9)], clean(payload.loan_amount_words))
+                    add_field(172.6, 252.6, 225.9, format_amount(payload.loan_amount_numeric))
+                    add_flow([(81.4, 249.6, 211.3), (22.6, 158.6, 196.5)], loan_purpose_text())
+                    add_field(208.7, 228.7, 196.5, clean(payload.loan_term_months), align="c")
+                    add_field(142.0, 230.1, 181.9, format_amount(payload.monthly_amortization))
+                    sign_name(22.6, 248.9, 48.8)
+
+                    # Loan Contract panel.
+                    add_field(309.5, 461.5, 504.4, initial_name(), 10.0, 7.0)
+                    add_flow([(348.7, 537.6, 473.4), (303.5, 430.7, 457.8)], clean(payload.loan_amount_words))
+                    add_field(459.9, 513.4, 457.8, format_amount(payload.loan_amount_numeric), 9.0, 6.5)
+                    sign_name(324.1, 535.8, 290.5)
+                    # Data row is y 48.2..123.9 (tall); start under the header.
+                    render_additional_info_table([(303.7, 385.5), (385.9, 463.1), (463.5, 544.5)], 112.0, 10.0, 4, 8.5, 6.0)
+                    render_co_makers_oath(STD_OATH)
 
             def render_co_maker_additional_info() -> None:
-                """Large-format template only: the 4-column Co-Maker's
-                Additional Information table (Name / E-mail / Tel.-Mobile /
-                Residence). The standard A4 oath carries these inline instead.
-                """
+                """>500k only: Co-Maker's Additional Information table. Columns
+                measured from the template grid; rows are 17pt tall."""
                 columns = (
-                    (0.690, 0.085, lambda m: clean(m.name)),
-                    (0.780, 0.062, lambda m: clean(m.email)),
-                    (0.848, 0.055, lambda m: clean(m.mobile)),
-                    (0.905, 0.072, lambda m: clean(m.address)),
+                    (572.0, 648.0, lambda m: clean(m.name)),
+                    (648.0, 705.0, lambda m: clean(m.email)),
+                    (705.0, 757.0, lambda m: clean(m.mobile)),
+                    (757.0, 818.0, lambda m: clean(m.address)),
                 )
-                # Two data rows between the header (~0.3696) and the notary block (~0.2806).
-                for index, row_y in enumerate((0.3400, 0.3110)):
+                for index, row_base in enumerate((206.5, 189.5)):
                     maker = co_maker(index)
                     if not maker:
                         continue
-                    for col_x, col_width, getter in columns:
-                        add_text(
-                            page_width * col_x,
-                            page_height * row_y,
-                            truncate_to_width(getter(maker), page_width * col_width, 5.8),
-                            5.8,
-                        )
+                    for cx0, cx1, getter in columns:
+                        add_cell(cx0, cx1, row_base, getter(maker), 7.5, 5.0, 2, 6.2)
 
-            def render_emergency_co_makers() -> None:
-                """Emergency loans use a Deed of Assignment instead of the oath.
+            def render_bonus_fields() -> None:
+                render_identity(BONUS)
 
-                It has only two co-maker signature lines (printed name), no
-                ID/address/email fields.
-                """
-                for index, name_y in enumerate((0.2104, 0.0864)):
+                # Loan Agreement. Three blanks only (amount in words, "(Php __)",
+                # purpose); the bonus form has no term or amortization line.
+                add_flow([(20.6, 263.8, 221.5)], clean(payload.loan_amount_words))
+                add_field(40.4, 123.9, 206.1, format_amount(payload.loan_amount_numeric))
+                add_flow([(20.6, 267.8, 190.5)], loan_purpose_text())
+                sign_name(20.6, 264.6, 47.0)
+
+                # Applicant's Authorization for Salary Deduction.
+                bonus_words = clean(payload.bonus_amount_words) or clean(payload.loan_amount_words)
+                bonus_numeric = clean(payload.bonus_amount_numeric) or clean(payload.loan_amount_numeric)
+                add_flow([(294.5, 463.5, 397.3)], bonus_words, 9.5, 6.5)
+                add_field(485.5, 543.9, 397.3, format_amount(bonus_numeric), 9.5, 6.5)
+
+            def render_emergency_fields() -> None:
+                render_identity(EMERGENCY)
+
+                add_flow([(189.1, 265.2, 213.9), (20.6, 152.6, 199.1)], clean(payload.loan_amount_words))
+                add_field(170.6, 250.6, 199.1, format_amount(payload.loan_amount_numeric))
+                add_flow([(79.4, 247.6, 184.5), (20.6, 156.6, 169.7)], loan_purpose_text())
+                add_field(206.7, 230.6, 169.7, clean(payload.loan_term_months), align="c")
+                add_field(140.0, 228.1, 154.9, format_amount(payload.monthly_amortization))
+                sign_name(20.6, 244.6, 36.6)
+
+                # Co-Makers Information panel: Name / Address / Contact No. for
+                # each co-maker (Designation and Latest Net Pay are not collected).
+                for index, bases in enumerate(((491.0, 464.8, 438.5), (247.3, 221.1, 195.1))):
                     maker = co_maker(index)
                     if not maker:
                         continue
-                    add_text(
-                        page_width * 0.700,
-                        page_height * name_y + 12,
-                        truncate_to_width(clean(maker.name), page_width * 0.250, 7.5),
-                        7.5,
-                    )
+                    add_field(324.1, 543.0, bases[0], clean(maker.name))
+                    add_field(333.4, 546.8, bases[1], clean(maker.address), two_lines=True)
+                    add_field(347.4, 544.6, bases[2], clean(maker.mobile))
+
+                # Deed of Assignment: co-maker printed names above their rules.
+                for index, name_base in enumerate((135.0, 62.4)):
+                    maker = co_maker(index)
+                    if maker:
+                        add_field(582.7, 815.8, name_base, clean(maker.name), 10.0, 7.0, align="c")
 
             if loan_kind == "consolidated":
                 render_consolidated_fields()
@@ -16171,6 +16136,7 @@ def build_loan_pdf_response(
                                 NameObject("/Type"): NameObject("/Font"),
                                 NameObject("/Subtype"): NameObject("/Type1"),
                                 NameObject("/BaseFont"): NameObject("/Helvetica"),
+                                NameObject("/Encoding"): NameObject("/WinAnsiEncoding"),
                             }
                         )
                         ,
@@ -17207,7 +17173,7 @@ _BOD_ELIGIBLE_STATUSES = {"recommended for bod approval"}
 
 
 @app.post("/api/bod/loan-decision")
-async def bod_loan_decision(payload: BodLoanDecisionRequest):
+async def bod_loan_decision(payload: BodLoanDecisionRequest, background_tasks: BackgroundTasks):
     """BOD approves or rejects a high-value consolidated loan (> ₱500K).
 
     Guards:
@@ -17312,6 +17278,18 @@ async def bod_loan_decision(payload: BodLoanDecisionRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to write BOD decision: {e}")
+
+    # Tell the member the Board's decision. Queued as a background task so a
+    # slow or failed email never affects the decision that was just saved.
+    background_tasks.add_task(
+        _dispatch_loan_status_email,
+        supabase,
+        loan_id=payload.loan_id,
+        stage="bod",
+        action="approve" if payload.decision == "approved" else "reject",
+        remarks=payload.remarks if payload.decision == "rejected" else None,
+        actor_user_id=payload.actor_user_id,
+    )
 
     return {
         "success": True,

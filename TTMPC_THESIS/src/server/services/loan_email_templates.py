@@ -18,7 +18,7 @@ from typing import Literal
 _FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
 EMAIL_BANNER_URL = f"{_FRONTEND_BASE_URL}/assets/img/ttmpc-email-banner.png"
 
-Stage = Literal["bookkeeper", "manager", "treasurer"]
+Stage = Literal["bookkeeper", "manager", "bod", "treasurer"]
 Action = Literal[
     "recommend",         # bookkeeper -> manager
     "reject",
@@ -45,6 +45,7 @@ class LoanEmailContext:
 _STAGE_LABEL = {
     "bookkeeper": "Bookkeeper Review",
     "manager": "Manager Approval",
+    "bod": "Board of Directors Approval",
     "treasurer": "Treasurer / Disbursement",
 }
 
@@ -67,6 +68,8 @@ def _resolve_status_label(stage: Stage, action: Action) -> str:
         ("manager", "proceed"): "Approved by Manager",
         ("manager", "reject"): "Rejected by Manager",
         ("manager", "revise"): "Returned for Revision (Manager)",
+        ("bod", "approve"): "Approved by Board of Directors",
+        ("bod", "reject"): "Rejected by Board of Directors",
         ("treasurer", "disburse"): "Ready for Claim at Cashier",
         ("treasurer", "reschedule"): "Disbursement Rescheduled",
         ("treasurer", "released"): "Released / Disbursed",

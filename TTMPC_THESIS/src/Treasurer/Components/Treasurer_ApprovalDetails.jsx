@@ -715,16 +715,16 @@ const Treasurer_ApprovalDetails = () => {
       //   On 'disburse' (Treasurer confirms): email the member that the loan
       //   is ready to claim at the Cashier. Non-blocking — backend uses
       //   BackgroundTasks + Resend and dedups on the transition.
-      //   Reschedule includes the Treasurer's note so the member knows why
-      //   disbursement was postponed. Email remains non-blocking.
-      if (modalType === 'disburse' || modalType === 'reschedule') {
+      //   Reschedule / reject include the Treasurer's note so the member knows why
+      //   disbursement was postponed or cancelled. Email remains non-blocking.
+      if (modalType === 'disburse' || modalType === 'reschedule' || (modalType === 'reject' && !isBookkeeperFlow)) {
         try {
           const { data: { user } = {} } = (await supabase.auth.getUser()) || {};
           dispatchLoanEmail({
             loanId: loanDetails.id,
             stage: 'treasurer',
             action: modalType,
-            remarks: modalType === 'reschedule' ? remarks.trim() : null,
+            remarks: modalType === 'reschedule' || modalType === 'reject' ? remarks.trim() : null,
             actorUserId: user?.id || null,
           });
         } catch (_err) {
