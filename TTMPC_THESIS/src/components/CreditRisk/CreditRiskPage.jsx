@@ -130,9 +130,10 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedLoan, setSelectedLoan] = useState(null);
 
-  const fetchQueue = async ({ silent = false } = {}) => {
+  const fetchQueue = async ({ silent = false, refresh = false } = {}) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/credit-risk/queue`);
+      // refresh=true makes the backend skip its caches and re-score from current data.
+      const res = await fetch(`${API_BASE_URL}/api/credit-risk/queue${refresh ? "?refresh=true" : ""}`);
       const json = await res.json();
       if (!res.ok || !json?.success) {
         throw new Error(json?.detail || "Failed to load credit risk queue.");
@@ -226,7 +227,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
 
   const handleRefresh = () => {
     setRefreshing(true);
-    fetchQueue();
+    fetchQueue({ refresh: true });
   };
 
   return (

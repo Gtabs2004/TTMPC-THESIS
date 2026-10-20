@@ -16507,13 +16507,16 @@ def _persist_risk_scores(
 
 
 @app.get("/api/credit-risk/queue")
-async def get_credit_risk_queue():
+async def get_credit_risk_queue(refresh: bool = False):
+    """Scored review queue. `refresh=true` (the page's Refresh button) skips both
+    caches -- the 60s in-memory payload and the 12h stored scores -- so every
+    loan is re-assembled and re-scored from current data."""
     if supabase is None:
         raise HTTPException(status_code=503, detail="Supabase client is not configured.")
 
     import time as _time
     now = _time.monotonic()
-    if _CREDIT_RISK_QUEUE_CACHE["payload"] is not None and _CREDIT_RISK_QUEUE_CACHE["expires_at"] > now:
+    if not refresh and _CREDIT_RISK_QUEUE_CACHE["payload"] is not None and _CREDIT_RISK_QUEUE_CACHE["expires_at"] > now:
         return _CREDIT_RISK_QUEUE_CACHE["payload"]
 
     try:
@@ -16609,7 +16612,8 @@ async def get_credit_risk_queue():
         except Exception:
             cached_by_loan = {}
 
-        stale_cutoff = datetime.utcnow() - _RISK_SCORE_STALE_AFTER
+        # A manual refresh treats every stored score as stale.
+        stale_cutoff = datetime.utcnow() + timedelta(days=1) if refresh else datetime.utcnow() - _RISK_SCORE_STALE_AFTER
         fresh_loans: list[dict] = []
         to_score: list[dict] = []
         for loan in filtered:

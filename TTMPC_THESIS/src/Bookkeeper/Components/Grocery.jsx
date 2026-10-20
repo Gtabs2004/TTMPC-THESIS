@@ -87,7 +87,6 @@ const Grocery = () => {
     memberId: t.pos_member_ref || "—",
     date: t.TransactionDate ? new Date(t.TransactionDate).toLocaleString() : "",
     amount: `P${Number(t.GroceryAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-    txStatus: t.Status === "Completed" ? "Completed" : "Pending",
     payment: t.Status === "Completed" ? "Paid" : "On Credit",
     balance: `P${Number(t.balance_due || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
     rawStatus: t.Status,
@@ -210,17 +209,16 @@ const Grocery = () => {
                     <th className="p-5 font-bold">Member ID</th>
                     <th className="p-5 font-bold">Transaction Date</th>
                     <th className="p-5 font-bold">Amount</th>
-                    <th className="p-5 font-bold">Payment</th>
-                    <th className="p-5 font-bold">Status</th>
+                    <th className="p-5 font-bold" title="Paid: the member settled this purchase at the till. On Credit: it was charged to the member's account and the Balance is still owed.">Payment</th>
                     <th className="p-5 font-bold">Balance</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <TableStateRow colSpan={7} variant="loading" label="Loading..." />
+                    <TableStateRow colSpan={6} variant="loading" label="Loading..." />
                   ) : filteredRows.length === 0 ? (
                     <TableStateRow
-                      colSpan={7}
+                      colSpan={6}
                       variant="empty"
                       icon={ShoppingCart}
                       label="No transactions yet."
@@ -233,9 +231,6 @@ const Grocery = () => {
                       <td className="p-5 text-sm font-medium text-gray-900">{tx.amount}</td>
                       <td className="p-5 text-sm">
                          <StatusBadge type="payment" text={tx.payment} />
-                      </td>
-                      <td className="p-5 text-sm">
-                        <StatusBadge type="status" text={tx.txStatus} />
                       </td>
                       <td className={`p-5 text-sm font-semibold ${tx.balance !== 'P0.00' ? 'text-red-500' : 'text-gray-900'}`}>
                         {tx.balance}

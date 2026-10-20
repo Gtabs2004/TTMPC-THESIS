@@ -85,7 +85,6 @@ const Cashier_Grocery = () => {
     posId: "POS - 001",
     date: t.TransactionDate ? new Date(t.TransactionDate).toLocaleString() : "",
     amount: `P${Number(t.GroceryAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-    txStatus: t.Status === "Completed" ? "Completed" : "Pending",
     payment: t.Status === "Completed" ? "Paid" : "On Credit",
     balance: `P${Number(t.balance_due || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
     rawStatus: t.Status,
@@ -208,16 +207,15 @@ const Cashier_Grocery = () => {
                     <th className="p-5 font-bold">POS ID</th>
                     <th className="p-5 font-bold">Transaction Date</th>
                     <th className="p-5 font-bold text-right">Amount</th>
-                    <th className="p-5 font-bold text-center">TX Status</th>
-                    <th className="p-5 font-bold text-center">Payment</th>
+                    <th className="p-5 font-bold text-center" title="Paid: the member settled this purchase at the till. On Credit: it was charged to the member's account and the Balance is still owed.">Payment</th>
                     <th className="p-5 font-bold text-right">Balance</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <TableStateRow colSpan={8} variant="loading" label="Loading..." />
+                    <TableStateRow colSpan={7} variant="loading" label="Loading..." />
                   ) : filteredRows.length === 0 ? (
-                    <TableStateRow colSpan={8} variant="empty" icon={ShoppingCart} label="No transactions yet." />
+                    <TableStateRow colSpan={7} variant="empty" icon={ShoppingCart} label="No transactions yet." />
                   ) : paginatedRows.map((tx) => (
                     <tr key={tx.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                       <td className="p-5 font-medium text-gray-700">{tx.id}</td>
@@ -225,9 +223,6 @@ const Cashier_Grocery = () => {
                       <td className="p-5 text-gray-500">{tx.posId}</td>
                       <td className="p-5 text-gray-500">{tx.date}</td>
                       <td className="p-5 font-medium text-gray-900">{tx.amount}</td>
-                      <td className="p-5">
-                        <StatusBadge type="status" text={tx.txStatus} />
-                      </td>
                       <td className="p-5">
                         <StatusBadge type="payment" text={tx.payment} />
                       </td>
