@@ -147,6 +147,15 @@ if not resend_api_key:
 _SUPABASE_CLIENT_OPTIONS = SyncClientOptions(postgrest_client_timeout=20)
 supabase: Client | None = create_client(url, key, options=_SUPABASE_CLIENT_OPTIONS) if url and key else None
 
+
+def _is_stale_connection_error(exc: Exception) -> bool:
+    """True for a dead pooled-connection error that a fresh client fixes: "server
+    disconnected", or on Windows WinError 10035 ("non-blocking socket operation
+    could not be completed")."""
+    msg = str(exc).lower()
+    return "server disconnected" in msg or "10035" in msg or "non-blocking socket" in msg
+
+
 # 3. Rate limiter, applied to every route by SlowAPIMiddleware (added below,
 # before CORS, so a 429 still carries the CORS headers the browser needs).
 # The default is generous on purpose: a whole office can share one public IP,
@@ -7031,7 +7040,7 @@ def get_bookkeeper_pending_counts(current_user: dict = _Depends(_get_current_use
         )
         override_requests = head_count(RENEWAL_OVERRIDE_TABLE, lambda q: q.eq("status", "pending"))
     except Exception as exc:
-        if "server disconnected" in str(exc).lower() and url and key:
+        if _is_stale_connection_error(exc) and url and key:
             supabase = create_client(url, key, options=_SUPABASE_CLIENT_OPTIONS)
             try:
                 loan_approval = head_count("loans", pending_or_draft) + head_count("non_member_loans", pending_or_draft)
@@ -7110,7 +7119,7 @@ def get_staff_pending_counts(current_user: dict = _Depends(_get_current_user)):
     except HTTPException:
         raise
     except Exception as exc:
-        if "server disconnected" in str(exc).lower() and url and key:
+        if _is_stale_connection_error(exc) and url and key:
             supabase = create_client(url, key, options=_SUPABASE_CLIENT_OPTIONS)
             try:
                 data = compute()
@@ -12831,6 +12840,23 @@ async def get_migs_label(member_key: str):
 
 @app.get("/api/migs/members/{member_key}")
 async def get_migs_member_detail(member_key: str, year: int | None = None):
+    """Retries once on a fresh Supabase client when the pooled connection has gone
+    stale. On Windows that surfaces as WinError 10035 ("non-blocking socket
+    operation could not be completed") or "server disconnected"; the read-only
+    detail lookup is safe to repeat."""
+    global supabase
+    try:
+        return await _get_migs_member_detail(member_key, year)
+    except HTTPException as err:
+        message = str(err.detail).lower()
+        transient = "10035" in message or "non-blocking socket" in message or "server disconnected" in message
+        if not (transient and url and key):
+            raise
+        supabase = create_client(url, key, options=_SUPABASE_CLIENT_OPTIONS)
+        return await _get_migs_member_detail(member_key, year)
+
+
+async def _get_migs_member_detail(member_key: str, year: int | None = None):
     """Single-member MIGS detail for the Evaluate page.
 
     `member_key` may be either the member.id UUID or the membership_id (e.g. TTMPC-123).
@@ -13134,11 +13160,12 @@ async def get_migs_member_detail(member_key: str, year: int | None = None):
                     "attendance_points": bp.get("Assembly Attendance", 0),
                     "final_status": result.status if _in_first_week else None,
                 }
-                # Delete existing row for this member+week, then insert fresh.
-                supabase.table("member_classification_temporal").delete().eq(
-                    "membership_number_id", mid
-                ).eq("accrual_date", _accrual_date).execute()
-                supabase.table("member_classification_temporal").insert(_payload).execute()
+                # One row per member per week, saved as a single atomic upsert: the old
+                # delete-then-insert raced when the page loaded twice at once (initial load
+                # + realtime refetch) and tripped the unique key.
+                supabase.table("member_classification_temporal").upsert(
+                    _payload, on_conflict="membership_number_id,accrual_date"
+                ).execute()
         except Exception as _persist_err:
             print(f"[migs detail] snapshot persist failed (non-fatal): {_persist_err}")
 

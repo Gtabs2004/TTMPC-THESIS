@@ -97,8 +97,15 @@ export default function StaffSidebar({ portal, items, sections }) {
   // the active page starts open.
   // A sub-page counts as its list page too (e.g. /bookkeeper-loan-approval/123
   // belongs to the "Loan Approval" link), so the group opens on detail pages.
+  // `alsoActive` lists extra paths that belong to an entry even though they
+  // don't sit under its own path (e.g. /migs-evaluate is a page of "Member
+  // Classification" at /migs, so the plain prefix match misses it).
+  const isAlsoActive = (s) =>
+    (s.alsoActive || []).some(
+      (p) => location.pathname === p || location.pathname.startsWith(`${p}/`)
+    );
   const isSubItemActive = (s) =>
-    location.pathname === s.path || location.pathname.startsWith(`${s.path}/`);
+    location.pathname === s.path || location.pathname.startsWith(`${s.path}/`) || isAlsoActive(s);
 
   const findActiveDropdown = () => {
     const pools = sections ? sections.flatMap((g) => g.items) : items;
@@ -237,7 +244,7 @@ export default function StaffSidebar({ portal, items, sections }) {
                 <NavLink
                   key={subItem.name}
                   to={subItem.path}
-                  className={subNavLinkClass}
+                  className={({ isActive }) => subNavLinkClass({ isActive: isActive || isAlsoActive(subItem) })}
                   onClick={() => setSidebarOpen(false)}
                 >
                   <span>{subItem.name}</span>
@@ -255,7 +262,7 @@ export default function StaffSidebar({ portal, items, sections }) {
         key={item.name}
         to={item.path}
         className={({ isActive }) =>
-          `${navLinkClass({ isActive })} ${collapsed ? "lg:justify-center lg:gap-0" : ""}`
+          `${navLinkClass({ isActive: isActive || isAlsoActive(item) })} ${collapsed ? "lg:justify-center lg:gap-0" : ""}`
         }
         onClick={() => setSidebarOpen(false)}
         onMouseEnter={(e) => showFlyout(e, item.name)}
@@ -446,7 +453,7 @@ export default function StaffSidebar({ portal, items, sections }) {
                   <NavLink
                     key={subItem.name}
                     to={subItem.path}
-                    className={flyoutSubNavLinkClass}
+                    className={({ isActive }) => flyoutSubNavLinkClass({ isActive: isActive || isAlsoActive(subItem) })}
                     onClick={() => {
                       setSidebarOpen(false);
                       hideFlyout();

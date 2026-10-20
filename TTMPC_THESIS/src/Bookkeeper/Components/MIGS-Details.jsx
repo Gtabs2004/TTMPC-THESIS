@@ -175,8 +175,11 @@ const MIGSDetails = () => {
       const result = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(result?.detail || "Finalize failed.");
       const total = (result?.inserted || 0) + (result?.updated || 0);
-      const fresh = await fetchMember();
-      setMemberData(fresh);
+      // Refresh this member's panel in the background: the buttons were already
+      // blocked for the whole all-members recompute, and re-loading the detail
+      // (several more seconds) before re-enabling them only made Finalize feel
+      // slower. The score shown doesn't change by finalizing.
+      fetchMember().then(setMemberData).catch(() => {});
       showToast(
         `Snapshot saved. ${total} members labeled as of ${result?.accrual_date}.`,
         result?.errors?.length ? "warning" : "success"

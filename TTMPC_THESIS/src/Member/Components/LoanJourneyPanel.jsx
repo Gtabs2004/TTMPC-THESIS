@@ -557,7 +557,7 @@ export default function LoanJourneyPanel({ loan, payments }) {
                         </p>
                         {s.isActive && !s.isFinalTrophy ? (
                             <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white ${isRejected ? "bg-red-600" : isRescheduled ? "bg-amber-500" : "bg-member-green dark:bg-mdark-accent dark:text-mdark-bg"}`}>
-                            Current
+                             Current
                           </span>
                         ) : null}
                       </div>
