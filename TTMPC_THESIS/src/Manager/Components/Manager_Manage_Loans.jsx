@@ -102,7 +102,10 @@ const Manager_Manage_Loans = () => {
       else if (activeTab === "restructured") tabMatch = pendingRequestIds.has(item.loan_id);
       else tabMatch = true;
       if (!tabMatch) return false;
-      if (loanTypeFilter !== "all" && item.loan_type_code !== loanTypeFilter)
+      // Non-member Bonus loans have their own type code but count as Bonus here;
+      // the Member Type filter is what separates them.
+      const filterCode = item.loan_type_code === "NONMEMBER_BONUS" ? "BONUS" : item.loan_type_code;
+      if (loanTypeFilter !== "all" && filterCode !== loanTypeFilter)
         return false;
       if (memberTypeFilter !== "all" && item.member_type !== memberTypeFilter)
         return false;
@@ -301,7 +304,6 @@ const Manager_Manage_Loans = () => {
                 <option value="CONSOLIDATED">Consolidated</option>
                 <option value="EMERGENCY">Emergency</option>
                 <option value="BONUS">Bonus</option>
-                <option value="NONMEMBER_BONUS">Non-member Bonus</option>
                 <option value="ABF">ABF</option>
               </select>
 
