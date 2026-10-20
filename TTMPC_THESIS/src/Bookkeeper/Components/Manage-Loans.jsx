@@ -110,10 +110,7 @@ const ManageLoans = () => {
       const tabMatch = activeTab === "active" ? item.remaining_balance > 0 : item.remaining_balance <= 0;
       if (!tabMatch) return false;
 
-      // Non-member Bonus loans have their own type code but count as Bonus here;
-      // the Member Type filter is what separates them.
-      const filterCode = item.loan_type_code === "NONMEMBER_BONUS" ? "BONUS" : item.loan_type_code;
-      if (loanTypeFilter !== "all" && filterCode !== loanTypeFilter) return false;
+      if (loanTypeFilter !== "all" && item.loan_type_code !== loanTypeFilter) return false;
       if (memberTypeFilter !== "all" && item.member_type !== memberTypeFilter) return false;
 
       if (!text) return true;
@@ -364,6 +361,7 @@ const ManageLoans = () => {
                 <option value="CONSOLIDATED">Consolidated</option>
                 <option value="EMERGENCY">Emergency</option>
                 <option value="BONUS">Bonus</option>
+                <option value="NONMEMBER_BONUS">Non-member Bonus</option>
               </select>
 
               <select
@@ -373,7 +371,6 @@ const ManageLoans = () => {
               >
                 <option value="all">All Member Types</option>
                 <option value="Member">Member</option>
-                <option value="Non-Member">Non-Member</option>
               </select>
 
               <div className="relative w-full sm:w-64">
