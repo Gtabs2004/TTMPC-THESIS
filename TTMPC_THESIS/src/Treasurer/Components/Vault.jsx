@@ -396,12 +396,11 @@ const Vault = () => {
           </div>
 
           {/* MINI-TOTALS */}
-          <StatCardRow cols={4}>
+          <StatCardRow cols={3}>
             {[
               { key: "deposit", label: "Deposits", icon: ArrowDownRight, tone: "text-emerald-700" },
               { key: "withdrawal", label: "Withdrawals", icon: ArrowUpRight, tone: "text-red-700" },
               { key: "disbursement", label: "Disbursements", icon: CreditCard, tone: "text-blue-700" },
-              { key: "adjustment", label: "Adjustments", icon: RefreshCw, tone: "text-amber-700" },
             ].map((c) => (
               <StatCard key={c.key} label={c.label} value={PHP(totals[c.key])} icon={c.icon} iconColor={c.tone} />
             ))}
