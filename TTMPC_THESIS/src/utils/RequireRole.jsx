@@ -51,22 +51,47 @@ export default function RequireRole({ allow, children }) {
           return;
         }
 
-        const role = await resolveRole(session);
+        let role = await resolveRole(session);
+
+        // A momentary lookup failure (e.g. the account row isn't readable yet
+        // right after a token refresh) must not be treated as "wrong role" —
+        // that was bouncing users to "/" mid-navigation, which looked like
+        // being kicked out of their session. Retry once before giving up.
+        if (!role) {
+          await new Promise((r) => setTimeout(r, 400));
+          if (cancelled) return;
+          cachedRole = null; // force a fresh lookup, bypassing the stale TTL cache
+          role = await resolveRole(session);
+        }
+
         if (cancelled) return;
 
         const allowed = (Array.isArray(allow) ? allow : [allow])
           .map((r) => String(r || "").trim().toLowerCase())
           .filter(Boolean);
 
-        if (!role || !allowed.includes(role)) {
+        if (!role) {
+          // Still couldn't resolve an account after retrying — this is an
+          // infrastructure/lookup problem, not proof the user lacks access.
+          // Don't bounce; let them retry the navigation instead of silently
+          // landing on "/".
+          console.error("[RequireRole] Could not resolve account role after retry.");
+          return;
+        }
+
+        if (!allowed.includes(role)) {
           navigate("/", { replace: true });
           return;
         }
 
         setChecked(true);
         didInitialCheck.current = true;
-      } catch {
-        if (!cancelled) navigate("/", { replace: true });
+      } catch (err) {
+        // An unexpected error here (network blip, etc.) is not proof the
+        // session is invalid — don't bounce to "/" and make it look like the
+        // user got logged out. Only an explicit missing-session case above
+        // redirects to Login; everything else just stays put.
+        console.error("[RequireRole] Unexpected error during role check:", err);
       }
     })();
 
