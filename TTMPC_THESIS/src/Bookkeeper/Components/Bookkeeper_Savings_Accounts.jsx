@@ -195,7 +195,7 @@ const Bookkeeper_Savings_Accounts = () => {
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Savings Accounts</h1>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Master ledger of member passbooks and standalone cooperative funds
+                  Master ledger of member passbooks and special cooperative funds
                 </p>
               </div>
               <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-600 font-medium">
@@ -220,7 +220,7 @@ const Bookkeeper_Savings_Accounts = () => {
                 subtext="Linked to cooperative members"
               />
               <StatCard
-                label="Standalone Funds"
+                label="Special Accounts"
                 value={totals.standaloneCount}
                 icon={CreditCard}
                 iconColor="text-amber-600"
@@ -283,7 +283,7 @@ const Bookkeeper_Savings_Accounts = () => {
                     {[
                       { value: "all", label: "All" },
                       { value: "member", label: "Member" },
-                      { value: "standalone", label: "Standalone" },
+                      { value: "standalone", label: "Special" },
                     ].map((opt) => (
                       <button
                         key={opt.value}
@@ -375,7 +375,7 @@ const Bookkeeper_Savings_Accounts = () => {
                           <span
                             className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${getKindStyle(row.account_kind)}`}
                           >
-                            {row.account_kind === "standalone" ? "Standalone" : "Member"}
+                            {row.account_kind === "standalone" ? "Special" : "Member"}
                           </span>
                         </td>
                         <td className="p-5 text-sm text-right font-semibold text-gray-900 tabular-nums">

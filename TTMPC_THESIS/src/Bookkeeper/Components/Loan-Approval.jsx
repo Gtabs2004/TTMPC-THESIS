@@ -47,7 +47,7 @@ const BookkeeperLoanApproval = () => {
   const [activeTab, setActiveTab] = useState("all");
   const [memberTypeFilter, setMemberTypeFilter] = useState("all");
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = 5;
+  const PAGE_SIZE = 10;
 
   const formatSubmissionDate = (value) => {
     if (!value) return "N/A";

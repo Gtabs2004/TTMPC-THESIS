@@ -335,7 +335,7 @@ const Cashier_Savings = () => {
                 subtext="Linked to cooperative members"
               />
               <StatCard
-                label="Standalone Funds"
+                label="Special Accounts"
                 value={totals.standaloneCount}
                 icon={Banknote}
                 iconColor="text-amber-600"

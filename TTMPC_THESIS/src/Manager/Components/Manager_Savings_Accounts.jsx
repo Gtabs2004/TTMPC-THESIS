@@ -210,7 +210,7 @@ const Manager_Savings_Accounts = () => {
                 subtext="Linked to cooperative members"
               />
               <StatCard
-                label="Standalone Funds"
+                label="Special Accounts"
                 value={totals.standaloneCount}
                 icon={CreditCard}
                 iconColor="text-amber-600"
