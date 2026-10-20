@@ -216,7 +216,7 @@ const Treasurer_Savings_Accounts = () => {
                 subtext="Linked to cooperative members"
               />
               <StatCard
-                label="Standalone Funds"
+                label="Special Accounts"
                 value={totals.standaloneCount}
                 icon={CreditCard}
                 iconColor="text-amber-600"
@@ -326,7 +326,7 @@ const Treasurer_Savings_Accounts = () => {
                   <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Account No.</th>
                     <th className="p-5 font-bold">Account Name</th>
-                    <th className="p-5 font-bold">Kind</th>
+                    <th className="p-5 font-bold">Type</th>
                     <th className="p-5 font-bold text-right">Balance</th>
                     <th className="p-5 font-bold">Last Activity</th>
                     <th className="p-5 font-bold">Status</th>
