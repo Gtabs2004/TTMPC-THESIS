@@ -95,7 +95,7 @@ const TreasuryDecisionQueue = ({ decision, ready }) => {
   const rRows = ready.data?.rows || [];
 
   const tabs = [
-    { key: "decision", label: "Awaiting your decision", count: dSummary?.total_count },
+    { key: "decision", label: "Under Review", count: dSummary?.total_count },
     { key: "ready", label: "Ready for release", count: rSummary?.total_count },
   ];
 
@@ -172,7 +172,7 @@ const TreasuryDecisionQueue = ({ decision, ready }) => {
             loading={decision.isPending}
             error={decision.error?.message}
             empty={dRows.length === 0}
-            emptyTitle="Nothing awaiting your decision"
+            emptyTitle="Nothing in Under Review"
             emptyText="Manager-approved loans will appear here for a funding check."
           />
 
