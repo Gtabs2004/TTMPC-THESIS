@@ -1,11 +1,40 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserAuth } from '../contex/AuthContext';
-import { Wallet, Landmark } from 'lucide-react';
+import { Wallet, Landmark, ChevronRight, Lock } from 'lucide-react';
+import { fetchLoanPrefill } from '../LOANFORMS/loanSubmission';
+
+// Same policy as Consolidated_Up.jsx's isPolicyCompliant.
+const MIN_SHARE_CAPITAL_OVER_500K = 100000;
+const MIN_NET_PAY_OVER_500K = 20000;
 
 const Conso_Choice = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const [upEligibility, setUpEligibility] = useState({ loading: true, eligible: false, reason: '' });
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const { profile } = await fetchLoanPrefill();
+        if (!isMounted) return;
+        const shareCapital = Number(profile?.share_capital || 0);
+        const netPay = Number(profile?.latest_net_pay || 0);
+        const problems = [];
+        if (shareCapital < MIN_SHARE_CAPITAL_OVER_500K) problems.push('Share Capital of at least ₱100,000');
+        if (netPay < MIN_NET_PAY_OVER_500K) problems.push('Net Pay of at least ₱20,000');
+        setUpEligibility({
+          loading: false,
+          eligible: problems.length === 0,
+          reason: problems.length ? `Requires ${problems.join(' and ')}` : '',
+        });
+      } catch {
+        if (isMounted) setUpEligibility({ loading: false, eligible: false, reason: 'Unable to verify eligibility' });
+      }
+    })();
+    return () => { isMounted = false; };
+  }, []);
 
   const handleSignOut = async (e) => {
     e.preventDefault();
@@ -17,32 +46,39 @@ const Conso_Choice = () => {
     }
   };
 
-  return (
-    <div className="flex flex-col min-h-screen bg-[#F8FAFC]">
+  const cardBase =
+    'group relative w-full sm:w-72 rounded-3xl flex flex-col items-center justify-center p-6 sm:p-8 border transition-all duration-200';
 
-      {/* Header (Reverted to original colors and sizes) */}
-      <header className="w-full bg-[#E9F7DE] h-16 md:h-20 shadow-sm border-b border-[#D5EDB9] flex justify-between items-center px-4 md:px-6">
-        <div className="flex flex-row items-center gap-3">
-          <img src="/img/ttmpc logo.png" alt="Logo" className="h-10 md:h-12 w-auto" />
-          <div className="flex flex-col">
-            <h1 className="text-xs md:text-sm font-bold text-[#66B538] leading-tight">
-              Tubungan Teacher's Multi‑Purpose Cooperative
-            </h1>
-            <p className="text-[#A0D284] text-xs">Loan Application Kiosk</p>
+  return (
+    <div className="flex flex-col min-h-screen bg-gradient-to-b from-[#F4FAEE] to-[#F8FAFC]">
+
+      <header className="w-full bg-[#E9F7DE] min-h-20 shadow-lg flex px-4 py-3 sm:px-6">
+        <div className="flex w-full flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <div className="flex min-w-0 flex-row items-center gap-3 sm:gap-4">
+            <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
+            <div className="min-w-0 flex flex-col">
+              <h1 className="break-words text-xs font-bold text-primary-deep sm:text-sm">Tubungan Teacher's Multi‑Purpose Cooperative</h1>
+              <p className="text-[#A0D284] text-xs">Loan Application Kiosk</p>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={() => navigate('/member-apply-loans')}
+            className="w-full rounded-lg bg-white px-4 py-2 text-xs font-bold text-member-green shadow-sm border border-[#D5EDB9] hover:bg-[#F4FBF0] sm:w-auto"
+          >
+            Back to Member Portal
+          </button>
         </div>
       </header>
 
-    
-      <main className="flex flex-col justify-center items-center flex-grow py-8 px-3 text-center sm:py-10 sm:px-4">
-        
-        
+      <main className="flex flex-col items-center flex-grow py-6 px-4 text-center sm:py-10">
+
         <div className="mb-8 flex flex-col items-center">
           <img src="/img/ttmpc logo.png" className="w-auto h-20 md:h-24 mb-4 drop-shadow-sm" alt="Kiosk Logo" />
-          <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">
+          <span className="text-[11px] font-bold text-[#66B538] bg-[#E9F7DE] px-3 py-1 rounded-full uppercase tracking-widest mb-3">
             Consolidated Loan Application
-          </h2>
-          <h1 className="text-xl md:text-3xl font-extrabold text-gray-900 tracking-tight">
+          </span>
+          <h1 className="text-2xl md:text-4xl font-extrabold text-gray-900 tracking-tight">
             Preferred Loan Amount
           </h1>
           <p className="mt-3 text-gray-500 text-sm md:text-base font-medium max-w-md">
@@ -50,32 +86,59 @@ const Conso_Choice = () => {
           </p>
         </div>
 
-      
-        <div className="flex w-full max-w-2xl flex-col items-stretch justify-center gap-3 px-0 mt-2 sm:flex-row sm:gap-6 sm:px-4">
-          
-          
+        <div className="flex w-full max-w-2xl flex-col items-stretch justify-center gap-4 sm:flex-row sm:gap-6">
+
           <Link
             to="/Consolidated_Loan"
-            className="bg-white p-5 w-full sm:w-64 rounded-3xl flex flex-col items-center justify-center cursor-pointer shadow-sm border border-gray-200 sm:p-8"
+            className={`${cardBase} bg-white border-gray-200 shadow-sm hover:shadow-lg hover:-translate-y-1 hover:border-blue-300`}
           >
-            <div className="bg-blue-50 p-5 rounded-2xl mb-6 ">
+            <div className="bg-blue-50 p-5 rounded-2xl mb-5 group-hover:bg-blue-100 transition-colors">
               <Wallet size={40} className="text-blue-600" strokeWidth={2} />
             </div>
             <h3 className="font-extrabold text-gray-900 text-2xl md:text-3xl mb-1">≤ 500k</h3>
-            <p className="text-xs text-gray-500 font-medium mt-1">Up to ₱500,000</p>
+            <p className="text-xs text-gray-500 font-medium">Up to ₱500,000</p>
+            <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-blue-600">
+              Select <ChevronRight size={16} className="transition-transform group-hover:translate-x-1" />
+            </span>
           </Link>
 
-          
-          <Link
-            to="/Consolidated_Up"
-            className="bg-white p-5 w-full sm:w-64 rounded-3xl flex flex-col items-center justify-center cursor-pointer shadow-sm border border-gray-200 sm:p-8"
-          >
-            <div className="bg-indigo-50 p-5 rounded-2xl mb-6 ">
-              <Landmark size={40} className="text-indigo-600" strokeWidth={2} />
+          {upEligibility.eligible ? (
+            <Link
+              to="/Consolidated_Up"
+              className={`${cardBase} bg-white border-gray-200 shadow-sm hover:shadow-lg hover:-translate-y-1 hover:border-indigo-300`}
+            >
+              <div className="bg-indigo-50 p-5 rounded-2xl mb-5 group-hover:bg-indigo-100 transition-colors">
+                <Landmark size={40} className="text-indigo-600" strokeWidth={2} />
+              </div>
+              <h3 className="font-extrabold text-gray-900 text-2xl md:text-3xl mb-1">&gt; 500k</h3>
+              <p className="text-xs text-gray-500 font-medium">Above ₱500,000</p>
+              <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-indigo-600">
+                Select <ChevronRight size={16} className="transition-transform group-hover:translate-x-1" />
+              </span>
+            </Link>
+          ) : (
+            <div
+              aria-disabled="true"
+              title={upEligibility.reason}
+              className={`${cardBase} bg-gray-100 border-dashed border-gray-300 cursor-not-allowed`}
+            >
+              <div className="bg-gray-200 p-5 rounded-2xl mb-5 opacity-70">
+                <Landmark size={40} className="text-gray-400" strokeWidth={2} />
+              </div>
+              <h3 className="font-extrabold text-gray-400 text-2xl md:text-3xl mb-1">&gt; 500k</h3>
+              <p className="text-xs text-gray-400 font-medium">Above ₱500,000</p>
+              <span className="mt-4 inline-flex items-start gap-1.5 text-xs font-semibold text-red-500 text-left">
+                {upEligibility.loading ? (
+                  'Checking eligibility…'
+                ) : (
+                  <>
+                    <Lock size={14} className="mt-0.5 shrink-0" />
+                    <span>Not eligible: {upEligibility.reason}</span>
+                  </>
+                )}
+              </span>
             </div>
-            <h3 className="font-extrabold text-gray-900 text-2xl md:text-3xl mb-1">&gt; 500k</h3>
-            <p className="text-xs text-gray-500 font-medium mt-1">Above ₱500,000</p>
-          </Link>
+          )}
 
         </div>
       </main>
