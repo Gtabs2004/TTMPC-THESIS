@@ -2313,7 +2313,7 @@ const LoanApprovalDetails = () => {
                     <span>Scored: {new Date(riskAssessment.scored_at).toLocaleString()}</span>
                   )}
                   {riskAssessment.model_version && (
-                    <span>Model: v{riskAssessment.model_version}</span>
+                    <span>Assessment v{riskAssessment.model_version}</span>
                   )}
                   {riskAssessment.cached && (
                     <span className="text-gray-500">(cached)</span>

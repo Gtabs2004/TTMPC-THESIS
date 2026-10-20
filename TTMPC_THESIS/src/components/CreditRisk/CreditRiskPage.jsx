@@ -17,6 +17,7 @@ import {
   TrendingUp,
   TrendingDown,
   Inbox,
+  Info,
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -88,6 +89,28 @@ const featureLabel = (feat) => FEATURE_LABELS[feat] || feat;
 // The model returns all 21 features ranked by impact. Showing every one buries
 // the signal, so the detail panel lists the strongest drivers only.
 const DRIVERS_SHOWN = 8;
+
+// Small "?" hover hint that explains a label in plain words.
+const InfoTip = ({ text }) => (
+  <span title={text} aria-label={text} className="inline-flex cursor-help align-middle ml-1 text-gray-400">
+    <Info size={12} />
+  </span>
+);
+
+// Plain-language "Why / Worth checking" lists for the summary card: the two
+// strongest details pulling the score down, and the two pushing it up.
+const summarizeDrivers = (drivers) => {
+  const byStrength = (dir) =>
+    (drivers || [])
+      .filter((d) => d.direction === dir && Number.isFinite(Number(d.contribution)))
+      .sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution))
+      .slice(0, 2)
+      .map((d) => featureLabel(d.feature));
+  return { lowers: byStrength("down"), raises: byStrength("up") };
+};
+
+// Plain-word rating for the assessment's ranking accuracy (ROC-AUC, 0-1).
+const accuracyRating = (auc) => (auc >= 0.8 ? "Strong" : auc >= 0.7 ? "Fair" : "Limited");
 
 const CreditRiskPage = ({ portal = "bookkeeper" }) => {
   const portalLabel = portal === "manager" ? "Manager" : "Bookkeeper";
@@ -229,7 +252,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                 Credit Risk Assessment
               </h1>
               <p className="text-sm text-gray-500 mt-0.5">
-                Model-scored loan applications currently under review. Higher probability = higher predicted default risk.
+                Loan applications currently under review, each with a risk score. A higher score means a higher chance of repayment trouble.
               </p>
               {/* The model's credentials, stated plainly. Accuracy and the
                   active operating point come from the model file itself, so
@@ -237,13 +260,18 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
               <div className="text-xs text-gray-600 mt-2 inline-flex flex-wrap items-center gap-x-2 gap-y-1 bg-indigo-50 border border-indigo-200 rounded-md px-2.5 py-1.5">
                 <Brain size={12} className="text-indigo-600 shrink-0" />
                 <span>
-                  Model <span className="font-semibold text-indigo-800">v{modelVersion || "—"}</span>
+                  Assessment <span className="font-semibold text-indigo-800">v{modelVersion || "—"}</span>
+                  <InfoTip text="Which edition of the credit assessment produced these results, so older and newer results can be told apart." />
                 </span>
                 {modelInfo?.roc_auc != null && (
                   <>
                     <span className="text-indigo-300">·</span>
                     <span>
-                      ROC-AUC <span className="font-semibold text-indigo-800">{modelInfo.roc_auc}</span>
+                      Ranking Accuracy{" "}
+                      <span className="font-semibold text-indigo-800">
+                        {Math.round(modelInfo.roc_auc * 100)}% · {accuracyRating(modelInfo.roc_auc)}
+                      </span>
+                      <InfoTip text="How well the assessment tells loans that were repaid apart from loans that ran into trouble in our past records." />
                     </span>
                   </>
                 )}
@@ -251,15 +279,16 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                   <>
                     <span className="text-indigo-300">·</span>
                     <span>
-                      Reviewing the top{" "}
+                      Review Cut-off: closer review for the top{" "}
                       <span className="font-semibold text-indigo-800">
                         {Math.round(modelInfo.operating_points[modelInfo.operating_point].reviews_share * 100)}%
                       </span>
-                      , catching{" "}
+                      of scores, which would have caught{" "}
                       <span className="font-semibold text-indigo-800">
                         {Math.round(modelInfo.operating_points[modelInfo.operating_point].catches_share * 100)}%
                       </span>{" "}
-                      of problem loans
+                      of past problem loans
+                      <InfoTip text="Applications scoring at or above this cut-off are flagged for closer review before approval." />
                     </span>
                   </>
                 )}
@@ -292,7 +321,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
               { key: "high", label: "High Risk", subtitle: "≥ 60%", accent: "text-red-600", bg: "bg-red-50", ring: "border-red-200" },
               { key: "watch", label: "Medium Risk", subtitle: "30% - 60%", accent: "text-amber-600", bg: "bg-amber-50", ring: "border-amber-200" },
               { key: "low", label: "Low Risk", subtitle: "< 30%", accent: "text-emerald-600", bg: "bg-emerald-50", ring: "border-emerald-200" },
-              { key: "unknown", label: "Unscored", subtitle: "Model unavailable", accent: "text-gray-600", bg: "bg-gray-50", ring: "border-gray-200" },
+              { key: "unknown", label: "Unscored", subtitle: "Not yet assessed", accent: "text-gray-600", bg: "bg-gray-50", ring: "border-gray-200" },
             ].map((b) => (
               <button
                 key={b.key}
@@ -381,7 +410,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <TableStateRow colSpan={5} variant="loading" label="Loading model scores..." />
+                    <TableStateRow colSpan={5} variant="loading" label="Loading risk scores..." />
                   ) : pagedRows.length === 0 ? (
                     <TableStateRow colSpan={5} variant="empty" icon={Inbox} label="No applicants match the current filters." />
                   ) : (
@@ -467,7 +496,10 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                 const band = riskBand(selectedLoan);
                 return (
                   <>
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Predicted Default Probability</p>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Risk Score
+                      <InfoTip text="Our overall rating of how likely this loan is to run into repayment trouble. Higher means more risk." />
+                    </p>
                     <div className="flex items-baseline gap-2 mt-1">
                       <span className="text-4xl font-bold text-gray-800">{formatPct(selectedLoan.probability)}</span>
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold ${band.chip}`}>
@@ -481,12 +513,35 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                       />
                     </div>
 
+                    {/* Plain-language summary: why the score is what it is. */}
+                    {(() => {
+                      const { lowers, raises } = summarizeDrivers(selectedLoan.drivers);
+                      if (lowers.length === 0 && raises.length === 0) return null;
+                      return (
+                        <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3 space-y-2">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Summary</p>
+                          {lowers.length > 0 && (
+                            <p className="text-sm text-gray-700">
+                              <span className="font-semibold text-emerald-700">Working in the applicant's favour: </span>
+                              {lowers.join(" and ")}.
+                            </p>
+                          )}
+                          {raises.length > 0 && (
+                            <p className="text-sm text-gray-700">
+                              <span className="font-semibold text-red-600">Worth checking: </span>
+                              {raises.join(" and ")}.
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
+
                     {/* What the cooperative does with this band, and what the
                         band historically meant. Both come from the backend so
                         the numbers stay the team's, not the UI's. */}
                     {selectedLoan.action && (
                       <div className="mt-4 rounded-lg bg-gray-50 border border-gray-200 p-3">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Recommended action</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Suggested next step</p>
                         <p className="text-sm font-semibold text-gray-800 mt-0.5">{selectedLoan.action}</p>
                         {selectedLoan.band_bad_rate_per_100 != null && (
                           <p className="text-[11px] text-gray-500 mt-2">
@@ -521,10 +576,13 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
             </div>
 
             <div className="p-6">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">Feature Contributions</p>
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">
+                What Influenced This Result
+                <InfoTip text="The details of this application that pushed the risk up or down, largest first." />
+              </p>
               {(selectedLoan.drivers || []).length === 0 ? (
                 <p className="text-sm text-gray-400 italic">
-                  {selectedLoan.error || "No attribution available for this applicant."}
+                  {selectedLoan.error || "No details are available for this applicant."}
                 </p>
               ) : (
                 <ul className="space-y-4">
@@ -549,8 +607,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                             <span className="font-semibold text-gray-800 text-sm">{featureLabel(d.feature)}</span>
                           </div>
                           <span className={`text-xs font-bold ${color}`}>
-                            {d.contribution > 0 ? "+" : ""}
-                            {d.contribution.toFixed(3)}
+                            {d.direction === "up" ? "Raises risk" : d.direction === "down" ? "Lowers risk" : "Little effect"}
                           </span>
                         </div>
                         <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -563,14 +620,14 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                             </span>
                           </span>
                           <span>·</span>
-                          <span>Cohort median: <span className="font-semibold text-gray-700">{Number(d.cohort_median).toLocaleString("en-PH", { maximumFractionDigits: 2 })}</span></span>
+                          <span>Typical for similar borrowers: <span className="font-semibold text-gray-700">{Number(d.cohort_median).toLocaleString("en-PH", { maximumFractionDigits: 2 })}</span></span>
                         </div>
                         <div className="text-[11px] text-gray-400">
                           {!recorded
-                            ? "no record on file — scored as unknown"
+                            ? "no record on file — treated as unknown"
                             : bump === 0
-                            ? "matches cohort"
-                            : `${bump > 0 ? "above" : "below"} cohort by ${Math.abs(bumpPct).toFixed(0)}%`}
+                            ? "in line with similar borrowers"
+                            : `${bump > 0 ? "above" : "below"} typical by ${Math.abs(bumpPct).toFixed(0)}%`}
                         </div>
                       </li>
                     );
@@ -581,10 +638,10 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
 
             <div className="p-6 border-t border-gray-100 bg-gray-50">
               <p className="text-[11px] text-gray-500 leading-relaxed">
-                Signed contributions show each feature's push on the model's log-odds output.{" "}
-                <span className="text-red-600 font-semibold">Positive</span> = pushes score UP (higher risk).{" "}
-                <span className="text-emerald-700 font-semibold">Negative</span> = pushes score DOWN (lower risk). Attribution
-                method depends on the underlying model — the UI stays constant even when the PKL is swapped.
+                These are the details that moved this applicant's score.{" "}
+                <span className="text-red-600 font-semibold">Raises risk</span> means the detail made the score higher.{" "}
+                <span className="text-emerald-700 font-semibold">Lowers risk</span> means it made the score lower.
+                They are guides for your review, not a decision.
               </p>
             </div>
           </div>
