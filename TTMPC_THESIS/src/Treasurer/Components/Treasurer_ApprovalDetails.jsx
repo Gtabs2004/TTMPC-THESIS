@@ -42,7 +42,7 @@ const MODAL_CONFIG = {
 const dispatchLoanEmail = async ({ loanId, stage, action, remarks, actorUserId }) => {
   if (!loanId || !stage || !action) return;
   try {
-    await fetch(`${API_BASE_URL}/api/loans/email/dispatch`, {
+    const response = await fetch(`${API_BASE_URL}/api/loans/email/dispatch`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -53,8 +53,12 @@ const dispatchLoanEmail = async ({ loanId, stage, action, remarks, actorUserId }
         actor_user_id: actorUserId || null,
       }),
     });
-  } catch (_err) {
-    // Silent: workflow must not be impacted by email failures.
+    if (!response.ok) {
+      console.warn(`Loan email dispatch (${stage}/${action}) failed: HTTP ${response.status}`);
+    }
+  } catch (err) {
+    // Workflow must not be impacted by email failures, but leave a trace.
+    console.warn(`Loan email dispatch (${stage}/${action}) could not reach the server:`, err);
   }
 };
 

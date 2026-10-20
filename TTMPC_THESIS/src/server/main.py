@@ -406,6 +406,7 @@ class LoanMemberNotificationRequest(BaseModel):
         "member_ready_claim",
         "member_released",
         "member_cancelled",
+        "member_rescheduled",
     ]
     member_id: str | None = None
     member_name: str | None = None
@@ -15159,6 +15160,7 @@ async def dispatch_loan_email(payload: LoanStatusEmailRequest, background_tasks:
         ("treasurer", "disburse"):   "member_ready_claim",
         ("treasurer", "released"):   "member_released",
         ("treasurer", "reject"):     "member_cancelled",
+        ("treasurer", "reschedule"): "member_rescheduled",
         ("bookkeeper", "recommend"): "member_recommended",
         ("bookkeeper", "reject"):    "member_bk_declined",
     }

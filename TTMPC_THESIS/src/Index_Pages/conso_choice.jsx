@@ -4,9 +4,10 @@ import { UserAuth } from '../contex/AuthContext';
 import { Wallet, Landmark, ChevronRight, Lock } from 'lucide-react';
 import { fetchLoanPrefill } from '../LOANFORMS/loanSubmission';
 
-// Same policy as Consolidated_Up.jsx's isPolicyCompliant.
-const MIN_SHARE_CAPITAL_OVER_500K = 100000;
-const MIN_NET_PAY_OVER_500K = 20000;
+// The "> 500k" range opens only when 300% of the member's share capital
+// exceeds ₱500,000 (same exclusive threshold as the BOD routing rule).
+const OVER_500K_THRESHOLD = 500000;
+const SHARE_CAPITAL_MULTIPLIER = 3;
 
 const Conso_Choice = () => {
   const { session, signOut } = UserAuth();
@@ -20,14 +21,15 @@ const Conso_Choice = () => {
         const { profile } = await fetchLoanPrefill();
         if (!isMounted) return;
         const shareCapital = Number(profile?.share_capital || 0);
-        const netPay = Number(profile?.latest_net_pay || 0);
-        const problems = [];
-        if (shareCapital < MIN_SHARE_CAPITAL_OVER_500K) problems.push('Share Capital of at least ₱100,000');
-        if (netPay < MIN_NET_PAY_OVER_500K) problems.push('Net Pay of at least ₱20,000');
+        const loanable = shareCapital * SHARE_CAPITAL_MULTIPLIER;
+        const eligible = loanable > OVER_500K_THRESHOLD;
+        const peso = (n) => n.toLocaleString('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 });
         setUpEligibility({
           loading: false,
-          eligible: problems.length === 0,
-          reason: problems.length ? `Requires ${problems.join(' and ')}` : '',
+          eligible,
+          reason: eligible
+            ? ''
+            : `300% of your share capital (${peso(loanable)}) must be above ₱500,000`,
         });
       } catch {
         if (isMounted) setUpEligibility({ loading: false, eligible: false, reason: 'Unable to verify eligibility' });

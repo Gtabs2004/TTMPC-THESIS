@@ -48,6 +48,7 @@ NotificationType = Literal[
     "member_ready_claim",   # treasurer confirmed; ready to claim at cashier
     "member_released",      # cashier released funds
     "member_cancelled",     # treasurer cancelled disbursement
+    "member_rescheduled",   # treasurer postponed disbursement
 ]
 
 _SEVERITY_BY_TYPE: dict[str, str] = {
@@ -66,6 +67,7 @@ _SEVERITY_BY_TYPE: dict[str, str] = {
     "member_ready_claim": "success",
     "member_released": "success",
     "member_cancelled": "danger",
+    "member_rescheduled": "warning",
 }
 
 
@@ -172,6 +174,9 @@ def _build_message(
     elif notification_type == "member_cancelled":
         title = "Disbursement cancelled"
         message = f"The disbursement for your {safe_loan_type} loan was cancelled. Please contact the cooperative for details."
+    elif notification_type == "member_rescheduled":
+        title = "Disbursement rescheduled"
+        message = f"The disbursement of your {safe_loan_type} loan has been postponed. We will notify you once it is ready; check your email for details."
     else:
         title = "Loan workflow update"
         message = f"The loan {loan_id} has a new workflow update."

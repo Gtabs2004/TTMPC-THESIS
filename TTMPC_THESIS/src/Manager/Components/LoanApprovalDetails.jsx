@@ -123,7 +123,6 @@ const LoanApprovalDetails = () => {
   const [bookkeeperInternalRemarks, setBookkeeperInternalRemarks] = useState('');
   const [coMakerDetails, setCoMakerDetails] = useState(EMPTY_CO_MAKERS);
   const [collateralRows, setCollateralRows] = useState([]);
-  const [collateralSavingId, setCollateralSavingId] = useState(null);
   const [collateralDocumentUrls, setCollateralDocumentUrls] = useState({});
   const [verifiedBonusAmount, setVerifiedBonusAmount] = useState('');
   const [verifiedBonusAmountSaved, setVerifiedBonusAmountSaved] = useState(null);
@@ -166,8 +165,7 @@ const LoanApprovalDetails = () => {
   const [revisionResetDone, setRevisionResetDone] = useState(false);
   const [printing, setPrinting] = useState(false);
 
-  // Load collateral rows for this loan. Bookkeeper can edit appraised_value;
-  // Manager/BOD see read-only.
+  // Load collateral rows for this loan (read-only for every role).
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
@@ -216,27 +214,6 @@ const LoanApprovalDetails = () => {
     resolveUrls();
     return () => { active = false; };
   }, [collateralRows]);
-
-  const updateCollateralAppraisal = (collateralId, value) => {
-    setCollateralRows((rows) =>
-      rows.map((r) => (r.collateral_id === collateralId ? { ...r, appraised_value: value } : r))
-    );
-  };
-
-  const saveCollateralAppraisal = async (row) => {
-    setCollateralSavingId(row.collateral_id);
-    const parsed = row.appraised_value === '' || row.appraised_value === null
-      ? null
-      : parseFloat(row.appraised_value);
-    const { error } = await supabase
-      .from('loan_collateral')
-      .update({ appraised_value: parsed, updated_at: new Date().toISOString() })
-      .eq('collateral_id', row.collateral_id);
-    setCollateralSavingId(null);
-    if (error) {
-      addNotification('Failed to save appraisal: ' + error.message, 'error');
-    }
-  };
 
   // Q8: the Bookkeeper checks the borrower's payslip in person (no file is
   // stored) and types in the verified bonus amount. This caps the loan
@@ -1285,18 +1262,6 @@ const LoanApprovalDetails = () => {
       ));
       if (!hasAtLeastOneCoMaker) {
         setActionError('Please enter at least one co-maker under Bookkeeper Internal Review.');
-        return;
-      }
-
-      // Workflow gate: every declared collateral item must be appraised before
-      // evaluation can be marked complete. The DB allows a null appraised_value
-      // indefinitely (WHAT_IFS_AND_CONSTRAINTS.txt — LOAN COLLATERAL section), so
-      // this is enforced here rather than left to a DB constraint.
-      const hasUnappraisedCollateral = collateralRows.some((row) => (
-        row.appraised_value === null || row.appraised_value === undefined || row.appraised_value === ''
-      ));
-      if (hasUnappraisedCollateral) {
-        setActionError('Please appraise all declared collateral items before sending to Manager.');
         return;
       }
 
@@ -2480,7 +2445,7 @@ const LoanApprovalDetails = () => {
             </div>
           </div>
 
-          {/* Collateral panel — Bookkeeper edits appraised_value; others read-only. */}
+          {/* Collateral panel — read-only. */}
           <div className="border-t border-gray-200 pt-4 mt-4">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Loan Collateral</p>
             {collateralRows.length === 0 ? (
@@ -2490,10 +2455,6 @@ const LoanApprovalDetails = () => {
             ) : (
               <div className="space-y-2">
                 {collateralRows.map((row) => {
-                  const declared = Number(row.declared_value || 0);
-                  const appraised = row.appraised_value === '' || row.appraised_value === null || row.appraised_value === undefined
-                    ? null
-                    : Number(row.appraised_value);
                   return (
                     <div key={row.collateral_id} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center border border-gray-200 rounded-md p-3 bg-white">
                       <div className="md:col-span-3">
@@ -2504,36 +2465,7 @@ const LoanApprovalDetails = () => {
                         <p className="text-[10px] uppercase text-gray-400 font-bold">Description</p>
                         <p className="text-sm text-gray-700 truncate" title={row.description}>{row.description}</p>
                       </div>
-                      <div className="md:col-span-2">
-                        <p className="text-[10px] uppercase text-gray-400 font-bold">Declared</p>
-                        <p className="text-sm font-semibold text-gray-800">{formatCurrency(declared)}</p>
-                      </div>
-                      <div className="md:col-span-3">
-                        <p className="text-[10px] uppercase text-gray-400 font-bold">Appraised</p>
-                        {isBookkeeperFlow ? (
-                          <div className="flex gap-1">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={formatWithCommas(row.appraised_value ?? '')}
-                              onChange={(e) => updateCollateralAppraisal(row.collateral_id, stripCommas(e.target.value))}
-                              className="border border-gray-300 rounded px-2 py-1 text-sm w-full"
-                              placeholder="Set value"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => saveCollateralAppraisal(row)}
-                              disabled={collateralSavingId === row.collateral_id}
-                              className="px-2 py-1 text-[10px] font-bold rounded bg-member-green text-white hover:bg-[#154718] disabled:opacity-60"
-                            >
-                              {collateralSavingId === row.collateral_id ? '…' : 'Save'}
-                            </button>
-                          </div>
-                        ) : (
-                          <p className="text-sm font-semibold text-gray-800">
-                            {appraised === null ? <span className="text-gray-400 italic">Not appraised</span> : formatCurrency(appraised)}
-                          </p>
-                        )}
+                      <div className="md:col-span-5 flex items-center md:justify-end">
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                           {row.document_url ? (
                             collateralDocumentUrls[row.collateral_id] ? (
@@ -2570,21 +2502,6 @@ const LoanApprovalDetails = () => {
                     </div>
                   );
                 })}
-                {(() => {
-                  const totalDeclared = collateralRows.reduce((s, r) => s + Number(r.declared_value || 0), 0);
-                  const totalAppraised = collateralRows.reduce((s, r) => s + Number(r.appraised_value || 0), 0);
-                  const principal = Number(loanDetails?.computation?.principalAmountRaw || loanDetails?.summary?.loanAmountRaw || 0);
-                  const covered = totalAppraised >= principal && principal > 0;
-                  return (
-                    <div className="flex flex-wrap items-center justify-end gap-4 pt-2 text-xs">
-                      <span><span className="text-gray-500">Total Declared:</span> <span className="font-bold text-gray-800">{formatCurrency(totalDeclared)}</span></span>
-                      <span><span className="text-gray-500">Total Appraised:</span> <span className={`font-bold ${covered ? 'text-member-green' : 'text-red-600'}`}>{formatCurrency(totalAppraised)}</span></span>
-                      {principal > 0 && (
-                        <span className="text-gray-500">vs Principal {formatCurrency(principal)}</span>
-                      )}
-                    </div>
-                  );
-                })()}
               </div>
             )}
           </div>

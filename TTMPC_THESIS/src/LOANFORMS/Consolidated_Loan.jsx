@@ -960,7 +960,6 @@ function Consolidated_Loan() {
             loan_control_number: controlNumber,
             collateral_type: c.type,
             description: c.description,
-            declared_value: 0,
             document_url: String(c.document_url || '').trim() || null,
           }));
 
@@ -1421,7 +1420,7 @@ function Consolidated_Loan() {
                 Declare the assets, guarantees, or holdings securing this loan.
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                The Bookkeeper will appraise each item during evaluation. Total declared value should meet or exceed the requested loan amount.
+                The Bookkeeper will review each item during evaluation.
               </p>
             </div>
 

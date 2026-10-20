@@ -1,6 +1,7 @@
 -- Consolidated-loan collateral records.
 -- One loan (loans.control_number) can have many collateral items.
--- Bookkeeper fills appraised_value during review; declared_value is member-supplied.
+-- No monetary values are stored (declared_value / appraised_value were removed;
+-- see loan_collateral_drop_values.sql).
 
 create table if not exists public.loan_collateral (
   collateral_id       text primary key,
@@ -9,8 +10,6 @@ create table if not exists public.loan_collateral (
     'co_maker','cbu_shares','chattel','real_estate','atm_hold','other'
   )),
   description         text not null,
-  declared_value      numeric(14,2) not null check (declared_value >= 0),
-  appraised_value     numeric(14,2) check (appraised_value is null or appraised_value >= 0),
   document_url        text,
   created_at          timestamptz not null default now(),
   updated_at          timestamptz not null default now()

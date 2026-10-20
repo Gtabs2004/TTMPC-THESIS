@@ -223,6 +223,32 @@ def _update_last_emailed_status(supabase, *, source_table: str, loan_id: str, st
         logger.debug("notification: failed to update last_emailed_status: %s", err)
 
 
+def _reschedule_marker(supabase, *, source_table: str, loan_id: str, remarks: str | None) -> str:
+    """Identifies one specific reschedule event.
+
+    A loan can be rescheduled, returned to the Treasurer and rescheduled again.
+    The transition guard and dedup key would treat the second one as a repeat of
+    the first and drop the email, so reschedule mixes this marker into the key:
+    the `rescheduled_at` the Treasurer's update just stamped, falling back to the
+    note text if that column can't be read. A double-click still dedups because
+    both clicks stamp / read the same marker.
+    """
+    try:
+        resp = (
+            supabase.table(source_table)
+            .select("rescheduled_at")
+            .eq("control_number", loan_id)
+            .limit(1)
+            .execute()
+        )
+        row = (resp.data or [None])[0]
+        if row and _safe(row.get("rescheduled_at")):
+            return _safe(row.get("rescheduled_at"))
+    except Exception as err:
+        logger.debug("notification: rescheduled_at lookup failed for %s: %s", loan_id, err)
+    return _safe(remarks)
+
+
 def _member_opted_out(supabase, member_id: str, stage: str) -> bool:
     """True when the member turned this category of loan email off in Settings
     (member_notification_preferences.sql). No row, or any lookup failure,
@@ -277,9 +303,21 @@ def dispatch_loan_status_email(
 
     status_label = status_label_for(stage_norm, action_norm)  # type: ignore[arg-type]
 
+    # Reschedule is repeatable (park -> back to Treasurer -> park again), so it is
+    # exempt from the "same status as last email" guard and instead gets a
+    # per-event dedup marker below.
+    is_reschedule = action_norm == "reschedule"
+    dedup_label = status_label
+    if is_reschedule:
+        dedup_label = f"{status_label}|{_reschedule_marker(supabase, source_table=loan['source_table'], loan_id=loan['control_number'], remarks=remarks)}"
+
     # Transition guard: if the last successfully-emailed status equals the one
     # we're about to send, skip. Protects against refresh/double-click resubmits.
-    if loan["last_emailed_status"] and loan["last_emailed_status"].lower() == status_label.lower():
+    if (
+        not is_reschedule
+        and loan["last_emailed_status"]
+        and loan["last_emailed_status"].lower() == status_label.lower()
+    ):
         result.skipped += 1
         result.details.append({"reason": "status_unchanged_since_last_email", "status": status_label})
         return result
@@ -301,7 +339,7 @@ def dispatch_loan_status_email(
         result.skipped += 1
         result.details.append({"role": "member", "reason": "member_opted_out"})
     elif member_email and email_service.is_valid_email(member_email):
-        dedup_key = _dedup_key(loan["control_number"], stage_norm, action_norm, status_label, member_email)
+        dedup_key = _dedup_key(loan["control_number"], stage_norm, action_norm, dedup_label, member_email)
         if _dedup_already_succeeded(supabase, dedup_key):
             result.skipped += 1
             result.details.append({"recipient": member_email, "reason": "dedup_hit"})
