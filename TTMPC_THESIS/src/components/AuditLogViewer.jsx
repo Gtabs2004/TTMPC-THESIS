@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ClipboardList,
   Receipt,
+  Send,
   ArrowDownCircle,
   ArrowUpCircle,
   X,
@@ -106,7 +107,7 @@ const RECEIPT_VIEWER_ROLES = new Set(["bod", "bookkeeper", "manager", "treasurer
 
 // Icons for the role-specific KPI cards returned by /api/audit-log/kpis.
 const KPI_ICON = {
-  loanDisbursements:    { icon: Receipt,         iconColor: "text-green-600" },
+  loanDisbursements:    { icon: Send,            iconColor: "text-green-600" },
   loanPayments:         { icon: Receipt,         iconColor: "text-teal-600" },
   cashDeposits:         { icon: ArrowDownCircle, iconColor: "text-emerald-600" },
   cashWithdrawals:      { icon: ArrowUpCircle,   iconColor: "text-rose-600" },
@@ -346,6 +347,149 @@ const ActorCell = ({ row }) => {
  *                         staff who only see their own rows by RLS). Default: true.
  *   onError             — optional callback receiving a string error message.
  */
+// Plain-text form of a value from an audit snapshot (before / after / context).
+const formatAuditValue = (v) => {
+  if (v === null || v === undefined || v === "") return "—";
+  if (typeof v === "boolean") return v ? "Yes" : "No";
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
+};
+
+const AuditField = ({ label, children }) => (
+  <div className="min-w-0">
+    <dt className="text-xs text-gray-500">{label}</dt>
+    <dd className="mt-0.5 text-sm font-medium text-gray-900 break-words">{children}</dd>
+  </div>
+);
+
+// Detail view for one audit entry. Opened by clicking a row in either audit
+// table; shows everything the log recorded for it.
+const AuditDetailModal = ({ row, onClose, onViewReceipt }) => {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const moduleInfo = MODULE_BY_ENTITY[row.entity_type] || { label: titleCase(row.entity_type) };
+  const flagged = FLAGGED_ACTIONS.has(row.action);
+  const amount = auditAmount(row);
+  const before = row.before || {};
+  const after = row.after || {};
+  const changedKeys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
+  const contextEntries = Object.entries(row.context || {});
+  const actor = row.actor_name || row.actor_email || (row.actor_user_id ? "Unknown user" : "System");
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Audit log entry details"
+        className="w-full max-w-2xl max-h-[88vh] overflow-hidden flex flex-col rounded-xl bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-primary-deep px-6 pb-5 pt-4 text-white">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm text-white/75">
+              <span className="font-mono">{formatLogId(row.id)}</span>
+              <span className="mx-2 text-white/40">·</span>
+              {formatAuditTimestamp(row.occurred_at)}
+            </p>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="-mr-2 -mt-1.5 rounded-md p-1.5 text-white/75 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <h3 className="mt-2 text-lg font-semibold leading-snug">{describeAuditActivity(row)}</h3>
+          <p className="mt-1 text-sm text-white/75">
+            {actor} · {formatRole(row.actor_role)}
+          </p>
+        </div>
+
+        {flagged && (
+          <div className="flex items-center gap-2 border-b border-red-100 bg-red-50 px-6 py-2.5 text-sm text-red-700">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
+            This action is flagged for attention.
+          </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto">
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-5 px-6 py-5 sm:grid-cols-2">
+            <AuditField label="Transaction type">{moduleInfo.label}</AuditField>
+            <AuditField label="Action">{ACTIVITY_VERB[row.action] || titleCase(row.action)}</AuditField>
+            <AuditField label="Reference"><span className="font-mono">{describeAuditContext(row) || "—"}</span></AuditField>
+            <AuditField label="Record ID"><span className="font-mono">{row.entity_id || "—"}</span></AuditField>
+            {amount != null ? <AuditField label="Amount">{formatPeso(amount)}</AuditField> : null}
+            <AuditField label="Performed by">
+              {actor}
+              {row.actor_name && row.actor_email ? (
+                <span className="block text-xs font-normal text-gray-500">{row.actor_email}</span>
+              ) : null}
+            </AuditField>
+          </dl>
+
+          {changedKeys.length > 0 && (
+            <div className="border-t border-gray-100 px-6 py-5">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">What changed</p>
+              <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 text-xs text-gray-500">
+                      <th className="px-3 py-2 font-medium">Field</th>
+                      <th className="px-3 py-2 font-medium">Before</th>
+                      <th className="px-3 py-2 font-medium">After</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {changedKeys.map((k) => (
+                      <tr key={k} className="border-t border-gray-100">
+                        <td className="px-3 py-2 text-gray-700">{titleCase(k)}</td>
+                        <td className="px-3 py-2 text-gray-500 break-words">{formatAuditValue(before[k])}</td>
+                        <td className="px-3 py-2 font-medium text-gray-900 break-words">{formatAuditValue(after[k])}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {contextEntries.length > 0 && (
+            <div className="border-t border-gray-100 bg-gray-50/60 px-6 py-5">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Related details</p>
+              <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+                {contextEntries.map(([k, v]) => (
+                  <AuditField key={k} label={titleCase(k)}>{formatAuditValue(v)}</AuditField>
+                ))}
+              </dl>
+            </div>
+          )}
+        </div>
+
+        {onViewReceipt && (
+          <div className="flex justify-end border-t border-gray-100 px-6 py-3">
+            <button
+              type="button"
+              onClick={onViewReceipt}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+            >
+              <Receipt className="h-4 w-4" aria-hidden="true" /> View receipt
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -354,6 +498,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
   const [showViewAll, setShowViewAll] = useState(false);
   const [viewerRole, setViewerRole] = useState("");
   const [receiptAudit, setReceiptAudit] = useState(null);
+  const [selectedLog, setSelectedLog] = useState(null);
   const canViewReceipt = (r) =>
     RECEIPT_VIEWER_ROLES.has(viewerRole) && RECEIPT_ENTITY_TYPES.has(r.entity_type) && r.has_receipt === true;
 
@@ -573,12 +718,28 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
   );
 
   // Full 7-column row, used only inside the View All modal.
+  // Rows open the entry's detail modal on click (or Enter / Space).
+  const rowOpenProps = (r) => ({
+    role: "button",
+    tabIndex: 0,
+    "aria-label": `View details for ${formatLogId(r.id)}`,
+    onClick: () => setSelectedLog(r),
+    onKeyDown: (e) => {
+      if (e.target !== e.currentTarget) return;
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        setSelectedLog(r);
+      }
+    },
+  });
+  const rowOpenClass = "cursor-pointer focus:outline-none focus-visible:bg-green-50";
+
   const renderDetailedRow = (r) => {
     const moduleInfo = MODULE_BY_ENTITY[r.entity_type] || { label: r.entity_type, className: "bg-gray-50 text-gray-600" };
     const flagged = FLAGGED_ACTIONS.has(r.action);
     const status = flagged ? "Flagged" : "Success";
     return (
-      <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+      <tr key={r.id} {...rowOpenProps(r)} className={`border-b border-gray-100 hover:bg-gray-50/50 transition-colors ${rowOpenClass}`}>
         <td className="p-4 font-medium text-gray-900">{formatLogId(r.id)}</td>
         <td className="p-4 text-gray-500">{formatAuditTimestamp(r.occurred_at)}</td>
         <td className="p-4"><ActorCell row={r} /></td>
@@ -594,7 +755,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
           {canViewReceipt(r) ? (
             <button
               type="button"
-              onClick={() => setReceiptAudit({ type: r.entity_type, id: r.entity_id })}
+              onClick={(e) => { e.stopPropagation(); setReceiptAudit({ type: r.entity_type, id: r.entity_id }); }}
               className="ml-2 inline-flex items-center gap-1 text-xs font-semibold text-primary-deep hover:underline"
             >
               <Receipt className="h-3.5 w-3.5" aria-hidden="true" /> View receipt
@@ -663,7 +824,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
                 const flagged = FLAGGED_ACTIONS.has(r.action);
                 const status = flagged ? "Flagged" : "Success";
                 return (
-                  <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                  <tr key={r.id} {...rowOpenProps(r)} className={`border-b border-gray-100 hover:bg-gray-50/50 transition-colors ${rowOpenClass}`}>
                     <td className="p-5 text-gray-500">{formatAuditTimestamp(r.occurred_at)}</td>
                     <td className="p-5"><ActorCell row={r} /></td>
                     <td className="p-5 text-gray-500">{formatRole(r.actor_role)}</td>
@@ -673,7 +834,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
                       {canViewReceipt(r) ? (
                         <button
                           type="button"
-                          onClick={() => setReceiptAudit({ type: r.entity_type, id: r.entity_id })}
+                          onClick={(e) => { e.stopPropagation(); setReceiptAudit({ type: r.entity_type, id: r.entity_id }); }}
                           className="mt-1 inline-flex min-h-8 items-center gap-1 text-xs font-semibold text-primary-deep hover:underline"
                         >
                           <Receipt className="h-3.5 w-3.5" aria-hidden="true" /> View receipt
@@ -762,6 +923,17 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
             </div>
           </div>
         </div>
+      )}
+      {selectedLog && (
+        <AuditDetailModal
+          row={selectedLog}
+          onClose={() => setSelectedLog(null)}
+          onViewReceipt={
+            canViewReceipt(selectedLog)
+              ? () => setReceiptAudit({ type: selectedLog.entity_type, id: selectedLog.entity_id })
+              : null
+          }
+        />
       )}
       <ReceiptModal open={!!receiptAudit} audit={receiptAudit} onClose={() => setReceiptAudit(null)} />
     </>

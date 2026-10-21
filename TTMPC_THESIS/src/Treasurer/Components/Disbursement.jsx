@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useRef, useEffect, useState, useCallback } from "react";
+﻿import React, { useMemo, useEffect, useState, useCallback } from "react";
 import { useNotification } from "../../contex/NotificationContext";
 import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
@@ -65,7 +65,6 @@ const computeRank = (row) => {
 const Disbursements = () => {
   const { addNotification } = useNotification();
   const [activeLoan, setActiveLoan] = useState(null);
-  const [openMenuId, setOpenMenuId] = useState(null);
   const [showTimeline, setShowTimeline] = useState(false);
   const [showPriorityLegend, setShowPriorityLegend] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -75,15 +74,6 @@ const Disbursements = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const menuRef = useRef(null);
-
-  useEffect(() => {
-    const onDocClick = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) setOpenMenuId(null);
-    };
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, []);
 
   const bannerNotice = "Read-only view. Only loans released by the Cashier are shown here for treasury monitoring and audit.";
 
@@ -190,11 +180,11 @@ const Disbursements = () => {
   }, [rows.length, summary, isLoading]);
 
   return (
-    <div className="flex min-h-screen bg-[#F8FAFC]">
+    <div className="flex min-h-screen bg-gray-50">
       <StaffSidebar portal="Treasurer" items={treasurerNav} />
 
       {/* --- MAIN CONTENT --- */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto font-['Poppins']">
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
         
         {/* --- ORIGINAL USER TOPBAR --- */}
         <StaffTopbar portal="Treasurer" notifications={<LoanNotificationBell role="treasurer" />} />
@@ -203,27 +193,20 @@ const Disbursements = () => {
         <main className="animate-page-in p-8 overflow-auto w-full">
           
           {/* Page Header */}
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-8">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Released Loans</h1>
-              <p className="text-sm text-gray-500 mt-1 font-medium">Audit view of loans successfully disbursed by the Cashier.</p>
+              <h1 className="text-2xl font-bold text-gray-900">Released Loans</h1>
+              <p className="text-sm text-gray-500 mt-0.5">Audit view of loans successfully disbursed by the Cashier.</p>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 text-sm font-semibold shadow-sm">
-                <CalendarDays className="w-4 h-4 text-gray-400" />
-                {new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "2-digit" })}
-              </div>
-              <button
-                onClick={fetchReleasedLoans}
-                disabled={isLoading}
-                className="action-button action-button-standard action-button-primary"
-              >
-                <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-                Refresh Data
-              </button>
-            </div>
+            <button
+              onClick={fetchReleasedLoans}
+              disabled={isLoading}
+              className="px-3 py-1.5 rounded-md border border-gray-300 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 inline-flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <RefreshCw size={13} className={isLoading ? "animate-spin" : ""} />
+              Refresh
+            </button>
           </div>
-
           {errorMessage && (
             <div className="rounded-xl border border-red-100 bg-red-50/80 px-4 py-3 text-sm text-red-800 flex items-start gap-3 mb-6 shadow-sm">
               <AlertCircle className="w-5 h-5 shrink-0 text-red-600 mt-0.5" />
@@ -276,97 +259,79 @@ const Disbursements = () => {
               </button>
             </TableToolbar>
 
-            {/* Table Content */}
+            {/* Table Content — same structure as the other ledger tables:
+                single-line cells, full-pill badges, state rows inside <tbody>,
+                pagination under the table. */}
             <div className="overflow-x-auto">
-              {isLoading ? (
-                <div className="p-10">
-                  <TableStateRow bare variant="loading" label="Syncing ledger records..." />
-                </div>
-              ) : visibleRows.length === 0 ? (
-                <div className="p-10">
-                  <TableStateRow
-                    bare
-                    variant="empty"
-                    icon={ClipboardList}
-                    label={rows.length === 0 ? "No Disbursed Loans" : "No Matches Found"}
-                    sublabel={
-                      rows.length === 0
-                        ? "Records will appear here once the Cashier processes a release."
-                        : "Try adjusting your search criteria or loan type filter."
-                    }
-                  />
-                </div>
-              ) : (
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
-                      <th className="p-5 font-bold">Member Information</th>
-                      <th className="p-5 font-bold">Loan Details</th>
-                      <th className="p-5 font-bold text-right">Released Amount</th>
-                      <th className="p-5 font-bold">Status</th>
-                      <th className="p-5 font-bold">Audit Info</th>
-                      <th className="p-5 font-bold text-right w-24">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedRows.map((row) => (
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Loan ID</th>
+                    <th className="p-5 font-bold">Member Name</th>
+                    <th className="p-5 font-bold">Loan Type</th>
+                    <th className="p-5 font-bold">MIGS Status</th>
+                    <th className="p-5 font-bold">Released Amount</th>
+                    <th className="p-5 font-bold">Documents</th>
+                    <th className="p-5 font-bold">Date Released</th>
+                    <th className="p-5 font-bold text-right pr-8">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {isLoading ? (
+                    <TableStateRow colSpan={8} variant="loading" label="Loading..." />
+                  ) : visibleRows.length === 0 ? (
+                    <TableStateRow
+                      colSpan={8}
+                      variant="empty"
+                      icon={ClipboardList}
+                      label={rows.length === 0 ? "No disbursed loans yet." : "No loans match your search."}
+                    />
+                  ) : (
+                    paginatedRows.map((row) => (
                       <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                        <td className="p-5 max-w-[18rem]">
-                          <div className="font-bold text-gray-900 mb-0.5 truncate" title={row.name}>{row.name}</div>
-                          <div className="text-xs font-medium text-gray-500 flex items-center gap-1.5 min-w-0">
-                            <Users className="w-3 h-3 shrink-0" />
-                            <span className="truncate" title={row.code}>{row.code}</span>
-                            <span className="text-gray-300 shrink-0">•</span>
-                            <span className="font-mono text-gray-400 truncate" title={`ID: ${row.id}`}>ID: {row.id}</span>
-                          </div>
+                        <td className="p-5 text-sm text-gray-500 font-medium">{row.id}</td>
+                        <td className="p-5 text-sm">
+                          <p className="font-bold text-gray-800">{row.name}</p>
+                          <p className="text-[10px] text-gray-500 mt-0.5">{row.code}</p>
                         </td>
-                        <td className="p-5 max-w-[12rem]">
-                          <span className={`inline-flex items-center max-w-full truncate px-2.5 py-1 rounded-xl text-xs font-bold ${getLoanTypeStyle(row.type)}`} title={row.type}>
+                        <td className="p-5 text-sm">
+                          <span
+                            className={`inline-block max-w-[12rem] truncate px-3 py-1.5 rounded-full text-xs font-bold ${getLoanTypeStyle(row.type)}`}
+                            title={row.type}
+                          >
                             {row.type}
                           </span>
-                          <div className="text-xs font-medium text-gray-500 mt-1.5 ml-1">{row.migs}</div>
                         </td>
-                        <td className="p-5 text-right align-top pt-5">
-                          <span className="font-extrabold text-gray-900 tabular-nums">
-                            {formatCurrency(row.amount)}
-                          </span>
-                          <div className="text-xs font-medium text-gray-500 mt-1">{row.method}</div>
-                        </td>
-                        <td className="p-5 align-top pt-5">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold border ${
-                            row.hasDocuments ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"
+                        <td className="p-5 text-sm">
+                          <span className={`badge-animated px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${
+                            row.migs === "MIGS" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
                           }`}>
-                            {row.hasDocuments ? <FileCheck2 className="w-3.5 h-3.5" /> : <FileX2 className="w-3.5 h-3.5" />}
+                            {row.migs}
+                          </span>
+                        </td>
+                        <td className="p-5 text-sm font-bold text-gray-900">{formatCurrency(row.amount)}</td>
+                        <td className="p-5 text-sm">
+                          <span className={`badge-animated px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${
+                            row.hasDocuments ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                          }`}>
                             {row.hasDocuments ? `Docs (${row.documentCount})` : "No Docs"}
                           </span>
                         </td>
-                        <td className="p-5 text-xs font-medium text-gray-500 max-w-[14rem]">
-                          <div className="mb-1 text-gray-900 whitespace-nowrap" title={row.releasedDate}>{formatDate(row.releasedDate)}</div>
-                          <div className="truncate" title={`By: ${row.releasedBy}`}>By: {row.releasedBy}</div>
-                        </td>
-                        <td className="p-5 align-top pt-4">
-                          <div className="flex items-center justify-end gap-2 relative" ref={openMenuId === row.id ? menuRef : null}>
-                            <TableActionButton onClick={() => setActiveLoan(row)}>
-                              View
-                            </TableActionButton>
-                          
-                            
-                          
-                           
-                          </div>
+                        <td className="p-5 text-sm text-gray-500 whitespace-nowrap">{formatDate(row.releasedDate)}</td>
+                        <td className="p-5 text-sm text-right pr-8">
+                          <TableActionButton onClick={() => setActiveLoan(row)}>View</TableActionButton>
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-
-              {visibleRows.length > ITEMS_PER_PAGE && (
-                <Pagination page={currentPage} totalPages={totalPages} onChange={setCurrentPage} />
-              )}
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
-          </div>
 
+            {!isLoading && visibleRows.length > 0 && (
+              <Pagination page={currentPage} totalPages={totalPages} onChange={setCurrentPage} />
+            )}
+          </div>
           {/* Timeline Section */}
           {showTimeline && (
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8 mt-2 animate-in fade-in slide-in-from-top-4 duration-300">

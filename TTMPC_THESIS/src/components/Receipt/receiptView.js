@@ -45,6 +45,15 @@ export const formatDate = (value) => {
 
 const text = (v) => (v === null || v === undefined || String(v).trim() === "" ? "—" : String(v));
 
+// A staff member on a receipt: their name, or failing that their role. Receipts
+// issued before names were resolved carry the raw login email instead (e.g.
+// "cashier@gmail.com"), and an email must never print on a receipt.
+const staff = (value, role) => {
+  const s = text(value);
+  if (s === "—") return role || "—";
+  return s.includes("@") ? role || "Staff" : s;
+};
+
 const row = (label, value, opts = {}) => ({ label, value, strong: !!opts.strong, mono: !!opts.mono });
 
 function memberGroup(snapshot, accountLabel, account) {
@@ -84,8 +93,8 @@ function loanPaymentView(snapshot, symbol) {
           row("Receipt no.", text(snapshot.receipt_no), { mono: true }),
           row("Payment ref.", text(ref.payment_reference), { mono: true }),
           row("Paid on", formatDateTime(ref.paid_at)),
-          row("Received by", text(ref.received_by)),
-          row("Validated by", text(ref.validated_by)),
+          row("Received by", staff(ref.received_by, "Cashier")),
+          row("Validated by", staff(ref.validated_by, "Bookkeeper")),
           row("Validated on", formatDateTime(ref.validated_at)),
         ],
       },
@@ -132,7 +141,7 @@ function loanReleaseView(snapshot, symbol) {
           row("Receipt no.", text(snapshot.receipt_no), { mono: true }),
           row("Disbursement ref.", text(ref.disbursement_reference), { mono: true }),
           row("Released on", formatDateTime(ref.released_at)),
-          row("Released by", text(ref.released_by)),
+          row("Released by", staff(ref.released_by, "Cashier")),
         ],
       },
     ],
@@ -162,7 +171,7 @@ function cbuView(snapshot, symbol) {
           row("CBU deposit ID", text(ref.cbu_deposit_id), { mono: true }),
           row("Paid by", text(ref.paid_by)),
           row("Date received", formatDate(ref.date_received)),
-          row("Received by", text(ref.received_by)),
+          row("Received by", staff(ref.received_by, "Cashier")),
         ],
       },
     ],
@@ -181,7 +190,7 @@ function savingsView(snapshot, symbol) {
   if (withdrawal && ref.requested_at) referenceRows.push(row("Requested on", formatDateTime(ref.requested_at)));
   referenceRows.push(
     row(withdrawal ? "Released on" : "Deposited on", formatDateTime(ref.posted_at)),
-    row(text(ref.handled_role || (withdrawal ? "Validated by" : "Received by")), text(ref.handled_by)),
+    row(text(ref.handled_role || (withdrawal ? "Validated by" : "Received by")), staff(ref.handled_by, withdrawal ? "Bookkeeper" : "Cashier")),
   );
   return {
     title: text(snapshot.title || (withdrawal ? "Savings Withdrawal" : "Savings Deposit")),
@@ -208,7 +217,7 @@ function membershipPaymentView(snapshot, symbol) {
     row("Payment ID", text(ref.payment_id), { mono: true }),
   ];
   if (ref.reference_number) referenceRows.push(row("Payment reference", text(ref.reference_number), { mono: true }));
-  referenceRows.push(row("Paid on", formatDateTime(ref.paid_at)), row("Received by", text(ref.received_by)));
+  referenceRows.push(row("Paid on", formatDateTime(ref.paid_at)), row("Received by", staff(ref.received_by, "Cashier")));
   return {
     title: text(snapshot.title || "Membership Fee"),
     subtitle: `Membership · Paid by ${text(b.payment_method)}`,
@@ -249,7 +258,7 @@ function cbuPayoutView(snapshot, symbol) {
           row("Receipt no.", text(snapshot.receipt_no), { mono: true }),
           row("Payout reference", text(ref.payout_reference), { mono: true }),
           row("Payout date", formatDate(ref.payout_date)),
-          row("Paid by", text(ref.paid_by)),
+          row("Received by", staff(ref.paid_by, "Cashier")),
         ],
       },
     ],
@@ -280,7 +289,7 @@ function iscView(snapshot, symbol) {
         rows: [
           row("Receipt no.", text(snapshot.receipt_no), { mono: true }),
           row("Settled on", formatDateTime(ref.settled_at)),
-          row("Settled by", text(ref.settled_by)),
+          row("Settled by", staff(ref.settled_by, "Bookkeeper")),
         ],
       },
     ],

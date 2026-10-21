@@ -50,6 +50,18 @@ const CHANGE_TYPES = [
 
 const ITEMS_PER_PAGE = 10;
 
+// How each ledger entry type is shown in the table: same full-pill, normal-case
+// badge as the Ledger Transactions page (inflows green, outflows red/orange).
+// Separate from CHANGE_TYPES, which only lists what the Update Balance form can
+// record (it has no "Disbursement": those come from the loan release).
+const LEDGER_TYPE_BADGES = {
+  deposit:         { label: "Deposit",         cls: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" },
+  withdrawal:      { label: "Withdrawal",      cls: "bg-orange-50 text-orange-700 ring-1 ring-orange-200" },
+  disbursement:    { label: "Disbursement",    cls: "bg-red-50 text-red-700 ring-1 ring-red-200" },
+  adjustment:      { label: "Adjustment",      cls: "bg-gray-50 text-gray-700 ring-1 ring-gray-200" },
+  opening_balance: { label: "Opening Balance", cls: "bg-blue-50 text-blue-700 ring-1 ring-blue-200" },
+};
+
 const PHP = (v) =>
   new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 2 }).format(Number(v || 0));
 
@@ -409,8 +421,8 @@ const Vault = () => {
           {/* LEDGER */}
           <div className="rounded-xl bg-white border border-gray-200 shadow-sm">
             <TableToolbar
-              title="Ledger"
-              subtitle={`Newest entries first. Showing ${paginatedEntries.length} of ${filteredEntries.length} (max 100 loaded).`}
+              title="Vault Ledger"
+              subtitle={`Showing ${paginatedEntries.length} of ${filteredEntries.length} entries${entries.length >= 100 ? " · latest 100 loaded" : ""}`}
             >
               <select
                 value={typeFilter}
@@ -418,11 +430,11 @@ const Vault = () => {
                 className="h-8 rounded-lg border border-gray-200 bg-white px-2 pr-6 text-[11px] font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
               >
                 <option value="all">All Types</option>
-                <option value="deposit">Deposit</option>
-                <option value="withdrawal">Withdrawal</option>
-                <option value="disbursement">Disbursement</option>
-                <option value="adjustment">Adjustment</option>
-                <option value="opening_balance">Opening Balance</option>
+                <option value="deposit">Deposits</option>
+                <option value="withdrawal">Withdrawals</option>
+                <option value="disbursement">Disbursements</option>
+                <option value="adjustment">Adjustments</option>
+                <option value="opening_balance">Opening Balances</option>
               </select>
             </TableToolbar>
 
@@ -430,11 +442,11 @@ const Vault = () => {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
-                    <th className="p-5 font-bold">When</th>
+                    <th className="p-5 font-bold">Date</th>
                     <th className="p-5 font-bold">Type</th>
                     <th className="p-5 font-bold text-right">Amount</th>
-                    <th className="p-5 font-bold">Note</th>
-                    <th className="p-5 font-bold">Ref</th>
+                    <th className="p-5 font-bold">Remarks</th>
+                    <th className="p-5 font-bold">Reference</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -446,18 +458,18 @@ const Vault = () => {
                       colSpan={5}
                       variant="empty"
                       icon={Inbox}
-                      label="No entries yet."
+                      label="No vault entries yet."
                       sublabel="Click Update Balance to record the first one."
                     />
                   )}
                   {!loading && paginatedEntries.map((row) => {
-                    const type = CHANGE_TYPES.find((t) => t.value === row.change_type);
+                    const type = LEDGER_TYPE_BADGES[row.change_type];
                     const isCredit = Number(row.amount) >= 0;
                     return (
                       <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                         <td className="p-5 text-gray-700 whitespace-nowrap">{formatWhen(row.entered_at)}</td>
                         <td className="p-5">
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ring-1 ${type?.tone || "text-gray-700 bg-gray-50 ring-gray-200"}`}>
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${type?.cls || "bg-gray-50 text-gray-700 ring-1 ring-gray-200"}`}>
                             {type?.label || row.change_type}
                           </span>
                         </td>
@@ -465,14 +477,22 @@ const Vault = () => {
                           {isCredit ? "+" : ""}{PHP(row.amount)}
                         </td>
                         <td className="p-5 text-gray-700">{row.note || <span className="text-gray-400">—</span>}</td>
-                        <td className="p-5 text-gray-500 font-mono text-xs">{row.reference_id ? `#${row.reference_id}` : "—"}</td>
+                        <td className="p-5 whitespace-nowrap">
+                          {row.reference_id ? (
+                            <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 font-mono text-[11px] text-gray-600 ring-1 ring-gray-200">
+                              #{row.reference_id}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
-            {filteredEntries.length > ITEMS_PER_PAGE && (
+            {!loading && filteredEntries.length > 0 && (
               <Pagination page={currentPage} totalPages={totalPages} onChange={setCurrentPage} />
             )}
           </div>
