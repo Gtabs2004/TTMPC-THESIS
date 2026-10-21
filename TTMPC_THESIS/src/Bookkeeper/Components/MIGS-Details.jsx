@@ -21,7 +21,6 @@ import {
   ChevronDown,
   ChevronRight,
   PiggyBank,
-  Edit2,
   Download,
   Briefcase,
   Wallet,
@@ -36,6 +35,10 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000
 // (migs_engine.py compute_migs_score). It is the only bookkeeper-entered
 // criterion -- the other six are derived from ledgers.
 const OUTSIDE_LOAN_CRITERION = "Loans from Other PLIs";
+
+// The MIGS pass mark (migs_engine.py MIGS_THRESHOLD). Display only: the
+// classification itself always comes from migs_status off the server.
+const MIGS_THRESHOLD = 50;
 
 const MIGSDetails = () => {
     const navigate = useNavigate();
@@ -95,20 +98,6 @@ const MIGSDetails = () => {
   }, [memberId, rtVersion]);
 
 
-  const handleRecalculate = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const fresh = await fetchMember();
-      setMemberData(fresh);
-      showToast(`Recalculated. Score: ${fresh?.migs_score ?? "—"} (${fresh?.migs_status ?? "—"}).`);
-    } catch (err) {
-      showToast(err?.message || "Recalculation failed.", "error");
-    } finally {
-      setBusy(false);
-    }
-  };
-
   // `value` is the answer being recorded, so each button on the row is an
   // explicit statement. It is NOT driven by the confirm dialog's boolean:
   // ConfirmDialog resolves false for Escape, the backdrop, and the X as well
@@ -151,41 +140,6 @@ const MIGSDetails = () => {
       );
     } catch (err) {
       showToast(err?.message || "Failed to save the declaration.", "error");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleFinalizeScore = async () => {
-    if (busy) return;
-    const ok = await confirm({
-      title: "Finalize MIGS Classification",
-      message: "Finalize and snapshot this year's MIGS classification for all members? This writes an official row to member_classification_temporal that other modules read.",
-      confirmLabel: "Finalize",
-      tone: "warning",
-    });
-    if (!ok) return;
-    setBusy(true);
-    try {
-      const year = new Date().getFullYear();
-      const res = await fetch(
-        `${API_BASE_URL}/api/migs/recompute-all?year=${year}`,
-        { method: "POST" }
-      );
-      const result = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(result?.detail || "Finalize failed.");
-      const total = (result?.inserted || 0) + (result?.updated || 0);
-      // Refresh this member's panel in the background: the buttons were already
-      // blocked for the whole all-members recompute, and re-loading the detail
-      // (several more seconds) before re-enabling them only made Finalize feel
-      // slower. The score shown doesn't change by finalizing.
-      fetchMember().then(setMemberData).catch(() => {});
-      showToast(
-        `Snapshot saved. ${total} members labeled as of ${result?.accrual_date}.`,
-        result?.errors?.length ? "warning" : "success"
-      );
-    } catch (err) {
-      showToast(err?.message || "Finalize failed.", "error");
     } finally {
       setBusy(false);
     }
@@ -394,16 +348,7 @@ const MIGSDetails = () => {
                                         Yes
                                       </button>
                                     </div>
-                                  ) : (
-                                    <button
-                                      className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-300 cursor-not-allowed"
-                                      disabled
-                                      title="Derived from the ledger — not editable"
-                                    >
-                                      <Edit2 className="w-4 h-4" />
-                                      <span className="sr-only">{item.criterion} is not editable</span>
-                                    </button>
-                                  )}
+                                  ) : null}
                                 </td>
                               </tr>
                             );
@@ -419,9 +364,6 @@ const MIGSDetails = () => {
                   <div className="bg-white rounded-xl border border-gray-200 p-6">
                     <h3 className="font-bold text-gray-900 text-base mb-4">Total Score</h3>
 
-                    {/* Score and its meter share one block -- the caption sat
-                        in a separate grey panel before, reading as unrelated
-                        to the number above it. mb-3 not mb-6 for that reason. */}
                     <div className="text-center mb-3">
                       {memberData.migs_score == null ? (
                         <div className="inline-flex flex-col items-center">
@@ -438,86 +380,75 @@ const MIGSDetails = () => {
                       )}
                     </div>
 
-                    <div className="mb-5">
-                      <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                        <div
-                          className="bg-green-600 h-full rounded-full transition-all"
-                          style={{ width: `${Math.max(0, Math.min(100, Number(memberData.migs_score) || 0))}%` }}
-                        ></div>
-                      </div>
-                      <p className="text-[11px] text-gray-500 text-center font-medium mt-1.5">
-                        {memberData.migs_score == null
-                          ? "Scoring engine pending"
-                          : `${memberData.migs_score}% Complete`}
-                      </p>
+                    <div className="mb-4 w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-green-600 h-full rounded-full transition-all"
+                        style={{ width: `${Math.max(0, Math.min(100, Number(memberData.migs_score) || 0))}%` }}
+                      ></div>
                     </div>
 
-                    {/* The verdict and its explanation now sit inside one
-                        tinted block, so the sentence reads as the result's
-                        caption rather than as floating text beneath a pill. */}
-                    <div className={`rounded-lg border px-4 py-3 text-center ${
-                      memberData.migs_status == null
-                        ? "bg-gray-50 border-gray-200"
-                        : memberData.migs_status === "MIGS Qualified"
-                        ? "bg-green-50 border-green-200"
-                        : "bg-red-50 border-red-200"
-                    }`}>
-                      <p className={`inline-flex items-center gap-1.5 font-semibold text-sm ${
-                        memberData.migs_status == null
-                          ? "text-gray-500"
-                          : memberData.migs_status === "MIGS Qualified"
-                          ? "text-green-700"
-                          : "text-red-700"
-                      }`}>
-                        {memberData.migs_status != null && (
-                          <span className="leading-none">
-                            {memberData.migs_status === "MIGS Qualified" ? "✓" : "○"}
-                          </span>
-                        )}
-                        {memberData.migs_status == null ? "Not classified" : memberData.migs_status}
-                      </p>
-                      <p className="text-[11px] text-gray-500 mt-1">
-                        {memberData.migs_status == null
-                          ? "Awaiting MIGS scoring engine"
-                          : memberData.migs_status === "MIGS Qualified"
-                          ? "Member qualifies for MIGS"
-                          : "Member does not qualify"}
-                      </p>
-                    </div>
-
-                    <hr className="my-5 border-gray-200" />
-
-                    <div>
-                      <h4 className="font-bold text-gray-900 mb-2.5 text-xs uppercase tracking-wider">Actions</h4>
-                      {/* Primary first: Finalize is the action this screen
-                          exists for, Recalculate is the way back. */}
-                      <div className="space-y-2">
-                        <button
-                          onClick={handleFinalizeScore}
-                          disabled={busy}
-                          className="w-full h-10 flex items-center justify-center gap-1.5 rounded-lg bg-green-600 text-white font-semibold text-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-600 focus:ring-offset-1 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                          <span className="leading-none">✓</span>
-                          {busy ? "Working…" : "Finalize Score"}
-                        </button>
-                        <button
-                          onClick={handleRecalculate}
-                          disabled={busy}
-                          className="w-full h-10 flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white text-gray-700 font-semibold text-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-1 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                          {busy ? "Working…" : "Recalculate"}
-                        </button>
-                      </div>
-                      {toast && (
-                        <div className={`mt-3 text-xs px-3 py-2 rounded-lg border ${
-                          toast.kind === "error" ? "bg-red-50 text-red-700 border-red-200" :
-                          toast.kind === "warning" ? "bg-orange-50 text-orange-700 border-orange-200" :
-                          "bg-green-50 text-green-700 border-green-200"
+                    {/* One line for the verdict and how far the score is from the pass mark. */}
+                    {(() => {
+                      const score = Number(memberData.migs_score);
+                      const known = memberData.migs_score != null && Number.isFinite(score);
+                      const qualified = memberData.migs_status === "MIGS Qualified";
+                      const gap = Math.abs(score - MIGS_THRESHOLD);
+                      return (
+                        <div className={`rounded-lg border px-4 py-3 text-center ${
+                          !known ? "bg-gray-50 border-gray-200" : qualified ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"
                         }`}>
-                          {toast.message}
+                          <p className={`text-sm font-semibold ${
+                            !known ? "text-gray-500" : qualified ? "text-green-700" : "text-red-700"
+                          }`}>
+                            {!known ? "Not classified" : qualified ? "✓ MIGS Qualified" : "○ Not MIGS"}
+                          </p>
+                          {known && (
+                            <p className="mt-1 text-[11px] text-gray-500">
+                              {qualified
+                                ? gap === 0
+                                  ? `Exactly at the ${MIGS_THRESHOLD}-point pass mark`
+                                  : `${gap} point${gap === 1 ? "" : "s"} above the ${MIGS_THRESHOLD} needed`
+                                : `${gap} point${gap === 1 ? "" : "s"} short of the ${MIGS_THRESHOLD} needed`}
+                            </p>
+                          )}
                         </div>
-                      )}
-                    </div>
+                      );
+                    })()}
+
+                    {/* What the classification means for this member. */}
+                    <dl className="mt-5 space-y-3 border-t border-gray-200 pt-5 text-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <dt className="text-gray-500">Loan limit</dt>
+                        <dd className="font-semibold text-gray-900">
+                          {memberData.loan_multiplier != null ? `${memberData.loan_multiplier}× share capital` : "—"}
+                        </dd>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <dt className="text-gray-500">Voting</dt>
+                        <dd className="font-semibold text-gray-900">
+                          {memberData.can_vote == null ? "—" : memberData.can_vote ? "Can vote" : "Cannot vote"}
+                        </dd>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <dt className="text-gray-500">Last saved</dt>
+                        <dd className="font-semibold text-gray-900">
+                          {memberData.snapshot_recorded
+                            ? new Date(`${String(memberData.snapshot_recorded).slice(0, 10)}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                            : "Not yet"}
+                        </dd>
+                      </div>
+                    </dl>
+
+                    {/* Feedback from the Loans-from-Other-PLIs answer buttons. */}
+                    {toast && (
+                      <div className={`mt-4 text-xs px-3 py-2 rounded-lg border ${
+                        toast.kind === "error" ? "bg-red-50 text-red-700 border-red-200" :
+                        toast.kind === "warning" ? "bg-orange-50 text-orange-700 border-orange-200" :
+                        "bg-green-50 text-green-700 border-green-200"
+                      }`}>
+                        {toast.message}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

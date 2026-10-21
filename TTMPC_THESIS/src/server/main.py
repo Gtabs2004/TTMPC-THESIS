@@ -12315,6 +12315,21 @@ async def list_migs_classifications():
 
 @app.get("/api/migs/members")
 async def list_migs_members(year: int | None = None):
+    """MIGS member list. Retries once on a fresh Supabase client when the pooled
+    connection has gone stale (WinError 10035 / "server disconnected"); this is a
+    read-only lookup of roughly twenty queries, so one dropped connection used to
+    fail the whole page. The all-members save reuses it too."""
+    global supabase
+    try:
+        return await _list_migs_members(year)
+    except HTTPException as err:
+        if not (_is_stale_connection_error(Exception(str(err.detail))) and url and key):
+            raise
+        supabase = create_client(url, key, options=_SUPABASE_CLIENT_OPTIONS)
+        return await _list_migs_members(year)
+
+
+async def _list_migs_members(year: int | None = None):
     """List all members with the raw inputs needed for MIGS scoring.
 
     Query params:

@@ -140,9 +140,9 @@ const MIGS = () => {
   const handleComputeAll = async () => {
     if (computing) return;
     const ok = await confirm({
-      title: "Recompute MIGS Classifications",
-      message: "Recompute and label every member's MIGS classification? This saves a snapshot to the system so other modules (loan approval, member view) can use the official label.",
-      confirmLabel: "Recompute All",
+      title: "Save MIGS Classifications",
+      message: `Save today's MIGS classification for all ${rows.length} members? Each member is saved as MIGS or Non-MIGS from their current score (50 or more is MIGS). Other modules, such as loan approval, read this saved classification.`,
+      confirmLabel: "Save for All Members",
       tone: "warning",
     });
     if (!ok) return;
@@ -229,7 +229,7 @@ const MIGS = () => {
             <div>
               <h1 className="font-bold text-2xl text-gray-900">MIGS Scoring</h1>
               <p className="text-xs text-gray-500 mt-0.5">
-                Compute classification for every member and label them in the system.
+                Each member's score and MIGS classification. Save to make today's classification official for the whole cooperative.
                 {lastComputeRun ? ` Last run: ${lastComputeRun}.` : ""}
               </p>
             </div>
@@ -237,17 +237,17 @@ const MIGS = () => {
               onClick={handleComputeAll}
               disabled={computing}
               className="px-4 py-2 rounded-lg bg-[#2C7A3F] hover:bg-[#1f5a2d] text-white text-sm font-semibold inline-flex items-center gap-2 transition-colors disabled:opacity-80 disabled:cursor-not-allowed"
-              title="Recompute all members and write the snapshot to member_classification_temporal"
+              title="Score every member and save the classification other modules read"
             >
               {computing ? (
                 <>
                   <Loader2 size={15} className="animate-spin" />
-                  Computing...
+                  Saving...
                 </>
               ) : (
                 <>
                   <Zap size={15} />
-                  Compute All MIGS
+                  Save Classifications
                 </>
               )}
             </button>
