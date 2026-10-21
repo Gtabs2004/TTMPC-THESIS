@@ -437,7 +437,7 @@ const Member_ApplyLoans = () => {
                   <div
                     key={item.key}
                     className={`min-h-36 bg-white rounded-2xl flex flex-col items-center justify-center shadow-sm border border-slate-100 transition-all group p-4 sm:p-6 dark:bg-mdark-elevated dark:border-mdark-border ${
-                      disabled ? "opacity-75" : "hover:shadow-lg hover:border-[#A0D284]"
+                      disabled ? "" : "hover:shadow-lg hover:border-[#A0D284]"
                     }`}
                   >
                     <button
@@ -450,7 +450,7 @@ const Member_ApplyLoans = () => {
                       aria-disabled={disabled}
                       title={disabled ? disabledReason : ""}
                       className={`flex flex-col items-center justify-center w-full ${
-                        disabled ? "grayscale cursor-not-allowed" : "cursor-pointer"
+                        disabled ? "opacity-75 grayscale cursor-not-allowed" : "cursor-pointer"
                       }`}
                     >
                       <div className={`${item.tone} p-3 sm:p-4 rounded-full mb-2 sm:mb-3 ${disabled ? "" : "group-hover:scale-110"} transition-transform duration-300`}>

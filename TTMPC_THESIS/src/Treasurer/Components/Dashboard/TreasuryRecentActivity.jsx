@@ -64,7 +64,7 @@ const TreasuryRecentActivity = ({ ledger, released }) => {
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
-      <Card icon={Receipt} title="Recent Cash Activity" subtitle="Last 30 days of cash in and out" linkLabel="View ledger" href="/treasurer-payments">
+      <Card icon={Receipt} title="Recent Cash Transaction" subtitle="Last 30 days of cash in and out" linkLabel="View ledger" href="/treasurer-payments">
         {ledger.data && (
           <div className="grid grid-cols-3 gap-2 mb-4">
             <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
