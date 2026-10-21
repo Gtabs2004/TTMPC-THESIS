@@ -11501,6 +11501,17 @@ async def get_savings_account_ledger(
         raise HTTPException(status_code=500, detail=f"Failed to fetch ledger: {err}")
 
 
+def _require_savings_cashier(current_user: dict | None) -> None:
+    """Deposits and withdrawal requests on a savings account are the Cashier's.
+    The Bookkeeper verifies withdrawals, so letting the same person request one
+    would remove the second pair of eyes."""
+    if not current_user or not current_user.get("id"):
+        raise HTTPException(status_code=401, detail="Sign in to record savings transactions.")
+    role = _resolve_staff_role(current_user["id"], current_user.get("email") or "")
+    if role != "cashier":
+        raise HTTPException(status_code=403, detail="Only the Cashier can record savings deposits and withdrawal requests.")
+
+
 @app.post("/api/savings/accounts/{account_number}/deposit")
 async def post_savings_account_deposit(
     account_number: str,
@@ -11510,6 +11521,7 @@ async def post_savings_account_deposit(
     """New-table-native deposit. Writes savings_ledger credit (trigger updates
     savings_accounts.balance) and mirrors to legacy Savings_Transactions when
     a legacy_savings_id bridge exists."""
+    _require_savings_cashier(current_user)
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
@@ -11657,6 +11669,7 @@ async def post_savings_account_withdraw(
 ):
     """New-table-native withdrawal request. Inserts a pending_verification queue
     row only; no balance change until Bookkeeper confirms."""
+    _require_savings_cashier(current_user)
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 

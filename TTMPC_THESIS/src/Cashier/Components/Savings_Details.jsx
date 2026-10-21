@@ -44,6 +44,7 @@ import TableStateRow from "../../components/TableStateRow";
 import Pagination from "../../components/Pagination";
 import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
 import { authHeaders } from "../../utils/authHeaders";
+import { usePortalRole } from "../../utils/usePortalRole";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const PAGE_SIZE = 10;
@@ -193,6 +194,11 @@ const Savings_Details = () => {
   const portalLabel = fromPortal === "bookkeeper" ? "Bookkeeper" : "Cashier";
   const portalNav = fromPortal === "bookkeeper" ? bookkeeperNav : cashierNav;
   const backRoute = fromPortal === "bookkeeper" ? "/bookkeeper-savings-accounts" : "/Cashier_Savings";
+  // Deposits and withdrawal requests are the Cashier's job. The Bookkeeper
+  // verifies withdrawals, so requesting them here would let one person do both
+  // steps. (The server enforces the same rule.)
+  const portalRole = usePortalRole();
+  const canTransact = fromPortal === "cashier" && portalRole !== "bookkeeper";
 
   const { data, ledger, status, error, refresh, submitTransaction } =
     useSavingsAccount(accountParam);
@@ -448,6 +454,7 @@ const Savings_Details = () => {
 
                   {/* ACTION BUTTONS: one primary, two secondary, same size */}
                   <div className="flex flex-wrap gap-2">
+                    {canTransact && (
                     <button
                       onClick={openDepositModal}
                       disabled={account.status !== "active"}
@@ -456,6 +463,8 @@ const Savings_Details = () => {
                       <ArrowDownCircle size={16} />
                       Record Deposit
                     </button>
+                    )}
+                    {canTransact && (
                     <button
                       onClick={openWithdrawModal}
                       disabled={account.status !== "active" || balance <= 0}
@@ -464,6 +473,7 @@ const Savings_Details = () => {
                       <ArrowUpCircle size={16} />
                       Request Withdrawal
                     </button>
+                    )}
                     <button
                       onClick={() => setShowInterestModal(true)}
                       disabled={account.status !== "active"}
