@@ -23,6 +23,7 @@ export const bookkeeperNav = [
     isDropdown: true,
     subItems: [
       { name: "Manage Member",         path: "/manage-member" },
+      { name: "Profile Changes",       path: "/bookkeeper-profile-changes", badgeKey: "profile_changes" },
       { name: "Member Classification", path: "/migs", alsoActive: ["/migs-evaluate"] },
     ],
   },

@@ -32,6 +32,7 @@ import { TableToolbar } from "../../components/TableToolbar";
 import Pagination from "../../components/Pagination";
 import TableActionButton from "../../components/TableActionButton";
 import TableStateRow from "../../components/TableStateRow";
+import { fetchBookkeeperProfileChanges } from "../../utils/profileChangeRequests";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const ITEMS_PER_PAGE = 10;
@@ -60,14 +61,18 @@ const Manage_Member = () => {
   const [addressFilter, setAddressFilter] = useState("all"); // all | with | without
   const [clusterFilter, setClusterFilter] = useState("all"); // all | one of CLUSTER_ORDER
   const [sortOrder, setSortOrder] = useState("name_asc"); // name_asc | name_desc | newest | oldest
+  const [changesFilter, setChangesFilter] = useState("all"); // all | pending
+  // membership_id -> number of profile change requests waiting on the Bookkeeper.
+  const [pendingChanges, setPendingChanges] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
   const hasActiveFilters =
-    addressFilter !== "all" || clusterFilter !== "all" || sortOrder !== "name_asc" || query !== "";
+    addressFilter !== "all" || clusterFilter !== "all" || changesFilter !== "all" || sortOrder !== "name_asc" || query !== "";
 
   const clearFilters = () => {
     setQuery("");
     setAddressFilter("all");
     setClusterFilter("all");
+    setChangesFilter("all");
     setSortOrder("name_asc");
   };
 
@@ -121,6 +126,25 @@ const Manage_Member = () => {
     loadData();
   }, [rtVersion]);
 
+  // Pending profile changes per member, for the badge and filter. A failure
+  // just means no badges; the roster itself is unaffected.
+  useEffect(() => {
+    let stale = false;
+    fetchBookkeeperProfileChanges("pending")
+      .then((result) => {
+        if (stale) return;
+        const counts = {};
+        (result.data || []).forEach((r) => {
+          if (r.membership_id) counts[r.membership_id] = (counts[r.membership_id] || 0) + 1;
+        });
+        setPendingChanges(counts);
+      })
+      .catch(() => {});
+    return () => {
+      stale = true;
+    };
+  }, [rtVersion]);
+
   const filtered = useMemo(() => {
     const key = String(query || "").trim().toLowerCase();
     const hasValue = (v) => String(v || "").trim().length > 0;
@@ -146,6 +170,9 @@ const Manage_Member = () => {
       // 3. Cluster Filter
       if (clusterFilter !== "all" && r.cluster !== clusterFilter) return false;
 
+      // 4. Members with a profile change waiting for approval
+      if (changesFilter === "pending" && !pendingChanges[r.member_id]) return false;
+
       return true;
     });
 
@@ -164,7 +191,7 @@ const Manage_Member = () => {
     });
 
     return sorted;
-  }, [query, rows, addressFilter, clusterFilter, sortOrder]);
+  }, [query, rows, addressFilter, clusterFilter, changesFilter, pendingChanges, sortOrder]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const paginatedRows = useMemo(() => {
@@ -174,7 +201,7 @@ const Manage_Member = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [query, rows, addressFilter, clusterFilter, sortOrder]);
+  }, [query, rows, addressFilter, clusterFilter, changesFilter, sortOrder]);
 
 
   return (
@@ -257,6 +284,18 @@ const Manage_Member = () => {
                 </select>
               </div>
 
+              <div className="flex flex-col gap-1.5 min-w-[180px]">
+                <label className="text-xs uppercase tracking-wider text-gray-500 font-bold">Profile changes</label>
+                <select
+                  value={changesFilter}
+                  onChange={(e) => setChangesFilter(e.target.value)}
+                  className="w-full h-10 px-3 pr-8 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 transition-all focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/50 focus:border-[#2C7A3F] hover:border-gray-300"
+                >
+                  <option value="all">All members</option>
+                  <option value="pending">Pending changes ({Object.keys(pendingChanges).length})</option>
+                </select>
+              </div>
+
               {hasActiveFilters && (
                 <button
                   onClick={clearFilters}
@@ -303,7 +342,19 @@ const Manage_Member = () => {
                           className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors"
                         >
                           <td className="p-5 text-sm font-bold text-gray-800">{r.member_id}</td>
-                          <td className="p-5 text-sm font-semibold text-gray-700">{r.full_name}</td>
+                          <td className="p-5 text-sm font-semibold text-gray-700">
+                            {r.full_name}
+                            {pendingChanges[r.member_id] ? (
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/bookkeeper-profile-changes?member=${encodeURIComponent(String(r.member_id))}`)}
+                                title="Review this member's pending profile changes"
+                                className="ml-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 hover:bg-amber-200"
+                              >
+                                Pending changes · {pendingChanges[r.member_id]}
+                              </button>
+                            ) : null}
+                          </td>
                           <td className="p-5 text-sm text-gray-600">{r.email}</td>
                           <td className="p-5 text-sm text-gray-600">{r.contact_number}</td>
                           <td className="p-5 text-sm text-gray-600">{r.address}</td>

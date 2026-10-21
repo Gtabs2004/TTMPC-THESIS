@@ -10,6 +10,14 @@ import { invalidate } from "../memberDataCache";
 import { invalidateSecurityStatus } from "../securityStatusCache";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import ChangePasswordModal from "./ChangePasswordModal";
+import ProfileChangeDialog from "./ProfileChangeDialog";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import {
+  NET_PAY_FIELD,
+  cancelProfileChangeRequest,
+  fetchMyProfileChangeRequests,
+  submitProfileChanges,
+} from "../../utils/profileChangeRequests";
 import {
   LayoutDashboard,
   Users,
@@ -110,7 +118,9 @@ const PROFILE_SECTIONS = [
       { key: 'occupation', label: 'Occupation', required: true },
       { key: 'educational_attainment', label: 'Educational Attainment' },
       { key: 'income_source', label: 'Source of Income' },
-      { key: 'salary', label: 'Monthly Salary' },
+      // The figure the loan forms and the 40% debt-capacity rule read. Changing it
+      // needs a payslip and Bookkeeper approval (see ProfileChangeDialog).
+      { key: 'salary', label: 'Net Take-Home Pay (Monthly)', needsProof: true },
       { key: 'annual_income', label: 'Annual Income' },
       { key: 'other_income', label: 'Other Income' },
       { key: 'tin_number', label: 'TIN Number' },
@@ -251,6 +261,10 @@ const Members_Profile = () => {
   const [saveError, setSaveError] = useState('');
   const [pendingTabChange, setPendingTabChange] = useState(null);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
+  const [dialogChanges, setDialogChanges] = useState([]);
+  const [confirmError, setConfirmError] = useState('');
+  const [myRequests, setMyRequests] = useState([]);
+  const [cancellingId, setCancellingId] = useState(null);
   const successTimerRef = useRef(null);
 
   const visibleSections = useMemo(
@@ -548,6 +562,10 @@ const Members_Profile = () => {
     visibleSections.forEach((section) => {
       if (section.readOnly) return;
       section.fields.forEach((field) => {
+        // Only fields being changed are checked. A required field that is already
+        // blank on file (older records) must not block saving an unrelated edit;
+        // the server validates every submitted field again.
+        if ((formData[field.key] ?? '') === (originalData[field.key] ?? '')) return;
         const err = validateField(field, formData[field.key]);
         if (err) errs[field.key] = err;
       });
@@ -567,10 +585,114 @@ const Members_Profile = () => {
       setSaveError('No changes to save.');
       return;
     }
+    // Fields waiting on the Bookkeeper are locked, so only the rest can change.
+    const changes = editableFieldKeys
+      .filter((key) => !pendingByKey[key] && (formData[key] ?? '') !== (originalData[key] ?? ''))
+      .map((key) => {
+        const field = allFieldsByKey[key];
+        const oldValue = String(originalData[key] ?? '').trim();
+        return {
+          key,
+          label: field.label,
+          oldValue,
+          newValue: String(formData[key] ?? '').trim(),
+          needsProof: key === NET_PAY_FIELD,
+          // A blank field being filled for the first time is saved straight
+          // away (the server applies the same rule); net pay never is.
+          direct: oldValue === '' && key !== NET_PAY_FIELD,
+        };
+      });
+    if (changes.length === 0) {
+      setSaveError('No changes to save.');
+      return;
+    }
+    setDialogChanges(changes);
+    setConfirmError('');
     setShowConfirmSave(true);
   };
 
-  const handleConfirmSave = async () => {
+  // Pending and recently rejected requests, so the page shows what is waiting.
+  const loadMyRequests = async () => {
+    try {
+      const rows = await fetchMyProfileChangeRequests();
+      setMyRequests(rows);
+    } catch {
+      // The profile still works without the banner.
+    }
+  };
+
+  useEffect(() => {
+    loadMyRequests();
+  }, []);
+  useRealtimeRefetch(['member_profile_change_requests'], loadMyRequests);
+
+  const pendingRequests = useMemo(() => myRequests.filter((r) => r.status === 'pending'), [myRequests]);
+  const pendingByKey = useMemo(() => {
+    const map = {};
+    pendingRequests.forEach((r) => { map[r.field_key] = r; });
+    return map;
+  }, [pendingRequests]);
+  const recentlyRejected = useMemo(() => {
+    const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
+    return myRequests.filter((r) => r.status === 'rejected' && new Date(r.reviewed_at || 0).getTime() > cutoff);
+  }, [myRequests]);
+
+  // When the Bookkeeper approves something while this page is open, show the new
+  // value without a reload (and without disturbing anything being edited).
+  const seenPendingRef = useRef(null);
+  useEffect(() => {
+    const previous = seenPendingRef.current;
+    seenPendingRef.current = new Set(pendingRequests.map((r) => r.id));
+    if (!previous) return;
+    myRequests
+      .filter((r) => r.status === 'approved' && previous.has(r.id))
+      .forEach((r) => {
+        setOriginalData((prev) => ({ ...prev, [r.field_key]: r.new_value ?? '' }));
+        setFormData((prev) =>
+          (prev[r.field_key] ?? '') === (originalData[r.field_key] ?? '')
+            ? { ...prev, [r.field_key]: r.new_value ?? '' }
+            : prev
+        );
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myRequests]);
+
+  const handleCancelRequest = async (request) => {
+    if (cancellingId) return;
+    setCancellingId(request.id);
+    try {
+      await cancelProfileChangeRequest(request.id);
+      await loadMyRequests();
+    } catch (err) {
+      setSaveError(err.message || 'Unable to cancel the request.');
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
+  // Shown under a field that has a request waiting on the Bookkeeper.
+  const renderPendingNote = (key) => {
+    const request = pendingByKey[key];
+    if (!request) return null;
+    return (
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-amber-50 dark:bg-amber-900/20 px-2.5 py-1.5 text-xs text-amber-800 dark:text-amber-300">
+        <span className="font-semibold">Waiting for Bookkeeper approval</span>
+        <span>
+          Requested: <span className="font-semibold">{request.new_value || 'Cleared'}</span>
+        </span>
+        <button
+          type="button"
+          onClick={() => handleCancelRequest(request)}
+          disabled={cancellingId === request.id}
+          className="font-bold underline underline-offset-2 hover:text-amber-950 disabled:opacity-50"
+        >
+          {cancellingId === request.id ? 'Cancelling…' : 'Cancel request'}
+        </button>
+      </div>
+    );
+  };
+
+  const handleConfirmSave = async ({ payslip, payPeriod }) => {
     if (!pdsMembershipId) {
       setSaveError('Unable to resolve your Personal Data Sheet record. Please contact the cooperative office.');
       setShowConfirmSave(false);
@@ -579,49 +701,46 @@ const Members_Profile = () => {
 
     setSavingProfile(true);
     setSaveError('');
+    setConfirmError('');
     try {
-      const updatePayload = {};
-      const single = isSingleCivilStatus(formData.civil_status);
-      editableFieldKeys.forEach((key) => {
-        const field = allFieldsByKey[key];
-        let raw = formData[key];
-        if (raw === '' || raw === undefined) {
-          updatePayload[key] = null;
-        } else if (field.type === 'number') {
-          const n = Number(raw);
-          updatePayload[key] = Number.isFinite(n) ? n : null;
-        } else {
-          updatePayload[key] = String(raw).trim();
-        }
+      const result = await submitProfileChanges({
+        changes: dialogChanges.map((c) => ({ field_key: c.key, new_value: c.newValue })),
+        payslip,
+        payPeriod,
       });
-      if (single) {
-        ['spouse_name', 'spouse_occupation', 'spouse_date_of_birth'].forEach((key) => {
-          updatePayload[key] = null;
-        });
-      }
+      const applied = new Set(result?.applied_directly || []);
+      const requested = new Set((result?.requests || []).map((r) => r.field_key));
 
-      const { error: updateError } = await supabase
-        .from('personal_data_sheet')
-        .update(updatePayload)
-        .eq('membership_number_id', pdsMembershipId);
+      // First-time entries are already on the profile. Requested ones are not:
+      // put the form back to the stored value until the Bookkeeper approves.
+      setOriginalData((prev) => {
+        const next = { ...prev };
+        applied.forEach((key) => { next[key] = formData[key]; });
+        return next;
+      });
+      setFormData((prev) => {
+        const next = { ...prev };
+        requested.forEach((key) => { next[key] = originalData[key] ?? ''; });
+        return next;
+      });
+      // A first-time fill can complete what the onboarding guard is waiting for;
+      // drop its cached status so the member is released immediately.
+      if (applied.size) invalidateSecurityStatus();
+      await loadMyRequests();
 
-      if (updateError) throw updateError;
-
-      setOriginalData((prev) => ({ ...prev, ...formData }));
-      // The onboarding guard holds new members on this page until the required
-      // fields are filled; drop its cached status so a save that completes them
-      // releases the member immediately rather than after the cache expires.
-      invalidateSecurityStatus();
-      setSaveSuccess('Profile information updated successfully.');
+      const message = requested.size
+        ? 'Sent to the Bookkeeper. Your profile will update once the change is approved.'
+        : 'Profile information updated successfully.';
+      setSaveSuccess(message);
       setEditingSection(null); // Return to View Mode
       setShowConfirmSave(false);
       if (typeof addNotification === 'function') {
-        addNotification('Your personal data sheet has been saved.', 'success');
+        addNotification(message, 'success');
       }
       if (successTimerRef.current) clearTimeout(successTimerRef.current);
-      successTimerRef.current = setTimeout(() => setSaveSuccess(''), 4000);
+      successTimerRef.current = setTimeout(() => setSaveSuccess(''), 6000);
     } catch (err) {
-      setSaveError(err.message || 'Unable to save changes.');
+      setConfirmError(err.message || 'Unable to send your changes.');
     } finally {
       setSavingProfile(false);
     }
@@ -896,6 +1015,20 @@ const Members_Profile = () => {
             ) : null}
           </div>
 
+          {recentlyRejected.length > 0 ? (
+            <div className="w-full mb-4 p-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 text-sm text-red-800 dark:text-red-300">
+              <p className="font-bold">The Bookkeeper declined {recentlyRejected.length === 1 ? 'a change' : 'some changes'}</p>
+              <ul className="mt-1 space-y-0.5">
+                {recentlyRejected.map((r) => (
+                  <li key={r.id}>
+                    <span className="font-semibold">{r.field_label}</span>
+                    {r.review_note ? ` — ${r.review_note}` : ''}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           {saveSuccess ? (
             <div className="w-full mb-4 p-3 rounded-xl border border-green-200 bg-green-50 text-sm text-green-700 flex items-center gap-2 font-semibold animate-fade-in">
               <CheckCircle2 className="w-4 h-4" /> {saveSuccess}
@@ -975,7 +1108,7 @@ const Members_Profile = () => {
                             const inputClass = `w-full rounded-lg border ${
                               error ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 dark:border-mdark-border focus:ring-member-green/30 focus:border-member-green'
                             } bg-white dark:bg-mdark-elevated px-3 py-2.5 text-sm text-gray-900 dark:text-mdark-text outline-none focus:ring-2 transition disabled:bg-gray-50 dark:disabled:bg-gray-700 disabled:text-gray-500 dark:disabled:text-gray-500 disabled:cursor-not-allowed`;
-                            const disabled = section.readOnly || loadingProfile;
+                            const disabled = section.readOnly || loadingProfile || Boolean(pendingByKey[field.key]);
                             const isFull = field.fullWidth;
                             
                             return isEditing ? (
@@ -1023,6 +1156,12 @@ const Members_Profile = () => {
                                     <AlertCircle className="w-3 h-3" /> {error}
                                   </p>
                                 ) : null}
+                                {field.needsProof && !pendingByKey[field.key] ? (
+                                  <p className="mt-1 text-[11px] text-gray-500 dark:text-mdark-text-secondary">
+                                    Changing this needs a payslip and Bookkeeper approval.
+                                  </p>
+                                ) : null}
+                                {renderPendingNote(field.key)}
                               </div>
                             ) : (
                               // VIEW MODE
@@ -1037,6 +1176,7 @@ const Members_Profile = () => {
                                     <span className="italic text-gray-400 dark:text-mdark-text-muted font-medium">Not provided</span>
                                   )}
                                 </div>
+                                {renderPendingNote(field.key)}
                               </div>
                             );
                           })}
@@ -1074,15 +1214,11 @@ const Members_Profile = () => {
           </div>
 
           {/* Save confirmation modal */}
-          <ConfirmDialog
+          <ProfileChangeDialog
             open={showConfirmSave}
-            title="Save profile changes?"
-            message="Your updates will be written to your Personal Data Sheet and will be visible across all cooperative modules."
-            cancelLabel="Review again"
-            confirmLabel="Confirm Save"
-            loadingLabel="Saving…"
-            tone="default"
+            changes={dialogChanges}
             loading={savingProfile}
+            errorMessage={confirmError}
             onCancel={() => setShowConfirmSave(false)}
             onConfirm={handleConfirmSave}
           />

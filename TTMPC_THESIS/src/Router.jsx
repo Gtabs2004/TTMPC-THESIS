@@ -17,6 +17,7 @@ import LoanApplication from "./Bookkeeper/Components/Loan-Application";
 import MIGS from "./Bookkeeper/Components/MIGS";
 import BookkeeperPayments from "./Bookkeeper/Components/Payments";
 import BookkeeperRenewalOverrides from "./Bookkeeper/Components/Renewal_Overrides";
+import BookkeeperProfileChanges from "./Bookkeeper/Components/Profile_Change_Requests";
 import BookkeeperSavingsTransactions from "./Bookkeeper/Components/Savings-Transactions";
 import BookkeeperSavingsAccounts from "./Bookkeeper/Components/Bookkeeper_Savings_Accounts";
 import Bookkeeper_CBU from "./Bookkeeper/Components/Bookkeeper_CBU";
@@ -143,6 +144,7 @@ export const router = createBrowserRouter([
     {path: "/migs-evaluate", element: bookkeeperGuarded(<MIGSDetails/>)},
     {path: "/payments", element: bookkeeperGuarded(<BookkeeperPayments/>)},
     {path: "/bookkeeper-renewal-overrides", element: bookkeeperGuarded(<BookkeeperRenewalOverrides/>)},
+    {path: "/bookkeeper-profile-changes", element: bookkeeperGuarded(<BookkeeperProfileChanges/>)},
     {path: "/bookkeeper-savings-transactions", element: bookkeeperGuarded(<BookkeeperSavingsTransactions/>)},
     {path: "/bookkeeper-savings-accounts", element: bookkeeperGuarded(<BookkeeperSavingsAccounts/>)},
     {path: "/bookkeeper-cbu", element: bookkeeperGuarded(<Bookkeeper_CBU/>)},

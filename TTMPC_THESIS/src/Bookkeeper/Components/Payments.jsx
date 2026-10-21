@@ -1,5 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import QuickReasons from "../../components/QuickReasons";
+import { QUICK_REASONS } from "../../utils/quickReasons";
 import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
 import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
@@ -647,6 +649,11 @@ const BookkeeperPayments = () => {
           setRejectReason("");
         }}
       >
+        <QuickReasons
+          reasons={QUICK_REASONS.paymentReject}
+          value={rejectReason}
+          onChange={setRejectReason}
+        />
         <textarea
           value={rejectReason}
           onChange={(event) => setRejectReason(event.target.value)}

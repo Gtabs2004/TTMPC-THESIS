@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
+import QuickReasons from "../../components/QuickReasons";
+import { QUICK_REASONS } from "../../utils/quickReasons";
 import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
 import { useParams, useNavigate } from 'react-router-dom';
@@ -808,6 +810,11 @@ const MemberApprovalDetails = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Revision instructions <span className="text-red-500">*</span>
                   </label>
+                  <QuickReasons
+                    reasons={QUICK_REASONS.membershipRevision}
+                    value={remarks}
+                    onChange={setRemarks}
+                  />
                   <textarea 
                     rows="4"
                     className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-member-green focus:border-member-green outline-none"

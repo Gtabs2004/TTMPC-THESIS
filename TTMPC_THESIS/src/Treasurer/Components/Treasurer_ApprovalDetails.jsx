@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import QuickReasons from "../../components/QuickReasons";
+import { QUICK_REASONS } from "../../utils/quickReasons";
 import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
@@ -1303,6 +1305,11 @@ const Treasurer_ApprovalDetails = () => {
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Reason for Rejection <span className="text-red-500">*</span>
               </label>
+              <QuickReasons
+                reasons={QUICK_REASONS.loanReject}
+                value={remarks}
+                onChange={setRemarks}
+              />
               <textarea
                 rows="4"
                 className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-member-green focus:border-member-green outline-none"
@@ -1325,6 +1332,11 @@ const Treasurer_ApprovalDetails = () => {
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Revision instructions <span className="text-red-500">*</span>
               </label>
+              <QuickReasons
+                reasons={QUICK_REASONS.loanRevision}
+                value={remarks}
+                onChange={setRemarks}
+              />
               <textarea
                 rows="4"
                 className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-member-green focus:border-member-green outline-none"

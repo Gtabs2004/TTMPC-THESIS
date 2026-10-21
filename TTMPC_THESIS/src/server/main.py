@@ -7086,6 +7086,7 @@ def get_bookkeeper_pending_counts(current_user: dict = _Depends(_get_current_use
       - loan_payments:      loan_payments awaiting Bookkeeper confirmation
       - savings_withdrawals: savings queue rows awaiting verification
       - override_requests:  renewal/bonus-window override requests still pending
+      - profile_changes:    member profile change requests still pending
     Head-only count queries: no rows are transferred.
     """
     global supabase
@@ -7149,6 +7150,7 @@ def get_bookkeeper_pending_counts(current_user: dict = _Depends(_get_current_use
             "loan_payments": loan_payments,
             "savings_withdrawals": savings_withdrawals,
             "override_requests": override_requests,
+            "profile_changes": _pc_pending_count(),
         },
     }
 
@@ -7456,6 +7458,834 @@ def review_renewal_override_request(
     )
 
     return {"success": True, "data": row}
+
+
+# ============================================================================
+# SECTION: Profile Change Requests (Bookkeeper approval)
+# A member no longer edits a controlled Personal Data Sheet field directly:
+# each changed field becomes a request row (one batch_id per save) that the
+# Bookkeeper approves or rejects; approval writes the value to the profile.
+# Net take-home pay (personal_data_sheet.salary, the figure the loan forms and
+# the 40% debt-capacity rule read) additionally needs a payslip, stored in the
+# private Supporting_Documents bucket under profile_payslips/ and only ever
+# exposed as a short-lived signed link.
+#
+# Same shape as the renewal override above: identity comes from the verified
+# JWT, never the body; a Bookkeeper can't review their own request; the table
+# is the history ledger (rows are never deleted); decisions are mirrored into
+# audit_log and the loan_notifications bell feed.
+# Schema: member_profile_change_requests_schema.sql.
+# ============================================================================
+
+PROFILE_CHANGE_TABLE = "member_profile_change_requests"
+PROFILE_CHANGE_STATUSES = {"pending", "approved", "rejected", "cancelled"}
+PROFILE_CHANGE_BUCKET = "Supporting_Documents"
+PROFILE_CHANGE_PAYSLIP_FOLDER = "profile_payslips"
+PROFILE_CHANGE_NET_PAY_FIELD = "salary"
+PROFILE_CHANGE_MAX_PAYSLIP_BYTES = 5 * 1024 * 1024
+# A payslip must cover this month or one of the previous N months.
+PROFILE_CHANGE_PAYSLIP_MAX_AGE_MONTHS = 2
+PROFILE_CHANGE_SIGNED_URL_SECONDS = 300
+PROFILE_CHANGE_NOTE_MAX = 1000
+PROFILE_CHANGE_BLOCKED_MEMBER_STATUSES = {"terminated", "closed"}
+
+_PROFILE_CHANGE_GENDERS = ("Male", "Female")
+_PROFILE_CHANGE_CIVIL = ("Single", "Married", "Widowed", "Separated")
+_PROFILE_CHANGE_BLOOD = ("A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-")
+
+# Every field the member profile page can edit (Members_Profile.jsx), keyed by
+# personal_data_sheet column. kind drives validation and how the value is
+# written back; required fields can't be blanked.
+PROFILE_CHANGE_FIELDS: dict[str, dict[str, Any]] = {
+    "surname": {"label": "Surname", "kind": "text", "required": True},
+    "first_name": {"label": "First Name", "kind": "text", "required": True},
+    "middle_name": {"label": "Middle Name", "kind": "text"},
+    "maiden_name": {"label": "Maiden Name", "kind": "text"},
+    "date_of_birth": {"label": "Date of Birth", "kind": "date", "required": True},
+    "place_of_birth": {"label": "Place of Birth", "kind": "text"},
+    "gender": {"label": "Gender", "kind": "select", "options": _PROFILE_CHANGE_GENDERS},
+    "civil_status": {"label": "Civil Status", "kind": "select", "options": _PROFILE_CHANGE_CIVIL},
+    "citizenship": {"label": "Citizenship", "kind": "text"},
+    "religion": {"label": "Religion", "kind": "text"},
+    "blood_type": {"label": "Blood Type", "kind": "select", "options": _PROFILE_CHANGE_BLOOD},
+    "height": {"label": "Height (cm)", "kind": "int"},
+    "contact_number": {"label": "Mobile Number", "kind": "tel", "required": True},
+    "email": {"label": "Email Address", "kind": "email", "required": True},
+    "permanent_address": {"label": "Permanent Address", "kind": "text", "required": True, "max": 1000},
+    "father_name": {"label": "Father's Name", "kind": "text"},
+    "mother_name": {"label": "Mother's Maiden Name", "kind": "text"},
+    "number_of_dependents": {"label": "Number of Dependents", "kind": "int", "required": True},
+    "spouse_name": {"label": "Spouse Name", "kind": "text"},
+    "spouse_occupation": {"label": "Spouse Occupation", "kind": "text"},
+    "spouse_date_of_birth": {"label": "Spouse Date of Birth", "kind": "date"},
+    "employer_name": {"label": "Employer Name", "kind": "text"},
+    "position": {"label": "Position", "kind": "text"},
+    "occupation": {"label": "Occupation", "kind": "text", "required": True},
+    "educational_attainment": {"label": "Educational Attainment", "kind": "text"},
+    "income_source": {"label": "Source of Income", "kind": "text"},
+    PROFILE_CHANGE_NET_PAY_FIELD: {"label": "Net Take-Home Pay (Monthly)", "kind": "money", "proof": True},
+    "annual_income": {"label": "Annual Income", "kind": "text"},
+    "other_income": {"label": "Other Income", "kind": "text"},
+    "tin_number": {"label": "TIN Number", "kind": "text"},
+    "gsis_number": {"label": "GSIS Number", "kind": "text"},
+}
+
+# Columns a member may see on their own requests (no reviewer/requester ids,
+# no storage path).
+PROFILE_CHANGE_MEMBER_COLUMNS = (
+    "id,batch_id,field_key,field_label,old_value,new_value,requires_proof,payslip_path,"
+    "pay_period,status,review_note,reviewed_at,created_at"
+)
+
+
+class ProfileChangeItem(BaseModel):
+    field_key: str = Field(..., min_length=1, max_length=64)
+    new_value: str | None = Field(default=None, max_length=1000)
+
+
+class ProfileChangePayslip(BaseModel):
+    filename: str = Field(default="payslip", max_length=200)
+    content_type: str = Field(default="", max_length=100)
+    data_base64: str = Field(..., max_length=8_000_000)
+
+
+class ProfileChangeCreate(BaseModel):
+    changes: list[ProfileChangeItem] = Field(..., min_length=1, max_length=40)
+    payslip: ProfileChangePayslip | None = None
+    pay_period: str | None = Field(default=None, max_length=10)  # YYYY-MM
+
+
+class ProfileChangeReview(BaseModel):
+    action: Literal["approved", "rejected"]
+    note: str | None = Field(default=None, max_length=PROFILE_CHANGE_NOTE_MAX)
+    # A net-pay change moves what a loan in review is judged on; the Bookkeeper
+    # has to acknowledge that explicitly when the member has one open.
+    acknowledge_open_loan: bool = False
+
+
+def _pc_retry(call):
+    """Run a Supabase call; on a dead pooled connection (WinError 10035 /
+    "server disconnected") rebuild the client and try once more, the same way the
+    pending-counts endpoint does. `call` must look up the global `supabase` when
+    it runs, so the retry uses the fresh client."""
+    global supabase
+    try:
+        return call()
+    except Exception as exc:
+        if _is_stale_connection_error(exc) and url and key:
+            supabase = create_client(url, key, options=_SUPABASE_CLIENT_OPTIONS)
+            return call()
+        raise
+
+
+def _pc_normalize(key: str, raw: Any) -> str | None:
+    """Validate a submitted value and return its canonical text (None = blank)."""
+    spec = PROFILE_CHANGE_FIELDS[key]
+    label = spec["label"]
+    text = "" if raw is None else str(raw).strip()
+    if not text:
+        if spec.get("required"):
+            raise HTTPException(status_code=400, detail=f"{label} is required.")
+        return None
+
+    kind = spec["kind"]
+    if kind == "select":
+        match = next((o for o in spec["options"] if o.lower() == text.lower()), None)
+        if not match:
+            raise HTTPException(status_code=400, detail=f"{label} must be one of: {', '.join(spec['options'])}.")
+        return match
+    if kind == "date":
+        try:
+            parsed = date.fromisoformat(text[:10])
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"{label} must be a valid date.")
+        if parsed > date.today():
+            raise HTTPException(status_code=400, detail=f"{label} can't be in the future.")
+        return parsed.isoformat()
+    if kind == "int":
+        try:
+            number = Decimal(text)
+        except InvalidOperation:
+            raise HTTPException(status_code=400, detail=f"{label} must be a number.")
+        if number < 0 or number != number.to_integral_value():
+            raise HTTPException(status_code=400, detail=f"{label} must be a whole number, zero or more.")
+        return str(int(number))
+    if kind == "money":
+        try:
+            amount = Decimal(text.replace(",", ""))
+        except InvalidOperation:
+            raise HTTPException(status_code=400, detail=f"{label} must be an amount.")
+        if amount <= 0 or amount > Decimal("10000000"):
+            raise HTTPException(status_code=400, detail=f"{label} must be greater than zero.")
+        return str(amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+    if kind == "email" and not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", text):
+        raise HTTPException(status_code=400, detail="Please enter a valid email address.")
+    if kind == "tel" and not re.fullmatch(r"[0-9+\-\s()]{7,20}", text):
+        raise HTTPException(status_code=400, detail="Please enter a valid contact number.")
+    if len(text) > int(spec.get("max", 500)):
+        raise HTTPException(status_code=400, detail=f"{label} is too long.")
+    return text
+
+
+def _pc_current_text(key: str, stored: Any) -> str | None:
+    """A stored PDS value in the same canonical text _pc_normalize produces, so
+    'unchanged' compares equal. Lenient: unparseable legacy values stay as-is."""
+    if stored is None:
+        return None
+    text = str(stored).strip()
+    if not text or text.lower() == "n/a":
+        return None
+    kind = PROFILE_CHANGE_FIELDS[key]["kind"]
+    try:
+        if kind == "date":
+            return date.fromisoformat(text[:10]).isoformat()
+        if kind == "int":
+            number = Decimal(text)
+            return str(int(number)) if number == number.to_integral_value() else text
+        if kind == "money":
+            return str(Decimal(text.replace(",", "")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+    except (ValueError, InvalidOperation):
+        return text
+    return text
+
+
+def _pc_db_value(key: str, text: str | None) -> Any:
+    """Canonical text -> what the PDS column should hold (matches what the
+    profile page wrote before: numbers for number fields, text otherwise)."""
+    if text is None:
+        return None
+    if PROFILE_CHANGE_FIELDS[key]["kind"] == "int":
+        return int(text)
+    return text
+
+
+def _pc_member_status_gate(member_row: dict) -> None:
+    raw_status = str(member_row.get("member_status") or "").strip().lower()
+    if raw_status in PROFILE_CHANGE_BLOCKED_MEMBER_STATUSES:
+        raise HTTPException(status_code=403, detail=f"Member account is {raw_status}; the profile can't be changed.")
+
+
+def _pc_load_pds(membership_id: str) -> dict:
+    try:
+        resp = _pc_retry(lambda: (
+            supabase.table("personal_data_sheet")
+            .select("*")
+            .eq("membership_number_id", membership_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        ))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not read your Personal Data Sheet: {exc}")
+    row = (resp.data or [None])[0]
+    if not row:
+        raise HTTPException(status_code=404, detail="No Personal Data Sheet is on file for this account.")
+    return row
+
+
+def _pc_public_row(row: dict, *, staff: bool = False) -> dict:
+    """Strip internals: the storage path never leaves the server."""
+    out = {k: v for k, v in row.items() if k != "payslip_path"}
+    out["has_payslip"] = bool(row.get("payslip_path"))
+    if not staff:
+        for key in ("requested_by_user_id", "requested_by_email", "reviewed_by_user_id", "reviewed_by_email", "member_id"):
+            out.pop(key, None)
+    return out
+
+
+def _pc_audit(action: str, row: dict, current_user: dict, *, before: dict | None = None, after: dict | None = None, extra: dict | None = None) -> None:
+    """Mirror a profile-change event into audit_log. Best-effort: the request
+    row already carries the history, so a failure here never blocks the action."""
+    if not supabase or not current_user or not current_user.get("id"):
+        return
+    try:
+        role = _resolve_staff_role(current_user["id"], current_user.get("email") or "") or "member"
+        supabase.table("audit_log").insert({
+            "actor_user_id": current_user["id"],
+            "actor_role": role,
+            "actor_email": current_user.get("email") or None,
+            "entity_type": "member",
+            "entity_id": str(row.get("membership_id") or row.get("member_id") or ""),
+            "action": action,
+            "before": before,
+            "after": after,
+            "context": {
+                "kind": "profile_change",
+                "request_id": row.get("id"),
+                "batch_id": row.get("batch_id"),
+                "member_id": row.get("member_id"),
+                "membership_id": row.get("membership_id"),
+                "member_name": row.get("member_name"),
+                "field_key": row.get("field_key"),
+                "field_label": row.get("field_label"),
+                "review_note": row.get("review_note"),
+                **(extra or {}),
+            },
+        }).execute()
+    except Exception as err:
+        logger.warning("profile change audit_log write failed: %s", err)
+
+
+def _pc_apply(membership_id: str, member_id: str, field_key: str, text: str | None) -> None:
+    """Write one approved value to the profile. Net pay also re-points the other
+    places the system reads it so a stale copy can't drive a loan decision."""
+    patch: dict[str, Any] = {field_key: _pc_db_value(field_key, text)}
+    if field_key == "civil_status" and str(text or "").lower() == "single":
+        patch.update({"spouse_name": None, "spouse_occupation": None, "spouse_date_of_birth": None})
+    supabase.table("personal_data_sheet").update(patch).eq("membership_number_id", membership_id).execute()
+
+    if field_key == PROFILE_CHANGE_NET_PAY_FIELD and text is not None:
+        amount = float(Decimal(text))
+        # member_profile.latest_net_pay feeds the DTI/stress index and its triggers
+        # refresh loan_calculator; member.latest_net_pay is what the loan
+        # eligibility gate reads. Best-effort: the PDS write above is the source
+        # the loan forms prefill from.
+        for table, column in (("member_profile", "membership_number_id"), ("member", "id")):
+            try:
+                supabase.table(table).update({"latest_net_pay": amount}).eq(column, member_id).execute()
+            except Exception as err:
+                logger.warning("profile change: could not sync latest_net_pay on %s: %s", table, err)
+
+
+def _pc_pending_count() -> int:
+    """Pending requests for the sidebar badge. Never raises: the badges endpoint
+    must keep working before the migration has been applied."""
+    try:
+        resp = supabase.table(PROFILE_CHANGE_TABLE).select("*", count="exact", head=True).eq("status", "pending").execute()
+        return int(getattr(resp, "count", None) or 0)
+    except Exception as err:
+        logger.warning("profile change pending count failed: %s", err)
+        return 0
+
+
+def _pc_open_loan_applications(member_id: str) -> int:
+    """Loan applications of this member still in the Bookkeeper's hands."""
+    try:
+        resp = (
+            supabase.table("loans")
+            .select("*", count="exact", head=True)
+            .eq("member_id", member_id)
+            .or_(
+                "loan_status.ilike.pending,loan_status.ilike.draft,loan_status.ilike.revision_requested,"
+                "application_status.ilike.pending,application_status.ilike.draft,application_status.ilike.revision_requested"
+            )
+            .execute()
+        )
+        return int(getattr(resp, "count", None) or 0)
+    except Exception as err:
+        logger.warning("profile change open-loan check failed: %s", err)
+        return 0
+
+
+def _pc_decode_payslip(payslip: ProfileChangePayslip) -> tuple[bytes, str, str]:
+    """(bytes, content_type, extension) after checking size and real file type."""
+    import base64
+    import binascii
+
+    encoded = payslip.data_base64.strip()
+    if encoded.startswith("data:") and "," in encoded:
+        encoded = encoded.split(",", 1)[1]
+    try:
+        data = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(status_code=400, detail="The payslip file could not be read. Please attach it again.")
+    if not data:
+        raise HTTPException(status_code=400, detail="The payslip file is empty.")
+    if len(data) > PROFILE_CHANGE_MAX_PAYSLIP_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"The payslip is larger than {PROFILE_CHANGE_MAX_PAYSLIP_BYTES // (1024 * 1024)} MB. Please attach a smaller file.",
+        )
+    # Trust the bytes, not the declared type or filename.
+    if data.startswith(b"%PDF"):
+        return data, "application/pdf", "pdf"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return data, "image/png", "png"
+    if data.startswith(b"\xff\xd8\xff"):
+        return data, "image/jpeg", "jpg"
+    raise HTTPException(status_code=400, detail="The payslip must be a PDF, PNG or JPG file.")
+
+
+def _pc_parse_pay_period(raw: str | None) -> date:
+    text = (raw or "").strip()
+    try:
+        year, month = (int(part) for part in text.split("-", 1))
+        period = date(year, month, 1)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Please enter the month your payslip covers.")
+    today = date.today()
+    this_month = today.replace(day=1)
+    index = lambda d: d.year * 12 + d.month  # noqa: E731
+    if index(period) > index(this_month):
+        raise HTTPException(status_code=400, detail="The payslip month can't be in the future.")
+    if index(this_month) - index(period) > PROFILE_CHANGE_PAYSLIP_MAX_AGE_MONTHS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"The payslip is too old. Please attach one from the last {PROFILE_CHANGE_PAYSLIP_MAX_AGE_MONTHS + 1} months.",
+        )
+    return period
+
+
+def _pc_remove_payslip(path: str | None) -> None:
+    if not path:
+        return
+    try:
+        supabase.storage.from_(PROFILE_CHANGE_BUCKET).remove([path])
+    except Exception as err:
+        logger.warning("profile change: could not remove payslip %s: %s", path, err)
+
+
+@app.get("/api/member/profile-change-requests")
+def list_my_profile_change_requests(current_user: dict = _Depends(_get_current_user)):
+    """The calling member's own requests, newest first."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    account = _override_account(current_user)
+    try:
+        resp = _pc_retry(lambda: (
+            supabase.table(PROFILE_CHANGE_TABLE)
+            .select(PROFILE_CHANGE_MEMBER_COLUMNS)
+            .eq("member_id", account["member_id"])
+            .order("created_at", desc=True)
+            .limit(100)
+            .execute()
+        ))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not load your requests: {exc}")
+    return {"success": True, "data": [_pc_public_row(r) for r in (resp.data or [])]}
+
+
+@app.post("/api/member/profile-change-requests")
+def create_profile_change_requests(
+    body: ProfileChangeCreate,
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Member submits profile edits. Each changed field becomes a pending request;
+    a blank field being filled for the first time is applied straight away
+    (nothing to protect yet, and it keeps first-time onboarding unblocked) —
+    except net pay, which always needs a payslip and approval."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    account = _override_account(current_user)
+    member_id = account["member_id"]
+    membership_id = str(account.get("membership_id") or "").strip()
+    if not membership_id:
+        raise HTTPException(status_code=403, detail="No membership number is linked to this account.")
+
+    member_row = resolve_member_by_ref(member_id) or {}
+    _pc_member_status_gate(member_row)
+    pds = _pc_load_pds(membership_id)
+    member_name = resolve_member_full_name(member_row) if member_row else ""
+
+    # Validate every submitted field and work out what actually changed.
+    submitted: dict[str, str | None] = {}
+    for item in body.changes:
+        if item.field_key not in PROFILE_CHANGE_FIELDS:
+            raise HTTPException(status_code=400, detail=f"'{item.field_key}' can't be changed from the profile page.")
+        if item.field_key in submitted:
+            raise HTTPException(status_code=400, detail="The same field was submitted twice.")
+        submitted[item.field_key] = _pc_normalize(item.field_key, item.new_value)
+
+    direct: list[tuple[str, str | None, str | None]] = []   # (key, old, new)
+    to_request: list[tuple[str, str | None, str | None]] = []
+    for key, new_text in submitted.items():
+        old_text = _pc_current_text(key, pds.get(key))
+        if new_text == old_text:
+            continue
+        spec = PROFILE_CHANGE_FIELDS[key]
+        if old_text is None and not spec.get("proof"):
+            direct.append((key, old_text, new_text))
+        else:
+            to_request.append((key, old_text, new_text))
+
+    if not direct and not to_request:
+        raise HTTPException(status_code=400, detail="There are no changes to save.")
+
+    # Fields that already have a request waiting.
+    if to_request:
+        try:
+            open_rows = _pc_retry(lambda: (
+                supabase.table(PROFILE_CHANGE_TABLE)
+                .select("field_key")
+                .eq("member_id", member_id)
+                .eq("status", "pending")
+                .in_("field_key", [k for k, _, _ in to_request])
+                .execute()
+            )).data or []
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Could not check your open requests: {exc}")
+        if open_rows:
+            labels = ", ".join(PROFILE_CHANGE_FIELDS[r["field_key"]]["label"] for r in open_rows)
+            raise HTTPException(
+                status_code=409,
+                detail=f"You already have a request waiting for approval for: {labels}. Cancel it or wait for the Bookkeeper's decision.",
+            )
+
+    # Proof is only for net pay.
+    needs_payslip = any(PROFILE_CHANGE_FIELDS[k].get("proof") for k, _, _ in to_request)
+    payslip_bytes = payslip_type = payslip_ext = None
+    pay_period: date | None = None
+    if needs_payslip:
+        if body.payslip is None:
+            raise HTTPException(status_code=400, detail="Please attach a photo or PDF of your payslip to change your net take-home pay.")
+        pay_period = _pc_parse_pay_period(body.pay_period)
+        payslip_bytes, payslip_type, payslip_ext = _pc_decode_payslip(body.payslip)
+
+    batch_id = str(uuid4())
+    base = {
+        "batch_id": batch_id,
+        "member_id": member_id,
+        "membership_id": membership_id,
+        "member_name": member_name,
+        "requested_by_user_id": current_user["id"],
+        "requested_by_email": current_user.get("email") or None,
+    }
+
+    # Upload before inserting so a request never points at a missing file.
+    payslip_path = None
+    if needs_payslip:
+        payslip_path = f"{PROFILE_CHANGE_PAYSLIP_FOLDER}/{member_id}/{batch_id}.{payslip_ext}"
+        try:
+            supabase.storage.from_(PROFILE_CHANGE_BUCKET).upload(
+                payslip_path, payslip_bytes, {"content-type": payslip_type, "upsert": "false"}
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Could not upload the payslip: {exc}")
+
+    records = []
+    for key, old_text, new_text in to_request:
+        spec = PROFILE_CHANGE_FIELDS[key]
+        proof = bool(spec.get("proof"))
+        records.append({
+            **base,
+            "field_key": key,
+            "field_label": spec["label"],
+            "old_value": old_text,
+            "new_value": new_text,
+            "requires_proof": proof,
+            "payslip_path": payslip_path if proof else None,
+            "payslip_content_type": payslip_type if proof else None,
+            "pay_period": pay_period.isoformat() if proof and pay_period else None,
+            "status": "pending",
+        })
+
+    inserted_rows: list[dict] = []
+    if records:
+        try:
+            inserted_rows = _pc_retry(lambda: supabase.table(PROFILE_CHANGE_TABLE).insert(records).execute()).data or []
+        except Exception as exc:
+            _pc_remove_payslip(payslip_path)
+            message = str(exc).lower()
+            if "uq_profile_change_one_pending" in message or "duplicate key" in message:
+                raise HTTPException(
+                    status_code=409,
+                    detail="You already have a request waiting for approval for one of these fields.",
+                )
+            raise HTTPException(status_code=500, detail=f"Could not save the request: {exc}")
+        if not inserted_rows:
+            _pc_remove_payslip(payslip_path)
+            raise HTTPException(status_code=500, detail="Could not save the request.")
+
+    # First-time fills go straight in, after the requests are safely stored.
+    applied: list[str] = []
+    for key, old_text, new_text in direct:
+        try:
+            _pc_apply(membership_id, member_id, key, new_text)
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Could not save {PROFILE_CHANGE_FIELDS[key]['label']}: {exc}")
+        applied.append(key)
+        _pc_audit(
+            "update",
+            {**base, "field_key": key, "field_label": PROFILE_CHANGE_FIELDS[key]["label"]},
+            current_user,
+            before={key: old_text},
+            after={key: new_text},
+            extra={"applied": "direct_first_entry"},
+        )
+
+    for row in inserted_rows:
+        _pc_audit(
+            "create", row, current_user,
+            before={row["field_key"]: row.get("old_value")},
+            after={"status": "pending", row["field_key"]: row.get("new_value")},
+        )
+    if inserted_rows:
+        labels = ", ".join(r["field_label"] for r in inserted_rows)
+        _override_notify(
+            recipient_role="bookkeeper",
+            notification_type="profile_change_request",
+            severity="warning",
+            title="Profile change requested",
+            message=f"{member_name or 'A member'} asked to change: {labels}. Please review the request.",
+            loan_id=None,
+            redirect_url="/bookkeeper-profile-changes",
+            actor_user_id=current_user["id"],
+        )
+
+    return {
+        "success": True,
+        "data": {
+            "requests": [_pc_public_row(r) for r in inserted_rows],
+            "applied_directly": applied,
+        },
+    }
+
+
+@app.post("/api/member/profile-change-requests/{request_id}/cancel")
+def cancel_profile_change_request(request_id: int, current_user: dict = _Depends(_get_current_user)):
+    """Member withdraws their own pending request. The payslip is deleted: a
+    cancelled request has no use for it and it is sensitive."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    account = _override_account(current_user)
+    try:
+        found = (
+            supabase.table(PROFILE_CHANGE_TABLE)
+            .select("payslip_path")
+            .eq("id", request_id)
+            .eq("member_id", account["member_id"])
+            .eq("status", "pending")
+            .limit(1)
+            .execute()
+        ).data or []
+        resp = (
+            supabase.table(PROFILE_CHANGE_TABLE)
+            .update({"status": "cancelled", "payslip_path": None, "payslip_content_type": None})
+            .eq("id", request_id)
+            .eq("member_id", account["member_id"])
+            .eq("status", "pending")
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not cancel the request: {exc}")
+    row = (resp.data or [None])[0]
+    if not row:
+        raise HTTPException(status_code=404, detail="No pending request found to cancel.")
+    if found:
+        _pc_remove_payslip(found[0].get("payslip_path"))
+    _pc_audit("update", row, current_user, before={"status": "pending"}, after={"status": "cancelled"})
+    return {"success": True}
+
+
+@app.get("/api/profile-change-requests/{request_id}/payslip-url")
+def get_profile_change_payslip_url(request_id: int, current_user: dict = _Depends(_get_current_user)):
+    """Short-lived signed link to a request's payslip. Only the member who filed
+    it and the Bookkeeper can get one."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    try:
+        found = supabase.table(PROFILE_CHANGE_TABLE).select("member_id,payslip_path,payslip_content_type").eq("id", request_id).limit(1).execute()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not load the request: {exc}")
+    row = (found.data or [None])[0]
+    if not row or not row.get("payslip_path"):
+        raise HTTPException(status_code=404, detail="No payslip is attached to this request.")
+
+    role = _resolve_staff_role(current_user["id"], current_user.get("email") or "")
+    if role != "bookkeeper":
+        account = _override_account(current_user)
+        if str(row["member_id"]) != account["member_id"]:
+            raise HTTPException(status_code=403, detail="You can't view this payslip.")
+
+    try:
+        signed = supabase.storage.from_(PROFILE_CHANGE_BUCKET).create_signed_url(
+            row["payslip_path"], PROFILE_CHANGE_SIGNED_URL_SECONDS
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not open the payslip: {exc}")
+    link = (signed or {}).get("signedURL") or (signed or {}).get("signedUrl") or ""
+    if not link:
+        raise HTTPException(status_code=500, detail="Could not open the payslip.")
+    if not link.startswith("http"):
+        link = f"{str(url).rstrip('/')}/storage/v1{link if link.startswith('/') else '/' + link}"
+    return {
+        "success": True,
+        "data": {
+            "url": link,
+            "content_type": row.get("payslip_content_type"),
+            "expires_in": PROFILE_CHANGE_SIGNED_URL_SECONDS,
+        },
+    }
+
+
+def _require_bookkeeper_profile(current_user: dict) -> None:
+    role = _resolve_staff_role(current_user["id"], current_user.get("email") or "")
+    if role != "bookkeeper":
+        raise HTTPException(status_code=403, detail="Only the Bookkeeper can review profile change requests.")
+
+
+@app.get("/api/bookkeeper/profile-change-requests")
+def list_profile_change_requests(
+    status: str = "pending",
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Bookkeeper queue / history. status = pending|approved|rejected|cancelled|all."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_bookkeeper_profile(current_user)
+
+    wanted = (status or "pending").strip().lower()
+    if wanted != "all" and wanted not in PROFILE_CHANGE_STATUSES:
+        raise HTTPException(status_code=400, detail="Invalid status filter.")
+
+    try:
+        def _fetch_rows():
+            query = supabase.table(PROFILE_CHANGE_TABLE).select("*").order("created_at", desc=True).limit(300)
+            if wanted != "all":
+                query = query.eq("status", wanted)
+            return query.execute().data or []
+
+        rows = _pc_retry(_fetch_rows)
+        pending_rows = _pc_retry(lambda: (
+            supabase.table(PROFILE_CHANGE_TABLE)
+            .select("membership_id")
+            .eq("status", "pending")
+            .limit(2000)
+            .execute()
+        )).data or []
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not load profile change requests: {exc}")
+
+    # Warn on net-pay changes while the member has a loan in review.
+    open_loans: dict[str, int] = {}
+    for member in {str(r["member_id"]) for r in rows if r["status"] == "pending" and r["field_key"] == PROFILE_CHANGE_NET_PAY_FIELD}:
+        open_loans[member] = _pc_open_loan_applications(member)
+
+    data = []
+    for row in rows:
+        item = _pc_public_row(row, staff=True)
+        item["open_loan_applications"] = open_loans.get(str(row["member_id"]), 0) if row["field_key"] == PROFILE_CHANGE_NET_PAY_FIELD else 0
+        data.append(item)
+
+    return {
+        "success": True,
+        "data": data,
+        "pending_count": len(pending_rows),
+        "pending_membership_ids": sorted({str(r["membership_id"]) for r in pending_rows if r.get("membership_id")}),
+    }
+
+
+@app.post("/api/bookkeeper/profile-change-requests/{request_id}/review")
+def review_profile_change_request(
+    request_id: int,
+    body: ProfileChangeReview,
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Bookkeeper approves (writes the value to the profile) or rejects a request."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_bookkeeper_profile(current_user)
+
+    note = (body.note or "").strip() or None
+    if body.action == "rejected" and not note:
+        raise HTTPException(status_code=400, detail="A reason is required when rejecting a request.")
+
+    try:
+        found = _pc_retry(lambda: supabase.table(PROFILE_CHANGE_TABLE).select("*").eq("id", request_id).limit(1).execute())
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not load the request: {exc}")
+    req = (found.data or [None])[0]
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found.")
+    if req.get("status") != "pending":
+        raise HTTPException(status_code=409, detail=f"This request is already {req.get('status')}.")
+    if str(req.get("requested_by_user_id") or "") == current_user["id"]:
+        raise HTTPException(status_code=403, detail="You cannot review your own request.")
+
+    key = req["field_key"]
+    approved = body.action == "approved"
+    open_loans = 0
+    if approved:
+        if key not in PROFILE_CHANGE_FIELDS:
+            raise HTTPException(status_code=409, detail="This field can no longer be changed. Reject the request instead.")
+        if PROFILE_CHANGE_FIELDS[key].get("proof") and not req.get("payslip_path"):
+            raise HTTPException(status_code=409, detail="This request has no payslip attached. Reject it instead.")
+        # The profile must still hold what the member saw when they asked.
+        pds = _pc_load_pds(str(req["membership_id"]))
+        if _pc_current_text(key, pds.get(key)) != req.get("old_value"):
+            raise HTTPException(
+                status_code=409,
+                detail="The profile value has changed since this request was filed. Reject it and ask the member to submit it again.",
+            )
+        if key == PROFILE_CHANGE_NET_PAY_FIELD:
+            open_loans = _pc_open_loan_applications(str(req["member_id"]))
+            if open_loans and not body.acknowledge_open_loan:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"This member has {open_loans} loan application{'s' if open_loans != 1 else ''} still in review. "
+                        "Approving changes the net pay those are judged on. Confirm to proceed."
+                    ),
+                )
+
+    patch: dict[str, Any] = {
+        "status": body.action,
+        "reviewed_by_user_id": current_user["id"],
+        "reviewed_by_email": current_user.get("email") or None,
+        "reviewed_at": _override_iso(_override_now()),
+        "review_note": note,
+    }
+    try:
+        updated = _pc_retry(lambda: (
+            supabase.table(PROFILE_CHANGE_TABLE)
+            .update(patch)
+            .eq("id", request_id)
+            .eq("status", "pending")
+            .execute()
+        ))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not save the decision: {exc}")
+    row = (updated.data or [None])[0]
+    if not row:
+        raise HTTPException(status_code=409, detail="This request was already decided.")
+
+    if approved:
+        try:
+            _pc_apply(str(req["membership_id"]), str(req["member_id"]), key, req.get("new_value"))
+            row = (
+                supabase.table(PROFILE_CHANGE_TABLE)
+                .update({"applied_at": _override_iso(_override_now())})
+                .eq("id", request_id)
+                .execute()
+            ).data[0]
+        except Exception as exc:
+            # Nothing was applied: put the request back so it can be retried.
+            try:
+                supabase.table(PROFILE_CHANGE_TABLE).update({
+                    "status": "pending", "reviewed_by_user_id": None, "reviewed_by_email": None,
+                    "reviewed_at": None, "review_note": None,
+                }).eq("id", request_id).execute()
+            except Exception as revert_err:
+                logger.error("profile change %s: could not revert after failed apply: %s", request_id, revert_err)
+            raise HTTPException(status_code=500, detail=f"Could not apply the change to the profile: {exc}")
+
+    _pc_audit(
+        "approve" if approved else "reject",
+        row,
+        current_user,
+        before={"status": "pending", key: req.get("old_value")},
+        after={"status": body.action, key: req.get("new_value") if approved else req.get("old_value")},
+        extra={"acknowledged_open_loan": bool(open_loans and body.acknowledge_open_loan)},
+    )
+
+    label = req.get("field_label") or key
+    _override_notify(
+        recipient_role="member",
+        recipient_member_id=str(req["member_id"]),
+        notification_type="member_profile_change_approved" if approved else "member_profile_change_rejected",
+        severity="success" if approved else "danger",
+        title="Profile change approved" if approved else "Profile change declined",
+        message=(
+            f"The Bookkeeper approved your change to {label}. Your profile is updated."
+            if approved else
+            f"The Bookkeeper declined your change to {label}." + (f" Reason: {note}" if note else "")
+        ),
+        loan_id=None,
+        redirect_url="/members-profile",
+        actor_user_id=current_user["id"],
+    )
+    return {"success": True, "data": _pc_public_row(row, staff=True)}
 
 
 # ============================================================================

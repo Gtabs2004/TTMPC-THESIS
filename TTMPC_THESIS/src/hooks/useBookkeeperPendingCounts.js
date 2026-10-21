@@ -13,11 +13,12 @@ const PENDING_COUNT_ENTITIES = [
   "loan_payments",
   "savings_transaction_queue",
   "loan_renewal_override_requests",
+  "member_profile_change_requests",
 ];
 
 /**
  * Pending-work counts for the Bookkeeper sidebar badges:
- * { loan_approval, loan_payments, savings_withdrawals, override_requests }.
+ * { loan_approval, loan_payments, savings_withdrawals, override_requests, profile_changes }.
  * Returns {} until loaded, and stays {} if the request fails, so a hiccup just
  * means no badges, never a broken sidebar.
  */

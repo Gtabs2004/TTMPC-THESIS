@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
+import QuickReasons from "../../components/QuickReasons";
+import { QUICK_REASONS } from "../../utils/quickReasons";
 import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 import { FileText, X } from "lucide-react";
 import StaffSidebar from "../../components/StaffSidebar";
@@ -353,6 +355,11 @@ const RenewalOverrides = () => {
                 <label htmlFor="override-note" className="block text-sm font-semibold text-gray-800">
                   Note to the member <span className="font-normal text-gray-500">(required to decline)</span>
                 </label>
+                <QuickReasons
+                  reasons={QUICK_REASONS.overrideDecline}
+                  value={note}
+                  onChange={setNote}
+                />
                 <textarea
                   id="override-note"
                   value={note}

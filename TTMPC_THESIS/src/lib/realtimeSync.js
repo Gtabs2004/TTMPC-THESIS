@@ -58,6 +58,7 @@ export const RT = {
     "member_classification",
     "member_classification_temporal",
     "member_profile",
+    "member_profile_change_requests",
     "membership_payments",
     "secretary_membership_records",
   ],

@@ -1,5 +1,7 @@
 ﻿  import React, { useEffect, useMemo, useState } from "react";
 import { authHeaders } from "../../utils/authHeaders";
+import QuickReasons from "../../components/QuickReasons";
+import { QUICK_REASONS } from "../../utils/quickReasons";
 import { useNavigate, NavLink } from "react-router-dom";
 import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
@@ -440,6 +442,11 @@ const BookkeeperSavingsTransactions = () => {
         onCancel={closeRejectDialog}
         onConfirm={confirmRejectDialog}
       >
+        <QuickReasons
+          reasons={QUICK_REASONS.savingsReject}
+          value={rejectReason}
+          onChange={setRejectReason}
+        />
         <textarea
           value={rejectReason}
           onChange={(e) => setRejectReason(e.target.value)}
