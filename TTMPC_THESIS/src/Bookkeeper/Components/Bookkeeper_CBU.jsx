@@ -6,12 +6,14 @@ import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import {
   AlertCircle,
+  ArrowRight,
   Banknote,
   Clock,
   RefreshCw,
   Search,
   Users,
   Wallet,
+  X,
 } from "lucide-react";
 
 import { useNotification } from "../../contex/NotificationContext";
@@ -93,6 +95,155 @@ const useCbuLedger = () => {
   return { members, transactions, status, error, refresh: fetchCbu };
 };
 
+// Modal that "explodes" one transaction from the Recent CBU Transactions table.
+// The row itself only carries reference / member / type / amount / date, so the
+// member's own ledger is fetched for the balance before and after this entry
+// and for the entries around it. (The all-members list is capped by the
+// server, so the history comes from its own per-member endpoint.)
+const CbuTransactionModal = ({ tx, onClose }) => {
+  const [history, setHistory] = useState([]);
+  const [loadState, setLoadState] = useState("loading");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}/api/cashier/cbu/members/${encodeURIComponent(tx.member_id)}/history`,
+          { headers: { Accept: "application/json" } }
+        );
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || !body?.success) throw new Error(body?.detail || "Failed to load history.");
+        if (!cancelled) {
+          setHistory(Array.isArray(body.data?.transactions) ? body.data.transactions : []);
+          setLoadState("ready");
+        }
+      } catch {
+        if (!cancelled) setLoadState("error");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [tx.member_id]);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const entry = history.find((h) => h.cbu_deposit_id && h.cbu_deposit_id === tx.cbu_deposit_id);
+  const others = history.filter((h) => h !== entry).slice(0, 5);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="CBU transaction details"
+        className="w-full max-w-lg max-h-[88vh] overflow-hidden flex flex-col rounded-2xl bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-primary-deep px-6 pb-6 pt-5 text-white">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="truncate text-lg font-semibold">{tx.member_name}</h3>
+              <p className="mt-0.5 text-sm text-white/75">
+                <span className="font-mono">{tx.member_id}</span>
+                <span className="mx-2 text-white/40">·</span>
+                <span className="font-mono">{tx.cbu_deposit_id}</span>
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="-mr-2 -mt-1.5 rounded-md p-1.5 text-white/75 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <p className="mt-5 text-sm text-white/75">Amount added</p>
+          <p className="mt-0.5 text-4xl font-bold tabular-nums">{formatCurrency(tx.capital_added)}</p>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-6 py-5">
+            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+              <p className="text-xs text-gray-500">Balance before</p>
+              <p className="mt-0.5 text-base font-semibold tabular-nums text-gray-700">
+                {entry ? formatCurrency(entry.starting_balance) : "—"}
+              </p>
+            </div>
+            <ArrowRight className="h-4 w-4 text-gray-300" aria-hidden="true" />
+            <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+              <p className="text-xs text-green-700/80">Balance after</p>
+              <p className="mt-0.5 text-base font-bold tabular-nums text-green-800">
+                {entry ? formatCurrency(entry.ending_balance) : "—"}
+              </p>
+            </div>
+          </div>
+
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-gray-100 px-6 py-5">
+            <div>
+              <dt className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Type</dt>
+              <dd className="mt-1">
+                <span className="inline-flex rounded-md bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700">
+                  {tx.deposit_account}
+                </span>
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Date</dt>
+              <dd className="mt-1 text-sm font-semibold text-gray-900">{formatDate(tx.transaction_date)}</dd>
+            </div>
+            <div>
+              <dt className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Status</dt>
+              <dd className="mt-1 text-sm font-semibold capitalize text-gray-900">{String(tx.status || "verified").toLowerCase()}</dd>
+            </div>
+          </dl>
+
+          <div className="border-t border-gray-100 bg-gray-50/60 px-6 py-5">
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+              Other recent entries for this member
+            </p>
+            {loadState === "loading" ? (
+              <div className="space-y-2" aria-busy="true">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="h-9 animate-pulse rounded-lg bg-gray-200/70" />
+                ))}
+              </div>
+            ) : loadState === "error" ? (
+              <p className="text-xs text-red-600">Could not load this member's other entries.</p>
+            ) : others.length === 0 ? (
+              <p className="text-xs text-gray-500">No other CBU entries for this member.</p>
+            ) : (
+              <ul className="space-y-2">
+                {others.map((h, i) => (
+                  <li
+                    key={h.cbu_deposit_id || i}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-800">{formatDate(h.transaction_date)}</p>
+                      <p className="truncate text-[11px] text-gray-400">{h.deposit_account}</p>
+                    </div>
+                    <p className="shrink-0 text-sm font-semibold tabular-nums text-gray-800">
+                      +{formatCurrency(h.capital_added)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Bookkeeper_CBU = () => {
   const { addNotification } = useNotification();
   const { members, transactions, status, error, refresh } = useCbuLedger();
@@ -100,6 +251,7 @@ const Bookkeeper_CBU = () => {
   const [memberSearch, setMemberSearch] = useState("");
   const [memberPage, setMemberPage] = useState(1);
   const [txPage, setTxPage] = useState(1);
+  const [selectedTx, setSelectedTx] = useState(null);
 
   const totals = useMemo(() => {
     const now = new Date();
@@ -294,7 +446,17 @@ const Bookkeeper_CBU = () => {
                     paginatedTx.map((tx, idx) => (
                       <tr
                         key={tx.cbu_deposit_id || idx}
-                        className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors"
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`View details for ${tx.cbu_deposit_id}`}
+                        onClick={() => setSelectedTx(tx)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setSelectedTx(tx);
+                          }
+                        }}
+                        className="cursor-pointer border-b border-gray-100 hover:bg-gray-50/50 focus:outline-none focus-visible:bg-green-50 transition-colors"
                       >
                         <td className="p-5 text-sm font-mono text-gray-600">{tx.cbu_deposit_id}</td>
                         <td className="p-5 text-sm">
@@ -318,6 +480,7 @@ const Bookkeeper_CBU = () => {
           </div>
         </main>
       </div>
+      {selectedTx && <CbuTransactionModal tx={selectedTx} onClose={() => setSelectedTx(null)} />}
     </div>
   );
 };

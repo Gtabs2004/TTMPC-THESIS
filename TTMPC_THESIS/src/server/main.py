@@ -4617,6 +4617,90 @@ def get_cashier_cbu_member(member_ref: str):
         raise HTTPException(status_code=500, detail=f"Failed to load CBU member: {err}")
 
 
+@app.get("/api/cashier/cbu/members/{member_ref}/history")
+def get_cashier_cbu_member_history(member_ref: str):
+    """Full CBU ledger for one member, newest first, for the Capital Build-Up
+    detail modal. The all-members transaction list is capped by PostgREST's
+    row limit, so a member's history is read on its own here.
+
+    `member_ref` is the member.id UUID or the membership_id. Rows dated after
+    today (the yearly import's pre-created Dec-31 placeholder) are left out, as
+    they are for the balance itself.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    clean_ref = str(member_ref or "").strip()
+    if not clean_ref:
+        raise HTTPException(status_code=400, detail="member_ref is required.")
+
+    try:
+        member_table = _resolve_member_table(supabase)
+        lookup_field = "id" if len(clean_ref) == 36 and clean_ref.count("-") == 4 else "membership_id"
+        member = (
+            supabase.table(member_table)
+            .select("id,membership_id,first_name,middle_initial,last_name")
+            .eq(lookup_field, clean_ref)
+            .limit(1)
+            .execute()
+        ).data or []
+        if not member:
+            raise HTTPException(status_code=404, detail="Member not found.")
+        member = member[0]
+
+        try:
+            rows = (
+                supabase.table("capital_build_up")
+                .select("id,transaction_date,starting_share_capital,capital_added,ending_share_capital,deposit_account,cbu_deposit_id")
+                .eq("member_id", member["id"])
+                .execute()
+            ).data or []
+        except Exception:
+            # Older databases without cbu_deposit_id / deposit_account.
+            rows = (
+                supabase.table("capital_build_up")
+                .select("id,transaction_date,starting_share_capital,capital_added,ending_share_capital")
+                .eq("member_id", member["id"])
+                .execute()
+            ).data or []
+
+        today_iso = datetime.utcnow().date().isoformat()
+        rows = [r for r in rows if str(r.get("transaction_date") or "")[:10] <= today_iso]
+
+        # Same ordering as the balance walk: date, then the numeric suffix of
+        # cbu_deposit_id (row ids are random UUIDs, not insertion order).
+        def _sort_key(row: dict) -> tuple:
+            digits = "".join(ch for ch in str(row.get("cbu_deposit_id") or "") if ch.isdigit())
+            return (str(row.get("transaction_date") or ""), int(digits) if digits else -1, str(row.get("id") or ""))
+
+        rows.sort(key=_sort_key, reverse=True)
+
+        history = [
+            {
+                "cbu_deposit_id": r.get("cbu_deposit_id"),
+                "transaction_date": r.get("transaction_date"),
+                "deposit_account": r.get("deposit_account") or "Cash",
+                "starting_balance": decimal_to_float(r.get("starting_share_capital") or 0),
+                "capital_added": decimal_to_float(r.get("capital_added") or 0),
+                "ending_balance": decimal_to_float(r.get("ending_share_capital") or 0),
+            }
+            for r in rows
+        ]
+        return {
+            "success": True,
+            "data": {
+                "member_uuid": member["id"],
+                "member_id": member.get("membership_id"),
+                "member_name": resolve_member_full_name(member),
+                "transactions": history,
+            },
+        }
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load CBU history: {err}")
+
+
 @app.get("/api/cashier/cbu/transactions")
 async def get_cashier_cbu_transactions():
     if not supabase:
@@ -8334,7 +8418,7 @@ async def get_bookkeeper_dashboard_summary():
         # persistent 500 for the staff portal.
         if (
             not _DASHBOARD_SUMMARY_RETRYING
-            and "server disconnected" in str(err).lower()
+            and _is_stale_connection_error(err)
             and url
             and key
         ):
