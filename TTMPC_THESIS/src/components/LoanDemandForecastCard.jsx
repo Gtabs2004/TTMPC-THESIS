@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Area,
   CartesianGrid,
   Bar,
   ComposedChart,
@@ -45,24 +46,14 @@ const PHP_COMPACT = (value) => {
 
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-// Diamond marker (per reference design) instead of Recharts' default circle —
-// rendered as a small rotated square so both the actual and forecast lines
-// read as a single consistent mark family.
-const DiamondDot = (fill) => (props) => {
+// Round marker with a white ring, matching the Income & Expenses reference
+// design — a filled circle on a white halo so dots stay legible over the
+// line and the area fill beneath it.
+const RoundDot = (fill) => (props) => {
   const { cx, cy, payload, dataKey } = props;
   if (cx === null || cy === null || payload?.[dataKey] === null || payload?.[dataKey] === undefined) return null;
-  const s = 7;
   return (
-    <rect
-      x={cx - s / 2}
-      y={cy - s / 2}
-      width={s}
-      height={s}
-      fill={fill}
-      stroke="#fff"
-      strokeWidth={1.5}
-      transform={`rotate(45 ${cx} ${cy})`}
-    />
+    <circle cx={cx} cy={cy} r={4.5} fill={fill} stroke="#fff" strokeWidth={2} />
   );
 };
 
@@ -311,6 +302,39 @@ const LoanDemandForecastCard = ({ className = "" }) => {
     return out;
   }, [seriesByType]);
 
+  // Bonus demand only exists around two seasonal campaigns (Mid-Year/May and
+  // Year-End/Nov), so its chart groups by season instead of by calendar
+  // month: one bar pair per campaign, Actual = most recent completed cycle,
+  // Expected = the next upcoming cycle (seasonal-naive forecast).
+  const seasonalBonusSeries = useMemo(() => {
+    const series = seriesByType.bonus || [];
+    const seasons = [
+      { key: "05", label: "Mid-Year (May)" },
+      { key: "11", label: "Year-End (Nov)" },
+    ];
+    return seasons.map((s) => {
+      const rows = series.filter((r) => r.period.slice(5, 7) === s.key);
+      const actualRow = [...rows].reverse().find((r) => r.actual !== null);
+      const predictedRow = rows.find((r) => r.predicted !== null);
+      return {
+        label: s.label,
+        fullLabel: s.label,
+        actual: actualRow?.actual ?? null,
+        actualYear: actualRow?.period.slice(0, 4) ?? null,
+        liveCount: actualRow?.liveCount ?? 0,
+        predicted: predictedRow?.predicted ?? null,
+        predictedYear: predictedRow?.period.slice(0, 4) ?? null,
+        lower: predictedRow?.lower ?? null,
+        upper: predictedRow?.upper ?? null,
+        lower95: predictedRow?.lower95 ?? null,
+        upper95: predictedRow?.upper95 ?? null,
+        band80: predictedRow?.band80 ?? null,
+        band95: predictedRow?.band95 ?? null,
+        forecastError: predictedRow?.forecastError ?? null,
+      };
+    });
+  }, [seriesByType]);
+
   // X-axis label of the last month that has an actual, so the chart can draw
   // a reference line at the historical/forecast transition.
   const transitionLabelByType = useMemo(() => {
@@ -398,9 +422,9 @@ const LoanDemandForecastCard = ({ className = "" }) => {
     return out;
   }, [seriesByType, periodPhrase, forecasts]);
 
-  // Show actual, forecast and both confidence ranges for the hovered month.
-  // When a month has an actual and a forecast we also print the gap, since
-  // comparing the two is the whole point of overlaying the lines.
+  // Planned (forecast) vs. Actual table, in the style of the Income &
+  // Expenses reference design: bold month header, then one row per series
+  // with a colored dot + label on the left and Planned/Actual columns.
   const makeTooltip = (loanType) => ({ active, payload }) => {
     if (!active || !payload?.length) return null;
     const row = payload[0]?.payload || {};
@@ -409,53 +433,51 @@ const LoanDemandForecastCard = ({ className = "" }) => {
     const hasForecast = predicted !== undefined && predicted !== null;
     if (!hasActual && !hasForecast) return null;
 
-    let gapPct = null;
-    if (hasActual && hasForecast && predicted !== 0) {
-      gapPct = ((actual - predicted) / predicted) * 100;
-    }
+    const dotColor = loanType.value === "bonus" ? "#94a3b8" : loanType.color;
+    const demandLabel = loanType.value === "bonus" ? "Demand" : `${loanType.label} Demand`;
 
     return (
-      <div className="bg-white border border-gray-200 rounded-lg shadow-md px-3 py-2 text-xs space-y-1">
-        <p className="font-bold text-gray-800">{row.fullLabel}</p>
-        {hasActual && (
-          <p className="flex items-center gap-1.5 text-gray-700">
-            <span
-              className="inline-block w-3 h-3 shrink-0 rounded-sm"
-              style={{ background: loanType.value === "bonus" ? "#94a3b8" : loanType.color }}
-            />
-            <span className="font-semibold">Actual demand:</span> {PHP(actual)}
+      <div className="bg-white border border-gray-100 rounded-xl shadow-lg px-4 py-3 text-xs min-w-[220px]">
+        <p className="font-bold text-gray-800 text-sm mb-2">{row.fullLabel}</p>
+        <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 gap-y-1.5 items-center">
+          <span />
+          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 text-right">Planned</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 text-right">Actual</span>
+
+          <span className="flex items-center gap-1.5 text-gray-700 font-medium">
+            <span className="inline-block w-2.5 h-2.5 shrink-0 rounded-full" style={{ background: dotColor }} />
+            {demandLabel}
+          </span>
+          <span className="text-right font-bold tabular-nums" style={{ color: hasForecast ? dotColor : "#9ca3af" }}>
+            {hasForecast ? PHP(predicted) : "—"}
+          </span>
+          <span className="text-right font-bold tabular-nums" style={{ color: hasActual ? dotColor : "#9ca3af" }}>
+            {hasActual ? PHP(actual) : "—"}
+          </span>
+        </div>
+        {(row.actualYear || row.predictedYear) && (
+          <p className="text-[10px] text-gray-400 mt-1.5">
+            {row.predictedYear && `Expected demand: ${row.predictedYear} cycle`}
+            {row.predictedYear && row.actualYear && " · "}
+            {row.actualYear && `Actual: ${row.actualYear} cycle`}
           </p>
         )}
+
         {row.liveCount > 0 && (
-          <p className="text-[10px] text-gray-500">
+          <p className="text-[10px] text-gray-400 mt-2">
             Includes {row.liveCount} loan{row.liveCount === 1 ? "" : "s"} from the live system
           </p>
         )}
-        {hasForecast && (
-          <p className="flex items-center gap-1.5 text-gray-700">
-            <span
-              className="inline-block w-3 h-3 shrink-0 rounded-sm"
-              style={{ background: loanType.color, opacity: loanType.value === "bonus" ? 0.58 : 1 }}
-            />
-            <span className="font-semibold">{loanType.value === "bonus" ? "Expected demand:" : "Forecast:"}</span> {PHP(predicted)}
-          </p>
-        )}
         {row.band80 && (
-          <p className="flex items-center gap-1.5 text-gray-600">
+          <p className="flex items-center gap-1.5 text-gray-500 mt-2 pt-2 border-t border-gray-100">
             <span className="inline-block w-4 h-2.5 shrink-0 rounded-sm" style={{ background: loanType.color, opacity: 0.35 }} />
             <span className="font-semibold">80% range:</span> {PHP(row.lower)} – {PHP(row.upper)}
           </p>
         )}
         {row.band95 && (
-          <p className="flex items-center gap-1.5 text-gray-600">
+          <p className="flex items-center gap-1.5 text-gray-500 mt-1">
             <span className="inline-block w-4 h-2.5 shrink-0 rounded-sm" style={{ background: loanType.color, opacity: 0.15 }} />
             <span className="font-semibold">95% range:</span> {PHP(row.lower95)} – {PHP(row.upper95)}
-          </p>
-        )}
-        {gapPct !== null && (
-          <p className="text-gray-500 pt-0.5 border-t border-gray-100">
-            Actual is {Math.abs(gapPct).toFixed(1)}% {gapPct >= 0 ? "above" : "below"} forecast
-            <span className="ml-1 text-gray-400">({gapPct >= 0 ? "+" : "−"}{PHP(Math.abs(actual - predicted))})</span>
           </p>
         )}
       </div>
@@ -619,8 +641,21 @@ const LoanDemandForecastCard = ({ className = "" }) => {
                   )}
                   <div className="min-h-0 flex-1">
                     <ResponsiveContainer debounce={200} width="100%" height="100%">
-                    <ComposedChart data={seriesByType[t.value]} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
-                      <CartesianGrid stroke={t.value === "bonus" ? "#e8edf3" : "#f0f0f0"} vertical={false} />
+                    <ComposedChart
+                      data={t.value === "bonus" ? seasonalBonusSeries : seriesByType[t.value]}
+                      margin={{ top: 10, right: 12, left: 0, bottom: 0 }}
+                    >
+                      <defs>
+                        <linearGradient id={`fc-actual-${t.value}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={t.color} stopOpacity={0.25} />
+                          <stop offset="95%" stopColor={t.color} stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id={`fc-predicted-${t.value}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={t.color} stopOpacity={0.15} />
+                          <stop offset="95%" stopColor={t.color} stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="label" axisLine={{ stroke: "#e5e7eb" }} tickLine={false} tick={{ fontSize: 11, fill: "#6b7280" }} />
                       <YAxis
                         axisLine={false}
@@ -630,8 +665,8 @@ const LoanDemandForecastCard = ({ className = "" }) => {
                         width={56}
                         domain={[0, "auto"]}
                       />
-                      <Tooltip content={makeTooltip(t)} />
-                      {transitionLabelByType[t.value] && (
+                      <Tooltip content={makeTooltip(t)} cursor={{ stroke: "#d1d5db", strokeDasharray: "3 3" }} />
+                      {t.value !== "bonus" && transitionLabelByType[t.value] && (
                         <ReferenceLine
                           x={transitionLabelByType[t.value]}
                           stroke="#d1d5db"
@@ -668,13 +703,33 @@ const LoanDemandForecastCard = ({ className = "" }) => {
                         </>
                       ) : (
                         <>
+                          <Area
+                            type="monotone"
+                            dataKey="actual"
+                            stroke="none"
+                            fill={`url(#fc-actual-${t.value})`}
+                            connectNulls={false}
+                            isAnimationActive={false}
+                            legendType="none"
+                            activeDot={false}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="predicted"
+                            stroke="none"
+                            fill={`url(#fc-predicted-${t.value})`}
+                            connectNulls={false}
+                            isAnimationActive={false}
+                            legendType="none"
+                            activeDot={false}
+                          />
                           <Line
                             type="monotone"
                             dataKey="actual"
                             stroke={t.color}
-                            strokeWidth={2}
-                            dot={DiamondDot(t.color)}
-                            activeDot={{ r: 5 }}
+                            strokeWidth={2.5}
+                            dot={RoundDot(t.color)}
+                            activeDot={{ r: 6, fill: t.color, stroke: "#fff", strokeWidth: 2 }}
                             name={`${t.label} (actual)`}
                             connectNulls={false}
                             isAnimationActive={false}
@@ -683,10 +738,10 @@ const LoanDemandForecastCard = ({ className = "" }) => {
                             type="monotone"
                             dataKey="predicted"
                             stroke={t.color}
-                            strokeWidth={2}
+                            strokeWidth={2.5}
                             strokeDasharray="5 4"
-                            dot={DiamondDot(t.color)}
-                            activeDot={{ r: 5 }}
+                            dot={RoundDot(t.color)}
+                            activeDot={{ r: 6, fill: t.color, stroke: "#fff", strokeWidth: 2 }}
                             name={`${t.label} (forecast)`}
                             connectNulls={false}
                             isAnimationActive={false}
