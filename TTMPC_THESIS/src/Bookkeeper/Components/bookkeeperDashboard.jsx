@@ -435,13 +435,13 @@ const Dashboard = () => {
                 <div className="grid grid-cols-3 gap-3 mb-4">
                   <div>
                     <p className="text-xs text-gray-500">Collected / Expected</p>
-                    <p className="text-lg font-bold text-gray-800">
+                    <p className="text-lg font-bold text-green-700">
                       {collectionRatePct === null ? "—" : `${collectionRatePct}%`}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Outstanding</p>
-                    <p className="text-lg font-bold text-amber-600">{formatPeso(yearTotals.outstanding)}</p>
+                    <p className="text-lg font-bold text-gray-800">{formatPeso(yearTotals.outstanding)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Unpaid installments</p>
