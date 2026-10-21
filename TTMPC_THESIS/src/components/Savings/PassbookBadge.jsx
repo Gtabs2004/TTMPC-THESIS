@@ -4,17 +4,20 @@ import { ArrowDownCircle, ArrowUpCircle, Sparkles } from "lucide-react";
 const STYLES = {
   CD: {
     className: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-    label: "CD",
+    label: "Deposit",
+    code: "CD",
     Icon: ArrowDownCircle,
   },
   WD: {
     className: "bg-rose-50 text-rose-700 border border-rose-200",
-    label: "WD",
+    label: "Withdrawal",
+    code: "WD",
     Icon: ArrowUpCircle,
   },
   "Int.": {
     className: "bg-blue-50 text-blue-700 border border-blue-200",
-    label: "Int.",
+    label: "Interest",
+    code: "Int.",
     Icon: Sparkles,
   },
 };

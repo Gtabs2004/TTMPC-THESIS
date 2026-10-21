@@ -69,17 +69,11 @@ const formatDateTime = (value) => {
   });
 };
 
-const getKindStyle = (kind) => {
-  if (kind === "standalone") return "bg-amber-50 text-amber-700 border border-amber-200";
-  return "bg-emerald-50 text-emerald-700 border border-emerald-200";
-};
-
-const getStatusStyle = (status) => {
+const getStatusDot = (status) => {
   const key = String(status || "").toLowerCase();
-  if (key === "active") return "bg-green-100 text-green-800 border border-green-300";
-  if (key === "frozen") return "bg-sky-100 text-sky-800 border border-sky-300";
-  if (key === "closed") return "bg-gray-100 text-gray-700 border border-gray-300";
-  return "bg-gray-50 text-gray-600";
+  if (key === "active") return "bg-green-500";
+  if (key === "frozen") return "bg-sky-500";
+  return "bg-gray-400";
 };
 
 const useSavingsAccount = (accountParam) => {
@@ -276,11 +270,6 @@ const Savings_Details = () => {
 
 
 
-  const handleRefresh = async () => {
-    await refresh();
-    addNotification("Account refreshed.", "success");
-  };
-
   const handlePostInterest = async () => {
     if (!accountNumber) return;
     setPostInterestError(null);
@@ -427,49 +416,63 @@ const Savings_Details = () => {
             <>
               {/* TITLE BLOCK */}
               <div className="mb-8">
-                <div className="flex items-center justify-between gap-4 mb-6">
-                  <div>
-                    <div className="flex items-center gap-3 mb-1">
-                      <h1 className="text-3xl font-bold text-gray-900">{account.account_name}</h1>
-                      <span
-                        className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${getKindStyle(account.account_kind)}`}
-                      >
-                        {account.account_kind === "standalone" ? "Standalone" : "Member"}
-                      </span>
-                      <span
-                        className={`inline-flex px-3 py-1.5 rounded-full text-xs font-semibold ${getStatusStyle(account.status)}`}
-                      >
-                        {String(account.status || "active").toUpperCase()}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-500">
+                <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <h1 className="text-2xl font-bold text-gray-900">{account.account_name}</h1>
+                    <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-500">
                       <span className="font-mono">{account.account_number}</span>
-                      {memberName ? (
-                        <>
-                          {" · "}
-                          <span className="text-gray-700">{memberName}</span>
-                          {member?.membership_id ? (
-                            <span className="text-gray-400"> ({member.membership_id})</span>
-                          ) : null}
-                        </>
-                      ) : null}
-                      {account.legacy_savings_id ? (
-                        <>
-                          {" · "}
-                          <span className="text-gray-400">
-                            Legacy ref: <span className="font-mono">{account.legacy_savings_id}</span>
-                          </span>
-                        </>
-                      ) : null}
+                      <span className="text-gray-300">·</span>
+                      <span>{account.account_kind === "standalone" ? "Standalone account" : "Member account"}</span>
+                      <span className="text-gray-300">·</span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className={`h-1.5 w-1.5 rounded-full ${getStatusDot(account.status)}`} />
+                        <span className="capitalize">{String(account.status || "active").toLowerCase()}</span>
+                      </span>
                     </p>
+                    {(memberName || account.legacy_savings_id) && (
+                      <p className="mt-0.5 text-sm text-gray-500">
+                        {memberName ? (
+                          <>
+                            <span className="text-gray-700">{memberName}</span>
+                            {member?.membership_id ? <span className="text-gray-400"> ({member.membership_id})</span> : null}
+                          </>
+                        ) : null}
+                        {account.legacy_savings_id ? (
+                          <span className="text-gray-400">
+                            {memberName ? " · " : ""}Legacy ref: <span className="font-mono">{account.legacy_savings_id}</span>
+                          </span>
+                        ) : null}
+                      </p>
+                    )}
                   </div>
-                  <button
-                    onClick={handleRefresh}
-                    className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
-                  >
-                    <RefreshCw size={16} />
-                    Refresh
-                  </button>
+
+                  {/* ACTION BUTTONS: one primary, two secondary, same size */}
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={openDepositModal}
+                      disabled={account.status !== "active"}
+                      className="inline-flex h-10 items-center gap-2 rounded-lg bg-green-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <ArrowDownCircle size={16} />
+                      Record Deposit
+                    </button>
+                    <button
+                      onClick={openWithdrawModal}
+                      disabled={account.status !== "active" || balance <= 0}
+                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <ArrowUpCircle size={16} />
+                      Request Withdrawal
+                    </button>
+                    <button
+                      onClick={() => setShowInterestModal(true)}
+                      disabled={account.status !== "active"}
+                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Sparkles size={16} />
+                      Post Quarterly Interest
+                    </button>
+                  </div>
                 </div>
 
                 {feedbackMessage && (
@@ -482,67 +485,38 @@ const Savings_Details = () => {
                 {/* SUMMARY CARDS */}
                 <StatCardRow cols={4}>
                   <StatCard
-                    className="md:col-span-2"
                     label="Available Balance"
                     value={formatCurrency(balance)}
                     icon={Wallet}
                     iconColor="text-green-600"
-                    subtext={`Last updated ${formatDateTime(account.updated_at)}`}
+                    subtext={`Updated ${formatDateTime(account.updated_at)}`}
                   />
                   <StatCard
                     label="Total Credits"
                     value={formatCurrency(ledgerTotals.credits)}
                     icon={ArrowDownCircle}
-                    iconColor="text-emerald-600"
+                    iconColor="text-green-600"
                     subtext="Across all deposits"
                   />
                   <StatCard
                     label="Total Debits"
                     value={formatCurrency(ledgerTotals.debits)}
                     icon={ArrowUpCircle}
-                    iconColor="text-rose-600"
+                    iconColor="text-green-600"
                     subtext="Across all withdrawals"
                   />
                   <StatCard
-                    label="Accrued Interest (Current Quarter)"
+                    label="Accrued Interest"
                     value={formatCurrency(interestPreview?.interest_to_credit)}
                     icon={Sparkles}
-                    iconColor="text-blue-600"
+                    iconColor="text-green-600"
                     subtext={
                       nextQuarterLabel
-                        ? `Next Post: ${nextQuarterLabel} (${(interestRate * 100).toFixed(2)}% p.a.)`
-                        : `No quarter-close due yet (${(interestRate * 100).toFixed(2)}% p.a.)`
+                        ? `Posts ${nextQuarterLabel} · ${(interestRate * 100).toFixed(2)}% p.a.`
+                        : `Nothing due yet · ${(interestRate * 100).toFixed(2)}% p.a.`
                     }
                   />
                 </StatCardRow>
-
-                {/* ACTION BUTTONS */}
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    onClick={openDepositModal}
-                    disabled={account.status !== "active"}
-                    className="flex items-center gap-2 rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold px-5 py-2.5 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <ArrowDownCircle size={16} />
-                    Record Deposit
-                  </button>
-                  <button
-                    onClick={openWithdrawModal}
-                    disabled={account.status !== "active" || balance <= 0}
-                    className="flex items-center gap-2 rounded-lg border border-rose-300 bg-white hover:bg-rose-50 text-rose-700 font-semibold px-5 py-2.5 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <ArrowUpCircle size={16} />
-                    Request Withdrawal
-                  </button>
-                  <button
-                    onClick={() => setShowInterestModal(true)}
-                    disabled={account.status !== "active"}
-                    className="flex items-center gap-2 rounded-xl border-2 border-emerald-700 text-emerald-700 hover:bg-emerald-50 font-medium px-4 py-2 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Sparkles size={16} />
-                    Post Quarterly Interest
-                  </button>
-                </div>
               </div>
 
               {/* LEDGER TABLE */}
@@ -557,9 +531,9 @@ const Savings_Details = () => {
                     <thead>
                       <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                         <th className="p-5 font-bold">Date</th>
-                        <th className="p-5 font-bold">Code</th>
+                        <th className="p-5 font-bold">Type</th>
                         <th className="p-5 font-bold text-right">Withdrawals</th>
-                        <th className="p-5 font-bold text-right">Interest Credited</th>
+                        <th className="p-5 font-bold text-right">Interest Earned</th>
                         <th className="p-5 font-bold text-right">Deposits</th>
                         <th className="p-5 font-bold text-right">Running Balance</th>
                         <th className="p-5 font-bold text-right">Accrued Int.</th>
@@ -596,13 +570,13 @@ const Savings_Details = () => {
                                 <PassbookBadge code={isInterestPost ? "Int." : isCredit ? "CD" : "WD"} />
                               </td>
                               <td className="p-5 text-right text-sm font-semibold text-rose-700">
-                                {!isCredit ? `-${formatCurrency(entry.amount)}` : "—"}
+                                {!isCredit ? `-${formatCurrency(entry.amount)}` : <span className="text-gray-300">—</span>}
                               </td>
                               <td className="p-5 text-right text-sm font-bold text-emerald-700">
-                                {isInterestPost ? `+${formatCurrency(entry.amount)}` : "—"}
+                                {isInterestPost ? `+${formatCurrency(entry.amount)}` : <span className="text-gray-300">—</span>}
                               </td>
                               <td className="p-5 text-right text-sm font-semibold text-emerald-700">
-                                {isCredit && !isInterestPost ? `+${formatCurrency(entry.amount)}` : "—"}
+                                {isCredit && !isInterestPost ? `+${formatCurrency(entry.amount)}` : <span className="text-gray-300">—</span>}
                               </td>
                               <td className="p-5 text-right text-sm font-bold text-gray-900">
                                 {formatCurrency(entry.running_balance)}

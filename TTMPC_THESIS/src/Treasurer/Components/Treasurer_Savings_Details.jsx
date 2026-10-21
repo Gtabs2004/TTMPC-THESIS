@@ -19,7 +19,8 @@ import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import { TableToolbar } from "../../components/TableToolbar";
 import TableStateRow from "../../components/TableStateRow";
-import Pagination from "../../components/Pagination";
+import Pagination from "../../components/Pagination";
+import PassbookBadge from "../../components/Savings/PassbookBadge";
 import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -299,20 +300,7 @@ const Treasurer_Savings_Details = () => {
                                 {formatDateTime(entry.posted_at)}
                               </td>
                               <td className="p-5">
-                                <span
-                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                                    isCredit
-                                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                      : "bg-rose-50 text-rose-700 border border-rose-200"
-                                  }`}
-                                >
-                                  {isCredit ? (
-                                    <ArrowDownCircle size={12} />
-                                  ) : (
-                                    <ArrowUpCircle size={12} />
-                                  )}
-                                  {isCredit ? "Credit" : "Debit"}
-                                </span>
+                                <PassbookBadge code={entry.source === "savings_interest" ? "Int." : isCredit ? "CD" : "WD"} />
                               </td>
                               <td
                                 className={`p-5 text-right text-sm font-semibold ${
