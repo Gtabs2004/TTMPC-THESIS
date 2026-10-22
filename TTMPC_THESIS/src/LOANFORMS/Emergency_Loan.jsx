@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useRef, useState } from 'react';
 import { Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import LoanSubmittedDialog from '../components/LoanSubmittedDialog';
 import { fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
 import { buildEmergencyPayload, computeLoan } from './loanComputeApi';
 import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
@@ -71,6 +72,7 @@ const numberToWords = (num) => {
 
 function Emergency_Loan() {
   const navigate = useNavigate();
+  const [submittedOpen, setSubmittedOpen] = useState(false);
   const { addNotification } = useNotification();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
   const PDF_PREVIEW_WINDOW_NAME = 'emergency-loan-preview';
@@ -732,8 +734,7 @@ function Emergency_Loan() {
         },
       });
 
-      addNotification('Emergency loan application submitted successfully.', 'success');
-      setTimeout(() => window.location.reload(), 1500);
+      setSubmittedOpen(true);
     } catch (err) {
       console.error('Emergency Loan Submission Error:', err);
       addNotification('Submission error: ' + (err.message || JSON.stringify(err)), 'error');
@@ -763,6 +764,12 @@ function Emergency_Loan() {
           </button>
         </div>
       </header>
+
+      <LoanSubmittedDialog
+        open={submittedOpen}
+        message="Your Emergency loan application was submitted. You can follow its progress under My Loans."
+        onContinue={() => navigate('/member-dashboard')}
+      />
 
       <form ref={formRef} noValidate={window.matchMedia('(max-width: 767px)').matches} onSubmit={handleSubmit} className="px-3 sm:px-4">
         <section className="grid gap-6 px-3 sm:gap-8 sm:px-4">

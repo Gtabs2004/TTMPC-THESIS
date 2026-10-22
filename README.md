@@ -201,7 +201,7 @@ to enable **data-driven decision-making and proactive financial management**.
     </tr>
     <tr>
       <td>Treasurer</td>
-      <td>Approves loan disbursement, manages the vault/cash ledger, and tracks payroll release schedules</td>
+      <td>Approves loan disbursement, and manages the vault/cash ledger</td>
     </tr>
     <tr>
       <td>Cashier</td>

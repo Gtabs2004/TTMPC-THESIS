@@ -4,8 +4,8 @@ Purpose: Enumerate error cases, constraints, and "what-if" scenarios the system 
 
 Revision note: sections below marked (added) cover features that shipped after
 the file's original May 2026 draft (loan restructuring, BOD high-value
-approval, disbursement confirmations, grocery/POS, vault, payroll release
-schedule, loan collateral, loan fee policies, bonus loan window, MIGS
+approval, disbursement confirmations, grocery/POS, vault, loan
+collateral, loan fee policies, bonus loan window, MIGS
 classification, staff termination). Original sections are unchanged.
 
 GLOBAL / SYSTEM-WIDE [DONE 2026-09-02]
@@ -86,13 +86,6 @@ VAULT — Treasurer cash-on-hand ledger (added)
 - What if someone without treasurer/bod role tries to insert a vault entry? -> Blocked by the is_vault_writer() RLS policy (manager/bookkeeper can read via is_vault_reader(), only treasurer/bod can write).
 - What if a prior entry needs correcting? -> The table is append-only (no UPDATE/DELETE policy by design) — corrections must be a new 'adjustment' row referencing the mistake in its note, never an edit of history.
 - What if the running balance (vault_balance_v) goes negative? -> Nothing currently blocks it — decide whether a negative balance is a valid "overdrawn" state to warn on, or should be hard-blocked before a disbursement is confirmed.
-
-PAYROLL RELEASE SCHEDULE (added)
-- What if the same agency/cycle is logged twice for the same year, month, and half? -> Blocked by UNIQUE (agency, cycle_year, cycle_month, cycle_half); return 409.
-- What if agency isn't one of NGA/LGU/SUC/PI/NGO/Cooperative? -> Blocked by CHECK constraint.
-- What if cycle_month is outside 1-12 or cycle_half isn't 1 or 2? -> Blocked by CHECK constraints.
-- What if release_date is entered earlier than makes sense for that cycle (e.g. before expected_date's month even starts)? -> No CHECK enforces this beyond the generated is_delayed flag (release_date > expected_date); a wildly wrong date would still compute a (possibly negative) delay_days.
-- What if a cycle has no release_date logged yet? -> Excluded entirely from salary_schedule_logged_v and the delay-stats view — the Treasurer Schedule page should show these as "pending", not silently omit them from the list.
 
 LOAN COLLATERAL — Consolidated loans (added)
 - What if declared_value or appraised_value is negative? -> Blocked by CHECK (>= 0).

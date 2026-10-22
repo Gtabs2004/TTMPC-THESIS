@@ -38,3 +38,10 @@ Implementation, `TTMPC_THESIS/src/Treasurer/Components/Vault.jsx`:
 - Per month: Forecasted Need (upper 80% CI, sum of the three types — unchanged default band, matches the earlier single-month card), Likely (point estimate), Worst Case (upper 95% CI), Available, Coverage %, Status (Sufficient/Tight/Shortfall — same <100%/<120%/else thresholds as before), and Prepare (max(0, need − available)).
 - Next month's row still gets its own verdict callout above the table; the table itself covers all 12 months.
 - No backend/model changes.
+
+## Update (2026-10-22): rule from the request, section B
+Changes to `Vault.jsx` so the table follows the rule the cooperative confirmed (1.2 buffer, 80% cut-off):
+- **Reserved cash** now comes from `GET /api/treasurer/vault/available` (`committed`): the *net* cash out of loans in "ready for disbursement" only, the same `_compute_vault_available()` the approval screens use. Before, it read the priority-queue total, which was gross loan amounts and also counted "approved" / "awaiting disbursement". Released loans are already out of the vault, and "to be disbursed" loans are not reserved.
+- **Status and prepare**, coverage = available / need (80% band): 120%+ Sufficient (prepare nothing); 100% to under 120% Tight (prepare need x 1.2 - available); 80% to under 100% Near target and under 80% Critical (minimum = need - available, recommended = need x 1.2 - available). Constants `CASH_BUFFER` and `CRITICAL_COVERAGE` at the top of the file.
+- **Columns:** Forecast Need (80%), Likely, Stress Case (95%), Reserved, Available, Coverage, Status, Prepare. Coverage shows as a percentage on every row. Status uses the 80% number only.
+- Bonus stays in the need (decided above); the request text says consolidated + emergency only. Expected collections are still not shown (question 1 stays optional, question 2 as decided).

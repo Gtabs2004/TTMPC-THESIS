@@ -119,7 +119,6 @@ Built by reading each portal's actual `menuItems`/`routeMap` (or per-item `path`
 | Deposits → Capital Build-Up | `/Cashier_CBU` | ✅ |
 | Withdrawals | `/Cashier_Withdrawals` | ✅ |
 | Grocery | `/Cashier_Grocery` | ✅ |
-| Payroll Schedule | `/Cashier_Schedule` | ✅ |
 | Audit Log | `/cashier-audit-log` | ✅ |
 
 ### Member (`MemberMobileNav.jsx`)

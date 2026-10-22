@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import LoanSubmittedDialog from '../components/LoanSubmittedDialog';
 import { fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
 import { buildConsolidatedPayload, clampTermMonths, computeLoan } from './loanComputeApi';
 import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
@@ -77,6 +78,7 @@ const formatLoanAmountOption = (amount) => Number(amount).toLocaleString('en-PH'
 
 function Consolidated_Loan() {
   const navigate = useNavigate();
+  const [submittedOpen, setSubmittedOpen] = useState(false);
   const { addNotification } = useNotification();
 
   const inputStyles = "border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary outline-none w-full bg-white text-sm transition-all";
@@ -971,8 +973,7 @@ function Consolidated_Loan() {
         }
       }
 
-      addNotification("Loan application submitted successfully.", "success");
-      setTimeout(() => window.location.reload(), 1500);
+      setSubmittedOpen(true);
     } catch (err) {
       // Supabase errors put the real cause on .details / .hint / .message.
       const reason = err?.details || err?.hint || err?.message || String(err);
@@ -1100,6 +1101,12 @@ function Consolidated_Loan() {
       </header>
 
       {/* Main Form Wrapping everything */}
+      <LoanSubmittedDialog
+        open={submittedOpen}
+        message="Your Consolidated loan application was submitted. You can follow its progress under My Loans."
+        onContinue={() => navigate('/member-dashboard')}
+      />
+
       <form ref={formRef} noValidate={window.matchMedia('(max-width: 767px)').matches} onSubmit={handleFormSubmit} className="px-3 sm:px-4">
         <section className="grid gap-6 px-3 sm:gap-8 sm:px-4">
           <h1 className="mt-8 text-center text-xl font-bold text-primary sm:mt-12 sm:text-2xl">CONSOLIDATED LOAN APPLICATION</h1>

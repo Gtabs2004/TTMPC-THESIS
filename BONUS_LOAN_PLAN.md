@@ -60,7 +60,7 @@ Decisions already given (2026-10-12): term = **until the next bonus** (not fixed
 | Need | Exists? |
 |---|---|
 | Cooperative membership | Yes: a `member` row with `member_status` (active / exiting / terminated / closed) and `is_bona_fide`. There is no explicit "good standing" flag. |
-| DepEd employment | **No.** `employer_name` is free text (personal data sheet / loan form). `main.py:3140` keyword-classifies it for payroll, not eligibility. `member_profile.employment_status` holds Full-time/Part-time/…, not the employer. |
+| DepEd employment | **No.** `employer_name` is free text (personal data sheet / loan form). Nothing keyword-classifies it for eligibility (a payroll-agency classifier that once read it was removed with the payroll delay feature). `member_profile.employment_status` holds Full-time/Part-time/…, not the employer. |
 | Bonus amount | `bonus_amount_numeric` is captured, but the form copies the loan amount into it, so the two are always equal and it is never verified. |
 | Applicant category, eligibility basis, maturity date, verification/approval of the basis | Not stored. |
 

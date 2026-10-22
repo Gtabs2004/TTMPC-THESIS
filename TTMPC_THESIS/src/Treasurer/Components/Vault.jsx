@@ -41,6 +41,53 @@ const FORECAST_LOAN_TYPES = [
 
 const FORECAST_MONTHS = 12;
 
+// Cash sufficiency rule (confirmed by the cooperative, see
+// 2026-10-21_profile_change_requests.md part B). Coverage = cash available /
+// forecast need (upper 80% band):
+//   >= 120%        Sufficient: prepare nothing
+//   100% to < 120% Tight: top up to restore the 20% buffer
+//   80% to < 100%  Near target: a small shortfall
+//   < 80%          Critical: a large shortfall
+// For Tight/Near target/Critical, "recommended" = need x CASH_BUFFER - available.
+// For the two shortfall levels, the minimum is need - available.
+const CASH_BUFFER = 1.2;
+const CRITICAL_COVERAGE = 0.8;
+
+const STATUS_META = {
+  sufficient: {
+    label: "Sufficient",
+    badge: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
+    panel: "bg-emerald-50 border-emerald-200",
+    text: "text-emerald-800",
+    Icon: CheckCircle2,
+    title: "Vault is sufficient for next month",
+  },
+  tight: {
+    label: "Tight",
+    badge: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
+    panel: "bg-amber-50 border-amber-200",
+    text: "text-amber-800",
+    Icon: AlertTriangle,
+    title: "Vault is tight for next month",
+  },
+  near_target: {
+    label: "Near target",
+    badge: "bg-orange-50 text-orange-700 ring-1 ring-orange-200",
+    panel: "bg-orange-50 border-orange-200",
+    text: "text-orange-800",
+    Icon: AlertCircle,
+    title: "Vault is slightly short for next month",
+  },
+  critical: {
+    label: "Critical",
+    badge: "bg-red-50 text-red-700 ring-1 ring-red-200",
+    panel: "bg-red-50 border-red-200",
+    text: "text-red-800",
+    Icon: AlertCircle,
+    title: "Vault shortfall next month",
+  },
+};
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -134,7 +181,7 @@ const Vault = () => {
   // waiting for release (so "available" isn't just the raw vault balance).
   // Cash planning uses `upper` (upper 80% CI, the model/API default) as the
   // "need" to prepare for — point estimate is shown only as "likely" and
-  // upper95 only as "worst case". See 2026-10-21_cash_forecast_addition.md.
+  // upper95 only as the "stress case". See 2026-10-21_cash_forecast_addition.md.
   const fetchForecast = useCallback(async () => {
     setForecastLoading(true);
     setForecastError("");
@@ -170,14 +217,17 @@ const Vault = () => {
         .slice(0, FORECAST_MONTHS);
       setMonthlyForecast(rows);
 
-      // Cash already reserved for release: approved/ready-for-disbursement
-      // loans not yet paid out. limit=1 since we only need `summary`.
+      // Cash already spoken for: the NET cash out of loans in "ready for
+      // disbursement" (Treasurer-approved, awaiting the Cashier's release), from
+      // the same _compute_vault_available() the approval screens judge against.
+      // Released loans are already out of the vault; loans still "to be
+      // disbursed" are not reserved yet.
       const reservedRes = await fetch(
-        `${API_BASE_URL}/api/treasurer/disbursements/priority-queue?limit=1`,
+        `${API_BASE_URL}/api/treasurer/vault/available`,
         { headers: { Accept: "application/json" } },
       );
       const reservedPayload = await reservedRes.json().catch(() => ({}));
-      setReservedCash(reservedRes.ok ? Number(reservedPayload?.summary?.total_amount || 0) : 0);
+      setReservedCash(reservedRes.ok ? Number(reservedPayload?.data?.committed || 0) : 0);
 
       setForecastUpdatedAt(new Date());
     } catch (err) {
@@ -227,25 +277,36 @@ const Vault = () => {
 
   // One row per forecast month: need (upper 80% CI, summed across
   // Consolidated/Emergency/Bonus) vs. availableCash, plus likely (point
-  // estimate) and worst case (upper 95% CI) for context only.
+  // estimate) and the stress case (upper 95% CI) for context only; the status
+  // is decided on the 80% need alone. See CASH_BUFFER / CRITICAL_COVERAGE.
   const monthlyCashPosition = useMemo(() => {
     return monthlyForecast.map((row) => {
-      let likely = 0, need = 0, worstCase = 0;
+      let likely = 0, need = 0, stress = 0;
       for (const t of FORECAST_LOAN_TYPES) {
         const r = row[t.value];
         if (!r) continue;
         likely += r.predicted ?? 0;
         need += r.upper ?? r.predicted ?? 0;
-        worstCase += r.upper95 ?? r.upper ?? r.predicted ?? 0;
+        stress += r.upper95 ?? r.upper ?? r.predicted ?? 0;
       }
-      const coverageRatio = need > 0 ? availableCash / need : 1;
-      const toPrepare = Math.max(0, need - availableCash);
+      // No forecast demand at all: nothing to cover.
+      const coverageRatio = need > 0 ? availableCash / need : null;
+      const gap = Math.max(0, need - availableCash); // minimum to cover the need
+      const recommended = Math.max(0, need * CASH_BUFFER - availableCash); // restores the 20% buffer
       let status = "sufficient";
-      if (coverageRatio < 1) status = "shortfall";
-      else if (coverageRatio < 1.2) status = "tight";
+      if (coverageRatio !== null) {
+        if (coverageRatio < CRITICAL_COVERAGE) status = "critical";
+        else if (coverageRatio < 1) status = "near_target";
+        else if (coverageRatio < CASH_BUFFER) status = "tight";
+      }
       const [y, m] = row.period.split("-").map(Number);
       const label = new Date(y, m - 1, 1).toLocaleDateString("en-PH", { year: "numeric", month: "long" });
-      return { period: row.period, label, likely, need, worstCase, coverageRatio, toPrepare, status };
+      return {
+        period: row.period, label, likely, need, stress, coverageRatio, status,
+        // Sufficient: nothing. Tight: top-up only. Shortfall levels: a minimum and a recommended amount.
+        minimum: status === "near_target" || status === "critical" ? gap : 0,
+        recommended: status === "sufficient" ? 0 : recommended,
+      };
     });
   }, [monthlyForecast, availableCash]);
 
@@ -318,8 +379,8 @@ const Vault = () => {
                 </h2>
                 <p className="text-xs text-gray-500 mt-1">
                   Cash available vs. forecasted loan releases for the next {FORECAST_MONTHS} months. Status
-                  uses a safe-side estimate (80% confidence); "Likely" and "Worst Case" are shown for context.
-                  Compared against today's cash on hand, not a projected future balance.
+                  uses a safe-side estimate (80% confidence) and a 20% cash buffer; "Likely" and the 95% "Stress
+                  Case" are shown for context only. Compared against today's cash on hand, not a projected future balance.
                 </p>
               </div>
               <div className="flex flex-col items-end gap-1">
@@ -362,7 +423,7 @@ const Vault = () => {
                   <div className="rounded-xl border border-gray-200 p-4">
                     <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Cash Reserved</p>
                     <p className="text-xl font-extrabold text-amber-700 tabular-nums mt-1">− {PHP(reservedCash)}</p>
-                    <p className="text-[11px] text-gray-500 mt-1">Approved loans awaiting disbursement</p>
+                    <p className="text-[11px] text-gray-500 mt-1">Net cash of loans ready for disbursement</p>
                   </div>
                   <div className="rounded-xl border border-gray-200 p-4 bg-gray-50">
                     <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Cash Available</p>
@@ -373,43 +434,35 @@ const Vault = () => {
 
                 {/* Verdict block — next month only */}
                 {nextMonthPosition && (() => {
+                  const meta = STATUS_META[nextMonthPosition.status];
+                  const Icon = meta.Icon;
+                  const pct = nextMonthPosition.coverageRatio === null ? null : (nextMonthPosition.coverageRatio * 100).toFixed(0);
                   const s = nextMonthPosition.status;
-                  const bg = s === "sufficient" ? "bg-emerald-50 border-emerald-200" :
-                             s === "tight"      ? "bg-amber-50 border-amber-200"   :
-                                                  "bg-red-50 border-red-200";
-                  const txt = s === "sufficient" ? "text-emerald-800" :
-                              s === "tight"      ? "text-amber-800"   :
-                                                   "text-red-800";
-                  const Icon = s === "sufficient" ? CheckCircle2 :
-                               s === "tight"      ? AlertTriangle :
-                                                    AlertCircle;
-                  const title = s === "sufficient" ? "Vault is sufficient for next month" :
-                                s === "tight"      ? "Vault is tight for next month" :
-                                                     "Vault shortfall next month";
                   return (
-                    <div className={`rounded-xl border p-5 ${bg} mb-4`}>
+                    <div className={`rounded-xl border p-5 ${meta.panel} mb-4`}>
                       <div className="flex items-start gap-3">
-                        <Icon size={22} className={txt} />
+                        <Icon size={22} className={meta.text} />
                         <div className="flex-1">
-                          <p className={`text-base font-bold ${txt}`}>{title} ({nextMonthPosition.label})</p>
+                          <p className={`text-base font-bold ${meta.text}`}>{meta.title} ({nextMonthPosition.label})</p>
                           <p className="text-sm text-gray-700 mt-1">
                             Cash available: <span className="font-bold tabular-nums">{PHP(availableCash)}</span> ·
                             <span className="ml-1">Forecasted need: <span className="font-bold tabular-nums">{PHP(nextMonthPosition.need)}</span></span>
+                            {pct !== null && <span className="ml-1">· Coverage: <span className="font-bold">{pct}%</span></span>}
                           </p>
                           {s === "sufficient" && (
-                            <p className="text-sm text-gray-700 mt-2">
-                              Coverage: <span className="font-bold">{(nextMonthPosition.coverageRatio * 100).toFixed(0)}%</span> of projected need.
-                            </p>
+                            <p className="text-sm text-gray-700 mt-2">Nothing to prepare.</p>
                           )}
                           {s === "tight" && (
                             <p className="text-sm text-gray-700 mt-2">
-                              Coverage: {(nextMonthPosition.coverageRatio * 100).toFixed(0)}%. Consider bringing in more cash before {nextMonthPosition.label} in case demand runs high.
+                              Cash covers the forecast but not the 20% buffer. Prepare about{" "}
+                              <span className="font-bold tabular-nums">{PHP(nextMonthPosition.recommended)}</span> more
+                              before {nextMonthPosition.label} in case demand runs high.
                             </p>
                           )}
-                          {s === "shortfall" && (
+                          {(s === "near_target" || s === "critical") && (
                             <p className="text-sm text-gray-700 mt-2">
-                              The coop needs to prepare <span className="font-bold text-red-700 tabular-nums">{PHP(nextMonthPosition.toPrepare)}</span> more
-                              to fully cover projected releases in {nextMonthPosition.label} ({(nextMonthPosition.coverageRatio * 100).toFixed(0)}% coverage).
+                              Prepare at least <span className="font-bold tabular-nums">{PHP(nextMonthPosition.minimum)}</span> to cover projected releases
+                              in {nextMonthPosition.label}; <span className="font-bold tabular-nums">{PHP(nextMonthPosition.recommended)}</span> restores the 20% buffer.
                             </p>
                           )}
                         </div>
@@ -424,9 +477,10 @@ const Vault = () => {
                     <thead>
                       <tr className="bg-gray-50 text-[10px] uppercase tracking-wider text-gray-500 font-bold">
                         <th className="p-3 text-left">Month</th>
-                        <th className="p-3 text-right">Forecasted Need</th>
+                        <th className="p-3 text-right">Forecast Need (80%)</th>
                         <th className="p-3 text-right">Likely</th>
-                        <th className="p-3 text-right">Worst Case</th>
+                        <th className="p-3 text-right">Stress Case (95%)</th>
+                        <th className="p-3 text-right">Reserved</th>
                         <th className="p-3 text-right">Available</th>
                         <th className="p-3 text-right">Coverage</th>
                         <th className="p-3 text-center">Status</th>
@@ -435,25 +489,35 @@ const Vault = () => {
                     </thead>
                     <tbody>
                       {monthlyCashPosition.map((row) => {
-                        const badge =
-                          row.status === "sufficient" ? { label: "Sufficient", cls: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" } :
-                          row.status === "tight"      ? { label: "Tight",      cls: "bg-amber-50 text-amber-700 ring-1 ring-amber-200" } :
-                                                         { label: "Shortfall",  cls: "bg-red-50 text-red-700 ring-1 ring-red-200" };
+                        const badge = STATUS_META[row.status];
                         return (
                           <tr key={row.period} className="border-t border-gray-100">
                             <td className="p-3 text-gray-800 font-semibold whitespace-nowrap">{row.label}</td>
                             <td className="p-3 text-right tabular-nums font-bold text-gray-900">{PHP(row.need)}</td>
                             <td className="p-3 text-right tabular-nums text-gray-500">{PHP(row.likely)}</td>
-                            <td className="p-3 text-right tabular-nums text-gray-500">{PHP(row.worstCase)}</td>
+                            <td className="p-3 text-right tabular-nums text-gray-500">{PHP(row.stress)}</td>
+                            <td className="p-3 text-right tabular-nums text-amber-700">{PHP(reservedCash)}</td>
                             <td className="p-3 text-right tabular-nums text-gray-700">{PHP(availableCash)}</td>
-                            <td className="p-3 text-right tabular-nums text-gray-700">{(row.coverageRatio * 100).toFixed(0)}%</td>
+                            <td className="p-3 text-right tabular-nums text-gray-700">
+                              {row.coverageRatio === null ? "—" : `${(row.coverageRatio * 100).toFixed(0)}%`}
+                            </td>
                             <td className="p-3 text-center">
-                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${badge.cls}`}>
+                              <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${badge.badge}`}>
                                 {badge.label}
                               </span>
                             </td>
-                            <td className="p-3 text-right tabular-nums font-semibold text-gray-800">
-                              {row.toPrepare > 0 ? PHP(row.toPrepare) : "—"}
+                            <td className="p-3 text-right tabular-nums text-gray-800">
+                              {row.recommended > 0 ? (
+                                <>
+                                  {row.minimum > 0 && (
+                                    <span className="block text-[11px] text-gray-500">Min {PHP(row.minimum)}</span>
+                                  )}
+                                  <span className="font-semibold">{PHP(row.recommended)}</span>
+                                  <span className="block text-[11px] text-gray-500">recommended</span>
+                                </>
+                              ) : (
+                                "—"
+                              )}
                             </td>
                           </tr>
                         );

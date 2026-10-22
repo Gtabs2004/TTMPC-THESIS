@@ -114,21 +114,9 @@ WITH CHECK (false);
 REVOKE ALL ON public.loan_email_log FROM anon, authenticated;
 
 -- ---------------------------------------------------------------------------
--- 5. salary_schedule — payroll release calendar. Any authenticated staff or
---    member may read (used for loan amortization "next payday" hints).
---    Writes are BOD-only via the policy editor (future scope) — for now
---    deny client writes and let the backend service role manage.
+-- 5. (removed) salary_schedule — the payroll release calendar was dropped with
+--    the payroll delay feature; see payroll_release_schedule_removal.sql.
 -- ---------------------------------------------------------------------------
-ALTER TABLE public.salary_schedule ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS salary_schedule_read_authenticated ON public.salary_schedule;
-CREATE POLICY salary_schedule_read_authenticated
-ON public.salary_schedule
-FOR SELECT
-TO authenticated
-USING (true);
-
-GRANT SELECT ON public.salary_schedule TO authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 6. member_import_stage — one-off staging table for the legacy member

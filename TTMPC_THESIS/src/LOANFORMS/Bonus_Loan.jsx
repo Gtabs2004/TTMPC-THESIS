@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useRef, useState } from 'react';
 import { Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import LoanSubmittedDialog from '../components/LoanSubmittedDialog';
 import { createUniqueControlNumber, fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
 import { buildBonusPayload, computeLoan } from './loanComputeApi';
 import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
@@ -91,6 +92,7 @@ const numberToWords = (num) => {
 // signed-in (Cashier) session, and the row goes to non_member_loans.
 function Bonus_Loan({ staffIntake = false }) {
   const navigate = useNavigate();
+  const [submittedOpen, setSubmittedOpen] = useState(false);
   const { addNotification } = useNotification();
   const isNonMemberBonus = staffIntake;
 
@@ -550,8 +552,7 @@ function Bonus_Loan({ staffIntake = false }) {
         },
       });
 
-      addNotification('Bonus loan application submitted successfully.', 'success');
-      setTimeout(() => window.location.reload(), 1500);
+      setSubmittedOpen(true);
     } catch (err) {
       addNotification('Submission error: ' + err.message, 'error');
     } finally {
@@ -579,6 +580,12 @@ function Bonus_Loan({ staffIntake = false }) {
           </button>
         </div>
       </header>
+
+      <LoanSubmittedDialog
+        open={submittedOpen}
+        message={staffIntake ? 'The non-member Bonus loan application was submitted.' : 'Your Bonus loan application was submitted. You can follow its progress under My Loans.'}
+        onContinue={() => navigate(staffIntake ? '/Cashier_Dashboard' : '/member-dashboard')}
+      />
 
       <form ref={formRef} noValidate={window.matchMedia('(max-width: 767px)').matches} onSubmit={handleSubmit} className="px-3 sm:px-4">
         <section className="grid gap-6 px-3 sm:gap-8 sm:px-4">
