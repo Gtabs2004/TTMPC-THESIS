@@ -601,7 +601,7 @@ function Bonus_Loan({ staffIntake = false }) {
             {printing ? 'Preparing PDF...' : 'Download PDF'}
           </button>
           <div className="max-w-6xl mx-auto w-full">
-            <div className="bg-[#EEF6F1] rounded-xl p-4 border-2 border-primary flex flex-col items-start justify-between gap-4 sm:p-6 md:flex-row md:items-center md:gap-6">
+            <div className="bg-[#EEF6F1] rounded-xl p-3 border-2 border-primary flex flex-col items-start justify-between gap-4 sm:p-4 md:flex-row md:items-center md:gap-6">
               <div className="flex flex-wrap items-center gap-4 sm:gap-8">
                 {/* Bonus has no New/Renewal choice (Q1/Q11): a prior Bonus
                     loan must be fully paid off before another is submitted —
@@ -619,11 +619,11 @@ function Bonus_Loan({ staffIntake = false }) {
               <div className="flex flex-wrap gap-4">
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-gray-500">Control No.</label>
-                  <input type="text" name="control_no" value={formData.control_no} readOnly className="border border-gray-300 rounded px-3 py-1.5 w-full sm:w-48 bg-gray-100 cursor-not-allowed" />
+                  <input type="text" name="control_no" value={formData.control_no} readOnly className="border border-gray-300 rounded px-2.5 py-1 text-xs w-full sm:w-40 bg-gray-100 cursor-not-allowed" />
                 </div>
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-gray-500">Date Applied</label>
-                  <input type="date" name="date_applied" value={formData.date_applied} onChange={handleChange} className="border border-gray-300 rounded px-3 py-1.5 w-full sm:w-48" />
+                  <input type="date" name="date_applied" value={formData.date_applied} onChange={handleChange} className="border border-gray-300 rounded px-2.5 py-1 text-xs w-full sm:w-40" />
                 </div>
               </div>
             </div>

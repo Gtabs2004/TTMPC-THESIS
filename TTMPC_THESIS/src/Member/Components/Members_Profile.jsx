@@ -37,6 +37,8 @@ import {
   Save,
   CheckCircle2,
   AlertCircle,
+  XCircle,
+  X,
   Wallet,
   Phone,
   ChevronDown ,
@@ -264,6 +266,15 @@ const Members_Profile = () => {
   const [dialogChanges, setDialogChanges] = useState([]);
   const [confirmError, setConfirmError] = useState('');
   const [myRequests, setMyRequests] = useState([]);
+  // Declined requests the member has dismissed; kept per browser, so the notice
+  // doesn't come back on every visit (it also expires by itself after 14 days).
+  const [dismissedIds, setDismissedIds] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('profile-change-dismissed') || '[]');
+    } catch {
+      return [];
+    }
+  });
   const [cancellingId, setCancellingId] = useState(null);
   const successTimerRef = useRef(null);
 
@@ -634,8 +645,35 @@ const Members_Profile = () => {
   }, [pendingRequests]);
   const recentlyRejected = useMemo(() => {
     const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
-    return myRequests.filter((r) => r.status === 'rejected' && new Date(r.reviewed_at || 0).getTime() > cutoff);
-  }, [myRequests]);
+    return myRequests.filter(
+      (r) =>
+        r.status === 'rejected' &&
+        new Date(r.reviewed_at || 0).getTime() > cutoff &&
+        !dismissedIds.includes(r.id)
+    );
+  }, [myRequests, dismissedIds]);
+
+  const dismissRejected = (ids) => {
+    setDismissedIds((prev) => {
+      const next = [...new Set([...prev, ...ids])];
+      try {
+        localStorage.setItem('profile-change-dismissed', JSON.stringify(next));
+      } catch {
+        // Storage unavailable: the notice just comes back next visit.
+      }
+      return next;
+    });
+  };
+
+  // What the member asked for, as they would read it (net pay as an amount).
+  const describeRequestedValue = (r) => {
+    if (r.new_value === null || r.new_value === undefined || r.new_value === '') return 'Cleared';
+    const n = Number(r.new_value);
+    if (r.requires_proof && Number.isFinite(n)) {
+      return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(n);
+    }
+    return String(r.new_value);
+  };
 
   // When the Bookkeeper approves something while this page is open, show the new
   // value without a reload (and without disturbing anything being edited).
@@ -1016,16 +1054,69 @@ const Members_Profile = () => {
           </div>
 
           {recentlyRejected.length > 0 ? (
-            <div className="w-full mb-4 p-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 text-sm text-red-800 dark:text-red-300">
-              <p className="font-bold">The Bookkeeper declined {recentlyRejected.length === 1 ? 'a change' : 'some changes'}</p>
-              <ul className="mt-1 space-y-0.5">
-                {recentlyRejected.map((r) => (
-                  <li key={r.id}>
-                    <span className="font-semibold">{r.field_label}</span>
-                    {r.review_note ? ` — ${r.review_note}` : ''}
-                  </li>
-                ))}
-              </ul>
+            <div
+              role="status"
+              className="w-full mb-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 p-4 sm:p-5 animate-fade-in"
+            >
+              <div className="flex items-start gap-3">
+                <XCircle className="w-5 h-5 mt-0.5 shrink-0 text-red-600 dark:text-red-400" aria-hidden="true" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-red-900 dark:text-red-200">
+                        {recentlyRejected.length === 1
+                          ? 'The Bookkeeper declined your change'
+                          : `The Bookkeeper declined ${recentlyRejected.length} of your changes`}
+                      </p>
+                      <p className="mt-0.5 text-xs text-red-800/80 dark:text-red-300/80">
+                        Your profile was not changed. Fix what is noted and send the change again.
+                      </p>
+                    </div>
+                    {recentlyRejected.length > 1 ? (
+                      <button
+                        type="button"
+                        onClick={() => dismissRejected(recentlyRejected.map((r) => r.id))}
+                        className="shrink-0 text-xs font-bold text-red-800 dark:text-red-300 underline underline-offset-2 hover:text-red-950"
+                      >
+                        Dismiss all
+                      </button>
+                    ) : null}
+                  </div>
+
+                  <ul className="mt-3 space-y-2">
+                    {recentlyRejected.map((r) => (
+                      <li
+                        key={r.id}
+                        className="rounded-lg bg-white/70 dark:bg-black/20 border border-red-100 dark:border-red-900/50 px-3 py-2.5"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-gray-900 dark:text-mdark-text">{r.field_label}</p>
+                            <p className="text-xs text-gray-600 dark:text-mdark-text-secondary break-words">
+                              You asked for <span className="font-semibold">{describeRequestedValue(r)}</span>
+                              {r.reviewed_at
+                                ? ` · declined ${new Date(r.reviewed_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}`
+                                : ''}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => dismissRejected([r.id])}
+                            aria-label={`Dismiss declined change to ${r.field_label}`}
+                            className="shrink-0 rounded-md p-1 text-gray-500 hover:bg-red-50 hover:text-red-700"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <p className="mt-1.5 text-sm text-red-900 dark:text-red-200">
+                          <span className="font-semibold">Reason:</span>{' '}
+                          {r.review_note || 'No reason was given.'}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
             </div>
           ) : null}
 

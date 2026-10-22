@@ -785,21 +785,21 @@ function Emergency_Loan() {
             {printing ? 'Preparing PDF...' : 'Download PDF'}
           </button>
           <div className="max-w-6xl mx-auto w-full">
-            <div className="bg-[#EEF6F1] rounded-xl p-4 border-2 border-primary flex flex-col items-start justify-between gap-4 sm:p-6 md:flex-row md:items-center md:gap-6">
+            <div className="bg-[#EEF6F1] rounded-xl p-3 border-2 border-primary flex flex-col items-start justify-between gap-4 sm:p-4 md:flex-row md:items-center md:gap-6">
               <div className="flex flex-wrap gap-4 sm:gap-8">
                 <label
                   className={`flex items-center space-x-2 ${canApplyNew ? 'cursor-pointer' : 'cursor-not-allowed opacity-50 grayscale'}`}
                   title={canApplyNew ? '' : (eligibility?.reason || 'Active loan on record — new applications are disabled.')}
                 >
                   <input type="radio" name="application_type" value="New" checked={formData.application_type === 'New'} onChange={handleChange} disabled={!canApplyNew} className="h-4 w-4 accent-primary disabled:cursor-not-allowed" />
-                  <span className="font-semibold text-gray-700">New</span>
+                  <span className="text-sm font-semibold text-gray-700">New</span>
                 </label>
                 <label
                   className={`flex items-center space-x-2 ${canRenew ? 'cursor-pointer' : 'cursor-not-allowed opacity-50 grayscale'}`}
                   title={canRenew ? '' : (eligibility?.reason || 'Renewal requires 6 recorded monthly payments.')}
                 >
                   <input type="radio" name="application_type" value="Renewal" checked={formData.application_type === 'Renewal'} onChange={handleChange} disabled={!canRenew} className="h-4 w-4 accent-primary disabled:cursor-not-allowed" />
-                  <span className="font-semibold text-gray-700">Renewal</span>
+                  <span className="text-sm font-semibold text-gray-700">Renewal</span>
                 </label>
                 {eligibility?.simulation_active && (
                   <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-800 border border-amber-300">SIMULATION MODE</span>
@@ -808,11 +808,11 @@ function Emergency_Loan() {
               <div className="flex flex-wrap gap-4">
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-gray-500">Control No.</label>
-                  <input type="text" name="control_no" value={formData.control_no} readOnly className="border border-gray-300 rounded px-3 py-1.5 w-full sm:w-48 bg-gray-100 cursor-not-allowed" />
+                  <input type="text" name="control_no" value={formData.control_no} readOnly className="border border-gray-300 rounded px-2.5 py-1 text-xs w-full sm:w-40 bg-gray-100 cursor-not-allowed" />
                 </div>
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-gray-500">Date Applied</label>
-                  <input type="date" name="date_applied" value={formData.date_applied} onChange={handleChange} className="border border-gray-300 rounded px-3 py-1.5 w-full sm:w-48" />
+                  <input type="date" name="date_applied" value={formData.date_applied} onChange={handleChange} className="border border-gray-300 rounded px-2.5 py-1 text-xs w-full sm:w-40" />
                 </div>
               </div>
             </div>

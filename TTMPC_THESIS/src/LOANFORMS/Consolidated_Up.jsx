@@ -997,15 +997,15 @@ function Consolidated_Up() {
             {printing ? 'Preparing PDF...' : 'Download PDF'}
           </button>
           <div className="max-w-6xl mx-auto w-full">
-            <div className="bg-[#EEF6F1] rounded-xl p-4 border-2 border-primary flex flex-col items-start justify-between gap-4 sm:p-6 md:flex-row md:items-center md:gap-6">
+            <div className="bg-[#EEF6F1] rounded-xl p-3 border-2 border-primary flex flex-col items-start justify-between gap-4 sm:p-4 md:flex-row md:items-center md:gap-6">
               <div className="flex flex-wrap gap-4 sm:gap-8">
                 <label className="flex items-center space-x-2 cursor-pointer">
                   <input type="radio" name="application_type" value="New" checked={formData.application_type === 'New'} onChange={handleChange} className="h-4 w-4 accent-primary" />
-                  <span className="font-semibold text-gray-700">New</span>
+                  <span className="text-sm font-semibold text-gray-700">New</span>
                 </label>
                 <label className="flex items-center space-x-2 cursor-pointer">
                   <input type="radio" name="application_type" value="Renewal" checked={formData.application_type === 'Renewal'} onChange={handleChange} className="h-4 w-4 accent-primary" />
-                  <span className="font-semibold text-gray-700">Renewal</span>
+                  <span className="text-sm font-semibold text-gray-700">Renewal</span>
                   {isRenewal && existingLoan && (
                     <span className={`ml-1 inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded ${sixMonthsPaid ? 'bg-[#E9F7DE] text-[#2E7D32]' : 'bg-red-50 text-red-600'}`}>
                       {renewalOverrideApproved ? '✓ Override approved' : sixMonthsPaid ? '✓ 6-month rule' : '✕ 6-month rule'}
@@ -1016,11 +1016,11 @@ function Consolidated_Up() {
               <div className="grid w-full grid-cols-1 gap-3 sm:flex sm:flex-wrap sm:gap-4 md:w-auto">
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-gray-500">Control No.</label>
-                  <input type="text" name="control_no" value={formData.control_no} readOnly tabIndex={-1} aria-readonly title="System-generated control number." className="border border-gray-200 rounded px-3 py-1.5 w-full sm:w-48 bg-gray-100 text-gray-600 cursor-not-allowed select-text" />
+                  <input type="text" name="control_no" value={formData.control_no} readOnly tabIndex={-1} aria-readonly title="System-generated control number." className="border border-gray-200 rounded px-2.5 py-1 text-xs w-full sm:w-40 bg-gray-100 text-gray-600 cursor-not-allowed select-text" />
                 </div>
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-gray-500">Date Applied</label>
-                  <input type="date" name="date_applied" value={formData.date_applied} onChange={handleChange} className="border border-gray-300 rounded px-3 py-1.5 w-full sm:w-48" />
+                  <input type="date" name="date_applied" value={formData.date_applied} onChange={handleChange} className="border border-gray-300 rounded px-2.5 py-1 text-xs w-full sm:w-40" />
                 </div>
               </div>
             </div>
