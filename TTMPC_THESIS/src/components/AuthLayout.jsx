@@ -87,7 +87,7 @@ function BrandPanel({ variant = 'default' }) {
       {isStaff ? (
         <>
           <img
-            src="/assets/img/bg-login.png"
+            src="/assets/img/bg-login.webp"
             alt=""
             aria-hidden="true"
             className="auth-staff-art absolute inset-0 h-full w-full object-cover object-center"
@@ -178,7 +178,7 @@ function MobileBanner() {
   return (
     <header className="relative h-40 overflow-hidden bg-[#eaf6df] sm:h-48 md:hidden">
       <img
-        src="/assets/img/bg-login.png"
+        src="/assets/img/bg-login.webp"
         alt=""
         aria-hidden="true"
         decoding="async"
@@ -227,6 +227,14 @@ export default function AuthLayout({
           image-rendering: auto;
         }
         .auth-rise-2 { animation: authRise .4s .08s cubic-bezier(0.16, 1, 0.3, 1) both; }
+        /* Keep browser autofill from tinting the fields blue/yellow. */
+        .auth-fields input:-webkit-autofill,
+        .auth-fields input:-webkit-autofill:hover,
+        .auth-fields input:-webkit-autofill:focus {
+          -webkit-box-shadow: 0 0 0 1000px #fff inset;
+          -webkit-text-fill-color: #111827;
+          caret-color: #111827;
+        }
         @media (prefers-reduced-motion: reduce) {
           .auth-slide, .auth-rise, .auth-rise-2 { animation: none; }
         }
@@ -250,7 +258,7 @@ export default function AuthLayout({
             </div>
           )}
 
-          <div className="auth-rise-2 mx-auto w-full max-w-sm">
+          <div className="auth-rise-2 auth-fields mx-auto w-full max-w-sm">
             <Link
               to="/"
               className="-ml-1 mb-6 inline-flex items-center gap-1.5 rounded-md px-1 py-1 text-sm font-medium text-gray-600 transition-colors hover:text-[#2F6616] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#66B538]"

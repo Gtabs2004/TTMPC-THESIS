@@ -6,8 +6,9 @@ export const authInputClass =
   'disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed ' +
   'aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:ring-red-500/30';
 
-export const staffAuthInputClass =
-  authInputClass + ' !border-[#d7dfec] !bg-[#edf3ff]';
+// Same white field as the default sign-in inputs (the staff and member pages
+// briefly used a light-blue fill; it was reverted).
+export const staffAuthInputClass = authInputClass;
 
 export const authLabelClass = 'block text-sm font-semibold text-gray-700';
 
