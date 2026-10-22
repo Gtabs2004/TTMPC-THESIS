@@ -13847,46 +13847,70 @@ async def get_ga_attendance_roster(year: int):
     try:
         year_int = int(year)
         member_table = _resolve_member_table(supabase)
-        members_response = (
-            supabase.table(member_table)
-            .select("id,membership_id,first_name,last_name")
-            .order("last_name")
-            .execute()
-        )
-        members = members_response.data or []
+        # PostgREST caps every response at 1000 rows, so page through the
+        # member table; a single .execute() silently dropped everyone past
+        # the first 1000 (the newest members).
+        members: list[dict] = []
+        offset = 0
+        page_size = 1000
+        while True:
+            members_response = (
+                supabase.table(member_table)
+                .select("id,membership_id,first_name,last_name")
+                .order("last_name")
+                .order("id")
+                .range(offset, offset + page_size - 1)
+                .execute()
+            )
+            batch = members_response.data or []
+            members.extend(batch)
+            if len(batch) < page_size:
+                break
+            offset += page_size
 
-        # Load PDS for middle names (best-effort).
+        # Load PDS for middle names (best-effort). Chunked: a single .in_()
+        # with thousands of keys overflows the request URL.
         membership_keys = [m.get("membership_id") for m in members if m.get("membership_id")]
         pds_by_membership: dict[str, dict] = {}
-        if membership_keys:
+        for start in range(0, len(membership_keys), 200):
+            chunk = membership_keys[start:start + 200]
             try:
                 pds_response = (
                     supabase.table("personal_data_sheet")
                     .select("membership_number_id,first_name,middle_name,surname,created_at")
-                    .in_("membership_number_id", membership_keys)
+                    .in_("membership_number_id", chunk)
                     .order("created_at", desc=True)
+                    .limit(2000)
                     .execute()
                 )
                 for row in pds_response.data or []:
                     key = row.get("membership_number_id")
                     if key and key not in pds_by_membership:
                         pds_by_membership[key] = row
-            except Exception:
-                pds_by_membership = {}
+            except Exception as exc:  # noqa: BLE001
+                print(f"[GA] PDS chunk lookup failed: {exc}")
 
         # Load existing GA rows for the year.
         ga_by_member: dict[str, dict] = {}
         ga_meeting_date_used: str | None = None
         try:
-            ga_response = (
-                supabase.table("general_assembly_attendance")
-                .select("member_id,meeting_date,status,remarks,recorded_at")
-                .gte("meeting_date", f"{year_int}-01-01")
-                .lte("meeting_date", f"{year_int}-12-31")
-                .order("recorded_at", desc=True)
-                .execute()
-            )
-            for row in ga_response.data or []:
+            ga_rows: list[dict] = []
+            ga_offset = 0
+            while True:
+                ga_page = (
+                    supabase.table("general_assembly_attendance")
+                    .select("member_id,meeting_date,status,remarks,recorded_at")
+                    .gte("meeting_date", f"{year_int}-01-01")
+                    .lte("meeting_date", f"{year_int}-12-31")
+                    .order("recorded_at", desc=True)
+                    .range(ga_offset, ga_offset + 999)
+                    .execute()
+                ).data or []
+                ga_rows.extend(ga_page)
+                if len(ga_page) < 1000:
+                    break
+                ga_offset += 1000
+            for row in ga_rows:
                 mid = row.get("member_id")
                 if mid and mid not in ga_by_member:
                     ga_by_member[mid] = row
