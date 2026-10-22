@@ -8714,16 +8714,35 @@ async def get_bookkeeper_dashboard_summary():
         # Same population as manage-loans's `totalLoans = loans.length`, but
         # we only need control_number + loan_status here, not the full
         # member/loan_type join or payment/schedule fan-out.
-        loans_resp = (
-            supabase.table("loans")
-            .select("control_number,loan_status")
-            .execute()
-        )
-        total_loans = sum(
-            1
-            for row in (loans_resp.data or [])
-            if str(row.get("loan_status") or "").strip().lower() in _DASHBOARD_VISIBLE_LOAN_STATUSES
-        )
+        # PostgREST caps a single response (commonly 1000 rows), so page
+        # through the table — a bare .execute() silently truncated this to 1000.
+        def _count_visible_loans(table_name: str) -> int:
+            count = 0
+            page_size = 1000
+            offset = 0
+            while True:
+                batch = (
+                    supabase.table(table_name)
+                    .select("control_number,loan_status")
+                    .order("control_number")
+                    .range(offset, offset + page_size - 1)
+                    .execute()
+                ).data or []
+                count += sum(
+                    1
+                    for row in batch
+                    if str(row.get("loan_status") or "").strip().lower() in _DASHBOARD_VISIBLE_LOAN_STATUSES
+                )
+                if len(batch) < page_size:
+                    return count
+                offset += page_size
+
+        total_loans = _count_visible_loans("loans")
+        # manage-loans also lists non-member loans (ABFF/KOICA, non-member Bonus).
+        try:
+            total_loans += _count_visible_loans("non_member_loans")
+        except Exception as e:
+            logger.warning("non_member_loans count failed for dashboard-summary: %s", e)
 
         # --- Payments this month / last month -----------------------------
         # Mirrors the dashboard's current `sumForKey`: it sums amount_paid for
@@ -14808,6 +14827,12 @@ async def approve_bookkeeper_payment(
 
         if installment_due > 0:
             installment_due = max(installment_due + schedule_arrears - schedule_credit, Decimal("0"))
+            # Overpayments reduce the balance directly (OverPayment-Description.txt),
+            # so the installment that finishes the loan only asks for what is
+            # left -- e.g. a ₱5,097.36 last payment instead of the full ₱9,019.44.
+            balance_before_payment = max(total_payable_amount - total_validated_before, Decimal("0"))
+            if balance_before_payment > 0:
+                installment_due = min(installment_due, balance_before_payment)
 
         schedule_paid_response = (
             supabase.table("loan_payments")
@@ -14874,9 +14899,11 @@ async def approve_bookkeeper_payment(
         carry_credit_forward = Decimal("0")
         if installment_due > 0:
             difference = money(paid_toward_installment - installment_due)
-            if difference > Decimal("0.50"):
-                carry_credit_forward = difference
-            elif difference < Decimal("-0.50"):
+            # An overpayment is NOT carried forward as credit: it has already
+            # reduced remaining_loan_balance above, the monthly bill stays the
+            # same, and the loan simply ends sooner (no installment is
+            # skipped or discounted). Only a shortfall rolls into next month.
+            if difference < Decimal("-0.50"):
                 carry_arrears_forward = -difference
 
         # The period closes either way once it has been settled: covered ->
@@ -15041,6 +15068,23 @@ async def approve_bookkeeper_payment(
                     applied_credit=pending_credit,
                 )
                 leftover_credit = money(Decimal(str(next_schedule_row.pop("_leftover_credit", 0) or 0)))
+
+                # Earlier overpayments shrank what is still owed. If less than a
+                # full installment (plus any arrears) is left, bill only that,
+                # scaling principal/interest in proportion.
+                full_expected = Decimal(str(next_schedule_row["expected_amount"]))
+                allowed_expected = max(remaining_loan_balance - pending_arrears, Decimal("0"))
+                if normalized_loan_type != "bonus" and 0 < allowed_expected < full_expected:
+                    ratio = allowed_expected / full_expected
+                    next_schedule_row["expected_amount"] = decimal_to_float(money(allowed_expected))
+                    for _key in ("expected_principal", "principal_component"):
+                        next_schedule_row[_key] = decimal_to_float(
+                            money(Decimal(str(next_schedule_row[_key])) * ratio)
+                        )
+                    for _key in ("expected_interest", "interest_component"):
+                        next_schedule_row[_key] = decimal_to_float(
+                            money(Decimal(str(next_schedule_row[_key])) * ratio)
+                        )
 
                 # A colliding schedule_id must not drop us into the legacy fallback
                 # below, which loses carried_arrears/applied_credit. Retry with a
@@ -20154,27 +20198,34 @@ def _get_member_account_by_auth_user(auth_user_id: str) -> dict[str, Any] | None
     """
     if not supabase:
         return None
-    try:
-        resp = (
-            supabase.table("member_account")
-            # membership_id and password are needed by the security-status gate:
-            # the former to look up the profile row, the latter because a
-            # lingering plaintext bootstrap password means the member has never
-            # set one of their own.
-            .select(
-                "user_id, auth_user_id, membership_id, email, is_temporary, "
-                "is_email_dummy, pending_email, password"
+    # One retry: the shared supabase client intermittently drops an HTTP/2
+    # connection ("Server disconnected"), which is not a real failure. Still
+    # fails closed (500) if the retry also fails.
+    last_exc: Exception | None = None
+    for attempt in range(2):
+        try:
+            resp = (
+                supabase.table("member_account")
+                # membership_id and password are needed by the security-status gate:
+                # the former to look up the profile row, the latter because a
+                # lingering plaintext bootstrap password means the member has never
+                # set one of their own.
+                .select(
+                    "user_id, auth_user_id, membership_id, email, is_temporary, "
+                    "is_email_dummy, pending_email, password"
+                )
+                .eq("auth_user_id", auth_user_id)
+                .limit(1)
+                .execute()
             )
-            .eq("auth_user_id", auth_user_id)
-            .limit(1)
-            .execute()
-        )
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Could not read account record: {exc}",
-        )
-    return resp.data[0] if resp.data else None
+            return resp.data[0] if resp.data else None
+        except Exception as exc:
+            last_exc = exc
+            logger.warning("member_account lookup failed (attempt %d/2): %r", attempt + 1, exc)
+    raise HTTPException(
+        status_code=500,
+        detail=f"Could not read account record: {last_exc}",
+    )
 
 
 def _send_otp_or_500(*, to_email: str, code: str, purpose: str) -> None:

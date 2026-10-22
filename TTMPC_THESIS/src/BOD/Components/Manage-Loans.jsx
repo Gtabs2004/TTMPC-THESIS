@@ -30,6 +30,7 @@ import {
   X,
   ChevronDown,
   ChevronRight,
+  Wallet,
 } from "lucide-react";
 import TableStateRow from "../../components/TableStateRow";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -296,7 +297,7 @@ const BOD_Manage_Loans = () => {
   }, [activeFilter, searchTerm, yearFilter, monthFilter, loans.length]);
 
   const summaryTotals = useMemo(() => {
-    const totals = { approved: 0, disbursed: 0, paid: 0, pending: 0, total: 0, count: 0 };
+    const totals = { approved: 0, disbursed: 0, paid: 0, pending: 0, total: 0, count: 0, outstanding: 0 };
     filteredLoans.forEach((loan) => {
       const stage = resolveLoanStage(loan);
       const amount = Number(loan.loan_amount || 0);
@@ -305,6 +306,8 @@ const BOD_Manage_Loans = () => {
       totals.total += amount;
       totals.count += 1;
       if (paidAmount > 0) totals.paid += paidAmount;
+      // Still owed to the coop: only loans already released and not yet settled.
+      if (stage === "Disbursed") totals.outstanding += remainingBalance;
       if (stage === "Disbursed" || stage === "Paid") totals.disbursed += amount;
       else if (stage === "Approved") totals.approved += amount;
       else totals.pending += amount;
@@ -377,7 +380,7 @@ const BOD_Manage_Loans = () => {
             ) : null}
 
             {/* Summary Cards */}
-            <StatCardRow cols={4}>
+            <StatCardRow cols={5}>
               <StatCard
                 label="Total Loans"
                 value={summaryTotals.count.toLocaleString("en-US")}
@@ -391,6 +394,13 @@ const BOD_Manage_Loans = () => {
                 icon={BookOpen}
                 iconColor="text-blue-600"
                 subtext="Released to members"
+              />
+              <StatCard
+                label="Outstanding Balance"
+                value={formatCurrency(summaryTotals.outstanding)}
+                icon={Wallet}
+                iconColor="text-rose-600"
+                subtext="Still to be collected"
               />
               <StatCard
                 label="Fully Paid"

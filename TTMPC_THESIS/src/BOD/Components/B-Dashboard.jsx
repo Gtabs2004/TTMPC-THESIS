@@ -53,7 +53,17 @@ import { loanStatusBadge } from '../../utils/transactionStatus';
 // Member loan types (CLAUDE.md) — the "Approved Loans per Month" breakdown
 // gets one clearly-labeled series per type, not just a consolidated total.
 // Order here also sets stacking/legend order.
-const APPROVED_LOAN_TYPE_LABELS = ['Consolidated Loan', 'Bonus Loan', 'Emergency Loan'];
+// Mirrors `visible_statuses` in /api/bookkeeper/manage-loans (the Loan Ledger).
+const LEDGER_VISIBLE_LOAN_STATUSES = [
+  'approved',
+  'ready for disbursement',
+  'to be disbursed',
+  'released',
+  'partially paid',
+  'fully paid',
+];
+
+const APPROVED_LOAN_TYPE_LABELS =['Consolidated Loan', 'Bonus Loan', 'Emergency Loan'];
 // Distinct hues per loan type (not the shared green ramp) so the series are
 // tellable apart at a glance; Consolidated keeps the cooperative green.
 const APPROVED_LOAN_TYPE_COLORS = {
@@ -137,9 +147,21 @@ async function fetchBodDashboard() {
       .select('loan_amount, principal_amount, disbursal_date')
       .in('loan_status', ['released', 'partially paid', 'fully paid'])
       .limit(20000),
-    supabase
-      .from('loans')
-      .select('control_number', { count: 'exact', head: true }),
+    // Same population as the Loan Ledger (/api/bookkeeper/manage-loans):
+    // member loans past the rejected stage + non-member loans (ABFF/KOICA,
+    // non-member Bonus), so the two totals agree.
+    Promise.all([
+      supabase
+        .from('loans')
+        .select('control_number', { count: 'exact', head: true })
+        .in('loan_status', LEDGER_VISIBLE_LOAN_STATUSES),
+      supabase
+        .from('non_member_loans')
+        .select('control_number', { count: 'exact', head: true })
+        .in('loan_status', LEDGER_VISIBLE_LOAN_STATUSES),
+    ]).then(([memberRes, nonMemberRes]) => ({
+      count: (memberRes?.count || 0) + (nonMemberRes?.count || 0),
+    })),
     supabase
       .from('loan_schedules')
       .select('loan_id, due_date, schedule_status')

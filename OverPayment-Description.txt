@@ -1,0 +1,55 @@
+Sure, I can provide a text-based description of the loan overpayment process to complement the Excel file. Here's a summary:
+
+Loan Overpayment Process
+
+1. Regular Payment Allocation:
+   - Each month, the member makes a payment equal to their scheduled monthly amortization.
+   - This payment is split into two parts: principal and interest, based on the original amortization schedule.
+   - The principal portion reduces the loan balance, while the interest portion is the cost of borrowing.
+
+2. Overpayment Allocation: 
+   - When a member pays more than their scheduled monthly amortization, the extra amount is considered an overpayment.
+   - The overpayment is applied entirely to the loan principal.
+   - This reduces the remaining loan balance by the overpayment amount.
+
+3. Impact on Loan Term:
+   - By applying overpayments to the principal, the loan balance is reduced faster than originally scheduled.
+   - This effectively shortens the loan term, as the loan will be paid off sooner.
+   - However, the number of months and payment dates are not recalculated. The loan is simply paid off once the balance reaches zero.
+
+4. Monthly Payment Amount:
+   - The scheduled monthly amortization does not change, even with overpayments.
+   - The member continues to pay the same fixed amount each month, as per the original schedule.
+   - The allocation of this amount between principal and interest also remains the same, based on the original amortization table.
+
+5. Interest Savings:
+   - By reducing the loan balance faster through overpayments, the total interest paid over the life of the loan decreases.
+   - This is because interest is charged on the outstanding principal balance, which is lower each month due to the overpayments.
+   - However, the monthly interest charge and allocation does not change from the original schedule. The savings come from fewer total payments.
+
+In essence, overpayments are applied directly to the loan principal, reducing the balance and shortening the loan term. The monthly payment amount and principal/interest allocation remain the same as originally scheduled. The member benefits by paying less total interest over a shorter loan term
+
+Automatic deductions: 
+
+Here are a few key insights we can glean from this file to supplement the overpayment simulation:
+
+1. Automatic Deductions:
+   - The file shows that in addition to the loan principal and interest, there are automatic deductions each month for Capital Build Up (CBU) and Savings.
+   - These deductions are a fixed percentage of the loan amount and are collected along with the monthly amortization.
+   - The automatic deductions reduce the actual cash received by the member each month, even though the total payment remains the same.
+
+2. Cash Received:
+   - The "Cash Received" column shows the net amount the member actually gets each month after the loan payment and automatic deductions.
+   - This is important to understand, as the member's monthly cash flow is impacted not just by the loan payment, but also by the CBU and Savings deductions.
+   - Overpayments would not change the automatic deduction amounts, so the cash received would still be less than the standard amortization amount.
+
+3. Loan Maturity:
+   - The detailed schedule shows that even with the automatic deductions, the loan still matures on the originally scheduled date (assuming no overpayments).
+   - Overpayments would shorten the loan term, but would not impact the CBU and Savings deduction schedule.
+
+4. Total Deductions:
+   - Over the life of the loan, the member pays a significant amount in CBU and Savings deductions in addition to the loan principal and interest.
+   - These deductions are not reduced by overpayments, as they are a fixed percentage of the original loan amount.
+   - However, by making overpayments and shortening the loan term, the member would pay fewer total deductions, since there would be fewer payment periods.
+
+In summary, the "TTMPC_Loan_Computations_Simple.xlsx" file provides valuable context about the automatic deductions and actual cash flow impacts of the loan on the member. It reinforces that overpayments reduce interest and shorten the loan term, but do not change the monthly deduction amounts or schedule. The main benefit to the member of making overpayments, from a cash flow perspective, is fewer total payments and therefore fewer total deductions over the life of the loan.

@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+
+<html class="scroll-smooth" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta content="web_standard" name="shell-type"/>
+<title>Tubungan Teachers' Multi-Purpose Cooperative | TTMPC</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+    @layer base {
+      html, body {
+        margin: 0;
+        padding: 0;
+        background-color: #FAF9F5;
+        color: #1b1c1a;
+      }
+      body {
+        overscroll-behavior: none;
+      }
+    }
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #FAF9F5;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #c0c9c0;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #88c49e;
+    }
+    .font-serif-heading {
+      font-family: "Source Serif 4", Georgia, serif;
+    }
+    .font-sans-body {
+      font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    /* Clean CSS cropping utility for screenshot sources to eliminate OS taskbars */
+    .crop-hero-building {
+      object-fit: cover;
+      object-position: 72% 44%;
+    }
+    .crop-community-photo {
+      object-fit: cover;
+      object-position: 65% 58%;
+    }
+  </style>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "background": "#FAF9F5",
+            "surface-cream": "#F4F2EC",
+            "surface-cream-tint": "#EEF5EF",
+            "surface-card": "#FFFFFF",
+            "primary": "#003A21",
+            "forest-dark": "#0F2D20",
+            "forest-mid": "#155234",
+            "forest-deep": "#0A2016",
+            "secondary": "#006E2D",
+            "coop-emerald-bright": "#22C55E",
+            "secondary-container": "#7CF994",
+            "border-sage": "#E2E8E0",
+            "text-muted": "#52665A",
+            "text-on-light": "#0F241A",
+            "outline-soft": "rgba(15, 62, 38, 0.08)"
+          },
+          fontFamily: {
+            serif: ["\"Source Serif 4\"", "Georgia", "serif"],
+            sans: ["\"Plus Jakarta Sans\"", "-apple-system", "BlinkMacSystemFont", "sans-serif"]
+          },
+          boxShadow: {
+            'subtle': '0 2px 10px -2px rgba(15, 62, 38, 0.04), 0 1px 3px -1px rgba(15, 62, 38, 0.02)',
+            'card': '0 4px 20px -2px rgba(15, 62, 38, 0.05), 0 2px 6px -1px rgba(15, 62, 38, 0.03)',
+            'elevated': '0 12px 36px -4px rgba(15, 62, 38, 0.08), 0 4px 12px -2px rgba(15, 62, 38, 0.04)',
+            'emerald-glow': '0 10px 30px -5px rgba(0, 110, 45, 0.25)'
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-background font-sans text-on-surface antialiased selection:bg-secondary-container selection:text-forest-dark">
+<!-- ================= TOP NOTIFICATION / BADGE STRIP ================= -->
+<div class="bg-forest-dark text-white text-xs py-2 px-4 border-b border-forest-mid/30">
+<div class="max-w-7xl mx-auto flex items-center justify-between text-[12px] tracking-wide font-medium">
+<div class="flex items-center gap-3">
+<span class="inline-flex items-center gap-1.5 text-emerald-300">
+<span class="w-1.5 h-1.5 rounded-full bg-coop-emerald-bright animate-ping"></span>
+<span>CDA Registration: #9520-06001284</span>
+</span>
+<span class="hidden md:inline text-white/30">•</span>
+<span class="hidden md:inline text-white/70">Municipal Cooperative Center, Tubungan, Iloilo</span>
+</div>
+<div class="flex items-center gap-5 text-white/80">
+<span class="hidden sm:inline">Office Hours: Mon–Fri 8:00 AM – 5:00 PM</span>
+<a class="hover:text-emerald-300 transition-colors flex items-center gap-1" href="#contact">
+<span class="material-symbols-outlined text-[14px]">call</span> Inquire
+        </a>
+</div>
+</div>
+</div>
+<!-- ================= HEADER NAVIGATION ================= -->
+<header class="sticky top-0 w-full z-50 bg-[#FAF9F5]/90 backdrop-blur-md border-b border-border-sage/70 transition-all duration-200 shadow-sm">
+<div class="h-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4">
+<!-- Brand Logo / Identity -->
+<a class="flex items-center gap-3 group" href="#">
+<div class="w-11 h-11 rounded-xl bg-forest-mid flex items-center justify-center text-white shadow-card group-hover:scale-105 transition-transform duration-200">
+<span class="material-symbols-outlined text-[24px] text-emerald-300">account_balance</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<span class="font-serif-heading text-xl font-bold tracking-tight text-forest-dark">TTMPC</span>
+<span class="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-100/80 text-forest-mid border border-emerald-800/10">Est. 1995</span>
+</div>
+<span class="text-xs text-text-muted font-medium hidden sm:inline-block tracking-tight">Tubungan Teachers' Multi-Purpose Cooperative</span>
+</div>
+</a>
+<!-- Desktop Nav Links -->
+<nav class="hidden lg:flex items-center gap-1 bg-surface-cream/80 p-1.5 rounded-full border border-border-sage">
+<a class="px-4 py-1.5 rounded-full text-xs font-semibold bg-white text-forest-dark shadow-sm transition-all" href="#home">Home</a>
+<a class="px-4 py-1.5 rounded-full text-xs font-semibold text-text-muted hover:text-forest-dark hover:bg-white/60 transition-all" href="#about">About Legacy</a>
+<a class="px-4 py-1.5 rounded-full text-xs font-semibold text-text-muted hover:text-forest-dark hover:bg-white/60 transition-all" href="#services">Services &amp; Loans</a>
+<a class="px-4 py-1.5 rounded-full text-xs font-semibold text-text-muted hover:text-forest-dark hover:bg-white/60 transition-all" href="#regant">REGANT System</a>
+<a class="px-4 py-1.5 rounded-full text-xs font-semibold text-text-muted hover:text-forest-dark hover:bg-white/60 transition-all" href="#membership">Membership</a>
+<a class="px-4 py-1.5 rounded-full text-xs font-semibold text-text-muted hover:text-forest-dark hover:bg-white/60 transition-all" href="#contact">Contact</a>
+</nav>
+<!-- Action Buttons -->
+<div class="flex items-center gap-2.5">
+<a class="hidden sm:inline-flex items-center gap-1.5 font-sans text-xs font-bold text-forest-dark bg-white hover:bg-surface-cream px-4 py-2.5 rounded-lg border border-border-sage transition-all shadow-subtle hover:border-forest-mid/20" href="#login">
+<span class="material-symbols-outlined text-[16px] text-forest-mid">lock</span>
+<span>Portal Login</span>
+</a>
+<a class="inline-flex items-center gap-1.5 font-sans text-xs font-bold text-white bg-forest-mid hover:bg-forest-dark px-4 py-2.5 rounded-lg shadow-emerald-glow hover:shadow-elevated transition-all transform hover:-translate-y-0.5" href="#membership">
+<span>Become a Member</span>
+<span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</a>
+</div>
+</div>
+</header>
+<main class="w-full" id="home">
+<!-- ================= 1. REFINED HERO SECTION ================= -->
+<section class="relative overflow-hidden pt-12 pb-24 md:pt-16 md:pb-28 border-b border-border-sage/60">
+<!-- Decorative ambient gradient circles -->
+<div class="absolute top-10 right-1/4 w-96 h-96 bg-emerald-100/40 rounded-full blur-3xl pointer-events-none -z-10"></div>
+<div class="absolute bottom-10 left-10 w-80 h-80 bg-amber-50/60 rounded-full blur-3xl pointer-events-none -z-10"></div>
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+<!-- Hero Left Column: Narrative & Action -->
+<div class="lg:col-span-7 flex flex-col gap-6">
+<!-- Trust Badge Pill -->
+<div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-border-sage shadow-subtle w-fit">
+<span class="flex h-2 w-2 relative">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-coop-emerald-bright opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-secondary"></span>
+</span>
+<span class="text-[11px] font-bold tracking-wider text-forest-mid uppercase">
+                CDA REGISTERED COOPERATIVE • EST. 1995 • TUBUNGAN, ILOILO
+              </span>
+</div>
+<!-- Eloquent Serif Headline -->
+<h1 class="font-serif-heading text-4xl sm:text-5xl lg:text-6xl font-bold text-forest-dark leading-[1.15] tracking-tight">
+              Empowering Educators, <br class="hidden sm:inline"/>
+<span class="italic font-normal text-secondary underline decoration-secondary-container decoration-4 underline-offset-8">Sustaining Futures</span> Together.
+            </h1>
+<!-- Descriptive Warm Subcopy -->
+<p class="text-base sm:text-lg text-text-muted max-w-2xl leading-relaxed font-normal">
+              Discover the enduring stability, cooperative mutual trust, and member-first loan solutions of Tubungan Teachers' Multi-Purpose Cooperative — proudly uplifting educators, public servants, and local families for over 30 years.
+            </p>
+<!-- Dual CTA Action Group -->
+<div class="flex flex-wrap items-center gap-4 pt-2">
+<a class="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-forest-mid text-white font-sans text-sm font-bold shadow-card hover:bg-forest-dark hover:shadow-emerald-glow transition-all transform hover:-translate-y-0.5" href="#membership">
+<span>Become a Member</span>
+<span class="material-symbols-outlined text-[18px]">how_to_reg</span>
+</a>
+<a class="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-white text-forest-dark font-sans text-sm font-bold border border-border-sage shadow-subtle hover:bg-surface-cream hover:border-forest-mid/30 transition-all" href="#login">
+<span class="material-symbols-outlined text-[18px] text-forest-mid">shield_person</span>
+<span>Member Portal Login</span>
+</a>
+</div>
+<!-- Stat Highlights Bar -->
+<div class="grid grid-cols-3 gap-3 sm:gap-4 pt-6 mt-2 border-t border-border-sage/80 max-w-xl">
+<div class="p-3.5 rounded-xl bg-white border border-border-sage/60 shadow-subtle flex flex-col">
+<span class="font-serif-heading text-2xl font-bold text-forest-dark">30+ Yrs</span>
+<span class="text-[11px] font-semibold text-text-muted mt-0.5 uppercase tracking-wide">Community Service</span>
+</div>
+<div class="p-3.5 rounded-xl bg-white border border-border-sage/60 shadow-subtle flex flex-col">
+<span class="font-serif-heading text-2xl font-bold text-forest-dark">₱200</span>
+<span class="text-[11px] font-semibold text-text-muted mt-0.5 uppercase tracking-wide">Initial Equity Entry</span>
+</div>
+<div class="p-3.5 rounded-xl bg-white border border-border-sage/60 shadow-subtle flex flex-col">
+<span class="font-serif-heading text-2xl font-bold text-forest-dark">100%</span>
+<span class="text-[11px] font-semibold text-text-muted mt-0.5 uppercase tracking-wide">Member Owned</span>
+</div>
+</div>
+</div>
+<!-- Hero Right Column: Clean Framed Headquarters Visual -->
+<div class="lg:col-span-5 relative">
+<div class="relative mx-auto max-w-md lg:max-w-none">
+<!-- Decorative backing drop panel -->
+<div class="absolute -inset-3 bg-gradient-to-tr from-emerald-100 to-amber-100/50 rounded-3xl -rotate-1 filter blur-lg -z-10"></div>
+<div class="bg-white p-2.5 sm:p-3 rounded-3xl shadow-card border border-border-sage overflow-hidden">
+<div class="relative rounded-2xl overflow-hidden aspect-[4/3] bg-emerald-900/5">
+<!-- Building Image neatly cropped to hide desktop taskbars -->
+<img alt="Tubungan Teachers' Multi-Purpose Cooperative Headquarters Building" class="w-full h-full crop-hero-building scale-110 transform transition-transform duration-700 hover:scale-115" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC2LrUHLToOFgmlCa2_qizj2XtX4kXFeWMCZCd-vBjM71PDtrLFMGcE9XWkPn6QA6ufe8abrsqwB5RUHBhqbVMSq0k3ZdynZP97EqWW323OR5IREqhaVthoBZOay9WGgDii-TDFEcdfgzPfx8uI7Nmop7ur0auMi5h6PeHjqKLPxe6MZhOMHwve5ePnY1H-IHsWHVYILq_5-U92dbhM9SDdmLrH_a9sovNGllOm8xTbDH0LpYWDVRUxA53N0OpDfR2HiQ"/>
+<!-- Elegant gradient mask -->
+<div class="absolute inset-0 bg-gradient-to-t from-forest-dark/85 via-forest-dark/20 to-transparent pointer-events-none"></div>
+<!-- Bottom info tag inside photo -->
+<div class="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white pointer-events-none">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[18px] text-emerald-300">location_city</span>
+<span class="text-xs font-semibold tracking-wide drop-shadow-sm">TTMPC Main Office • Tubungan, Iloilo</span>
+</div>
+<span class="text-[10px] font-bold uppercase tracking-wider bg-forest-mid/90 backdrop-blur-sm text-emerald-200 px-2 py-0.5 rounded-full border border-emerald-400/20">
+                      Coop Center
+                    </span>
+</div>
+</div>
+<!-- Verified Co-op Seal Bar -->
+<div class="mt-2.5 px-3.5 py-3 rounded-xl bg-surface-cream flex items-center justify-between">
+<div class="flex items-center gap-2.5">
+<div class="w-8 h-8 rounded-full bg-emerald-100 text-forest-mid flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[20px]">verified</span>
+</div>
+<div>
+<p class="text-xs font-bold text-forest-dark leading-tight">Audited &amp; Compliant</p>
+<p class="text-[11px] text-text-muted">Strict CDA Standards</p>
+</div>
+</div>
+<span class="text-[10px] font-mono font-semibold text-forest-mid bg-white px-2 py-1 rounded border border-border-sage">
+                    CDA #9520-06001284
+                  </span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ================= 2. TRUST & CORE VALUE HIGHLIGHTS STRIP ================= -->
+<section class="py-12 bg-white border-b border-border-sage/70">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+<!-- Pillar 1 -->
+<div class="p-5 rounded-2xl bg-surface-cream hover:bg-surface-cream-tint transition-all duration-200 border border-border-sage/50 flex flex-col group">
+<div class="w-10 h-10 rounded-xl bg-white text-forest-mid shadow-subtle flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+<span class="material-symbols-outlined text-[22px]">bolt</span>
+</div>
+<h2 class="text-base font-bold text-forest-dark tracking-tight">Fast Approvals</h2>
+<p class="text-xs sm:text-sm text-text-muted mt-1 leading-relaxed">
+              Objective, rule-based loan evaluation for quick emergency disbursements.
+            </p>
+</div>
+<!-- Pillar 2 -->
+<div class="p-5 rounded-2xl bg-surface-cream hover:bg-surface-cream-tint transition-all duration-200 border border-border-sage/50 flex flex-col group">
+<div class="w-10 h-10 rounded-xl bg-white text-forest-mid shadow-subtle flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+<span class="material-symbols-outlined text-[22px]">schedule</span>
+</div>
+<h2 class="text-base font-bold text-forest-dark tracking-tight">24/7 Access</h2>
+<p class="text-xs sm:text-sm text-text-muted mt-1 leading-relaxed">
+              Transparent digital balance reviews, passbook status, and amortization schedules.
+            </p>
+</div>
+<!-- Pillar 3 -->
+<div class="p-5 rounded-2xl bg-surface-cream hover:bg-surface-cream-tint transition-all duration-200 border border-border-sage/50 flex flex-col group">
+<div class="w-10 h-10 rounded-xl bg-white text-forest-mid shadow-subtle flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+<span class="material-symbols-outlined text-[22px]">verified_user</span>
+</div>
+<h2 class="text-base font-bold text-forest-dark tracking-tight">Audited Governance</h2>
+<p class="text-xs sm:text-sm text-text-muted mt-1 leading-relaxed">
+              Fully auditable institutional management adhering to national cooperative policies.
+            </p>
+</div>
+<!-- Pillar 4 -->
+<div class="p-5 rounded-2xl bg-surface-cream hover:bg-surface-cream-tint transition-all duration-200 border border-border-sage/50 flex flex-col group">
+<div class="w-10 h-10 rounded-xl bg-white text-forest-mid shadow-subtle flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+<span class="material-symbols-outlined text-[22px]">account_balance_wallet</span>
+</div>
+<h2 class="text-base font-bold text-forest-dark tracking-tight">All-in-One Hub</h2>
+<p class="text-xs sm:text-sm text-text-muted mt-1 leading-relaxed">
+              Consolidated savings, share capital growth, and multi-purpose credit facilities.
+            </p>
+</div>
+</div>
+</div>
+</section>
+<!-- ================= 3. CORE COOPERATIVE SERVICES ================= -->
+<section class="py-24 bg-background" id="services">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-14">
+<!-- Header -->
+<div class="text-center max-w-2xl mx-auto flex flex-col gap-3">
+<div class="inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-forest-mid text-xs font-bold uppercase tracking-wider mx-auto border border-emerald-900/10">
+<span>Tailored Financial Solutions</span>
+</div>
+<h2 class="font-serif-heading text-3xl sm:text-4xl font-bold text-forest-dark">
+            Core Cooperative Services
+          </h2>
+<p class="text-base text-text-muted leading-relaxed">
+            We provide transparent and accessible financial products designed to build your lifetime savings and support life’s vital milestones.
+          </p>
+</div>
+<!-- 3 Premium Cards Stack -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<!-- Service 1: Savings & Deposits -->
+<div class="bg-white rounded-3xl p-8 border border-border-sage shadow-card hover:shadow-elevated transition-all duration-300 flex flex-col justify-between relative group">
+<div class="flex flex-col gap-5">
+<div class="flex items-center justify-between">
+<div class="w-14 h-14 rounded-2xl bg-surface-cream-tint text-forest-mid flex items-center justify-center group-hover:bg-forest-mid group-hover:text-white transition-colors duration-200">
+<span class="material-symbols-outlined text-[28px]">savings</span>
+</div>
+<span class="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-surface-cream text-text-muted">
+                  Essential
+                </span>
+</div>
+<div>
+<h3 class="font-serif-heading text-2xl font-bold text-forest-dark mb-2">Savings &amp; Deposits</h3>
+<p class="text-sm text-text-muted leading-relaxed">
+                  Two dedicated paths: everyday liquid passbook savings for emergencies, and Share Capital (CBU) that earns annual interest while building real equity.
+                </p>
+</div>
+<!-- Feature Bullet points -->
+<ul class="flex flex-col gap-2.5 text-xs text-text-on-light font-medium pt-2 border-t border-border-sage/60">
+<li class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-[18px]">check_circle</span>
+<span>Annual dividend yields distributed on equity</span>
+</li>
+<li class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-[18px]">check_circle</span>
+<span>Low minimum maintaining balance</span>
+</li>
+<li class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-[18px]">check_circle</span>
+<span>Passbook &amp; digital ledger account tracking</span>
+</li>
+</ul>
+</div>
+<div class="pt-6 mt-6 border-t border-border-sage/60">
+<a class="inline-flex items-center gap-2 text-xs font-bold text-forest-mid hover:text-secondary group-hover:translate-x-1 transition-all" href="#membership">
+<span>Learn About Share Capital</span>
+<span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</a>
+</div>
+</div>
+<!-- Service 2: Loan Programs (Featured) -->
+<div class="bg-white rounded-3xl p-8 border-2 border-forest-mid/30 shadow-card hover:shadow-emerald-glow transition-all duration-300 flex flex-col justify-between relative group">
+<!-- Popular Badge -->
+<div class="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-forest-mid text-white px-4 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider shadow-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-emerald-300">star</span>
+<span>Most In-Demand</span>
+</div>
+<div class="flex flex-col gap-5">
+<div class="flex items-center justify-between">
+<div class="w-14 h-14 rounded-2xl bg-emerald-50 text-secondary flex items-center justify-center group-hover:bg-forest-mid group-hover:text-white transition-colors duration-200">
+<span class="material-symbols-outlined text-[28px]">payments</span>
+</div>
+<span class="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-100 text-forest-mid">
+                  3 Facilities
+                </span>
+</div>
+<div>
+<h3 class="font-serif-heading text-2xl font-bold text-forest-dark mb-2">Loan Programs</h3>
+<p class="text-sm text-text-muted leading-relaxed">
+                  Tailored credit programs designed around educator schedules: Emergency assistance, Consolidated debt restructuring, and Seasonal Bonus loans.
+                </p>
+</div>
+<!-- Feature Bullet points -->
+<ul class="flex flex-col gap-2.5 text-xs text-text-on-light font-medium pt-2 border-t border-border-sage/60">
+<li class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-[18px]">check_circle</span>
+<span>Protected low cooperative interest rates</span>
+</li>
+<li class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-[18px]">check_circle</span>
+<span>Rapid review through REGANT loan scoring</span>
+</li>
+<li class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-[18px]">check_circle</span>
+<span>Transparent monthly amortization schedules</span>
+</li>
+</ul>
+</div>
+<div class="pt-6 mt-6 border-t border-border-sage/60">
+<a class="inline-flex items-center gap-2 text-xs font-bold text-forest-mid hover:text-secondary group-hover:translate-x-1 transition-all" href="#services">
+<span>Explore Loan Terms &amp; Calculator</span>
+<span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</a>
+</div>
+</div>
+<!-- Service 3: Member Benefits -->
+<div class="bg-white rounded-3xl p-8 border border-border-sage shadow-card hover:shadow-elevated transition-all duration-300 flex flex-col justify-between relative group">
+<div class="flex flex-col gap-5">
+<div class="flex items-center justify-between">
+<div class="w-14 h-14 rounded-2xl bg-surface-cream-tint text-forest-mid flex items-center justify-center group-hover:bg-forest-mid group-hover:text-white transition-colors duration-200">
+<span class="material-symbols-outlined text-[28px]">handshake</span>
+</div>
+<span class="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-surface-cream text-text-muted">
+                  Co-Ownership
+                </span>
+</div>
+<div>
+<h3 class="font-serif-heading text-2xl font-bold text-forest-dark mb-2">Member Ownership</h3>
+<p class="text-sm text-text-muted leading-relaxed">
+                  Join as an equal co-owner for a ₱200 membership equity entry. Accumulate your paid-up share capital over time and qualify for annual patronage returns.
+                </p>
+</div>
+<!-- Feature Bullet points -->
+<ul class="flex flex-col gap-2.5 text-xs text-text-on-light font-medium pt-2 border-t border-border-sage/60">
+<li class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-[18px]">check_circle</span>
+<span>Patronage refunds on credit interest paid</span>
+</li>
+<li class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-[18px]">check_circle</span>
+<span>Mutual aid &amp; bereavement support protection</span>
+</li>
+<li class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-[18px]">check_circle</span>
+<span>One-member, one-vote assembly democracy</span>
+</li>
+</ul>
+</div>
+<div class="pt-6 mt-6 border-t border-border-sage/60">
+<a class="inline-flex items-center gap-2 text-xs font-bold text-forest-mid hover:text-secondary group-hover:translate-x-1 transition-all" href="#membership">
+<span>View Member Rights &amp; PMES</span>
+<span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</a>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ================= 4. HERITAGE & COMMUNITY STORY ================= -->
+<section class="py-24 bg-surface-cream border-y border-border-sage/60" id="about">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-14 items-center">
+<!-- Editorial Narrative Left -->
+<div class="lg:col-span-6 flex flex-col gap-6 order-2 lg:order-1">
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white text-forest-mid text-xs font-bold uppercase tracking-wider w-fit border border-emerald-900/10 shadow-subtle">
+<span class="material-symbols-outlined text-[16px] text-secondary">history_edu</span>
+<span>Our Legacy Since 1995</span>
+</div>
+<h2 class="font-serif-heading text-3xl sm:text-4xl font-bold text-forest-dark leading-snug">
+              Empowering the Educators &amp; Community of Tubungan.
+            </h2>
+<div class="flex flex-col gap-4 text-base text-text-muted leading-relaxed">
+<p>
+                Tubungan Teachers' Multi-Purpose Cooperative (TTMPC) was founded with a singular, protective mission: to provide secure, accessible, and fair financial services to public school educators and local families vulnerable to high-interest informal lenders.
+              </p>
+<p>
+                Over the decades, we have evolved from a modest circle of dedicated educators pooling classroom savings into a premier registered financial cooperative. Today, TTMPC pairs time-tested cooperative warmth with contemporary digital accountability through the REGANT system.
+              </p>
+</div>
+<!-- Value Pillars Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+<div class="p-4 rounded-xl bg-white border border-border-sage/60 shadow-subtle flex flex-col">
+<span class="font-serif-heading text-lg font-bold text-forest-dark">1-Member</span>
+<span class="text-xs text-text-muted mt-0.5">1-Vote Equality</span>
+</div>
+<div class="p-4 rounded-xl bg-white border border-border-sage/60 shadow-subtle flex flex-col">
+<span class="font-serif-heading text-lg font-bold text-forest-dark">100% Local</span>
+<span class="text-xs text-text-muted mt-0.5">Tubungan Reinvestment</span>
+</div>
+<div class="p-4 rounded-xl bg-white border border-border-sage/60 shadow-subtle flex flex-col">
+<span class="font-serif-heading text-lg font-bold text-forest-dark">Lifelong</span>
+<span class="text-xs text-text-muted mt-0.5">Financial Literacy</span>
+</div>
+</div>
+</div>
+<!-- Community Photo Right (Cropped from screenshot to hide OS taskbars) -->
+<div class="lg:col-span-6 order-1 lg:order-2">
+<div class="relative mx-auto max-w-md lg:max-w-none">
+<!-- Backing soft layer -->
+<div class="absolute -inset-2 bg-forest-mid/10 rounded-3xl rotate-1 filter blur-md -z-10"></div>
+<div class="bg-white p-3 rounded-3xl shadow-card border border-border-sage overflow-hidden">
+<div class="relative rounded-2xl overflow-hidden aspect-[4/3] bg-surface-cream">
+<!-- Community image from DataStore, cropped strictly around the photo box -->
+<img alt="TTMPC General Assembly, Board of Directors and Officers in Tubungan" class="w-full h-full crop-community-photo scale-120 transform transition-transform duration-500 hover:scale-125" src="https://lh3.googleusercontent.com/aida-public/AB6AXuANNlyPED5Jw6b7o1fZy1h5kjkWPLOLOiwPYTFmf047_TJ4iiXdRAs2DqpXVetETvTpwZNXcDP6-pYs7QLhqjRWXUDbvZoc2lFoS6XR-iZiYXoXWiBD3Ozs5kyqzlriT-pXV-svpg1WKaty-zcne1YGColBtFEzflL4iUOtctBIL0aM9bTqOHhPZH-0toC-NYXNY4dahVrU9jxYgOuC-9maBaPkipeIOgpJ8Whh9uGvDKNZ0W5bKaSGFbfu1kb6UqNfqg"/>
+<div class="absolute inset-0 bg-gradient-to-t from-forest-dark/80 via-transparent to-transparent pointer-events-none"></div>
+<div class="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white pointer-events-none">
+<p class="text-xs font-semibold drop-shadow-sm flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-emerald-300">group</span>
+                      TTMPC Board &amp; Officers Assembly
+                    </p>
+<span class="text-[10px] font-bold bg-white/20 backdrop-blur-md px-2 py-0.5 rounded text-white">
+                      Tubungan, Iloilo
+                    </span>
+</div>
+</div>
+<div class="px-3 pt-3 pb-1 flex items-center justify-between text-xs text-text-muted">
+<span>Preserving mutual cooperation for generations</span>
+<span class="font-bold text-forest-mid">Est. 1995</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ================= 5. REGANT SYSTEM & FINANCIAL DISCIPLINE ================= -->
+<section class="py-24 bg-background" id="regant">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-14">
+<!-- Header -->
+<div class="text-center max-w-3xl mx-auto flex flex-col gap-3">
+<div class="inline-flex items-center justify-center gap-1.5 px-3.5 py-1 rounded-full bg-emerald-100 text-forest-mid text-xs font-bold uppercase tracking-wider mx-auto border border-emerald-800/10">
+<span class="material-symbols-outlined text-[16px] text-secondary">memory</span>
+<span>Powered by REGANT Decision Support</span>
+</div>
+<h2 class="font-serif-heading text-3xl sm:text-4xl font-bold text-forest-dark">
+            Run With the Discipline of a Real Financial Institution.
+          </h2>
+<p class="text-base text-text-muted leading-relaxed">
+            Behind every deposit and loan is a modern decision support system that keeps our cooperative records impeccably accurate, approvals equitable, and officers strictly accountable to every member.
+          </p>
+</div>
+<!-- 4-Card Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<!-- Bento 1 -->
+<div class="p-7 rounded-2xl bg-white border border-border-sage shadow-card hover:shadow-elevated transition-all duration-200 flex items-start gap-5">
+<div class="w-12 h-12 rounded-2xl bg-emerald-50 text-forest-mid flex items-center justify-center flex-shrink-0 shadow-subtle border border-emerald-900/10">
+<span class="material-symbols-outlined text-[24px]">psychology</span>
+</div>
+<div class="flex flex-col gap-1.5">
+<h3 class="text-lg font-bold text-forest-dark">Data-Driven Loan Screening</h3>
+<p class="text-sm text-text-muted leading-relaxed">
+                Every application is weighed against verified repayment history and objective financial metrics, eliminating guesswork, delays, and arbitrary favoritism so approvals remain fair.
+              </p>
+</div>
+</div>
+<!-- Bento 2 -->
+<div class="p-7 rounded-2xl bg-white border border-border-sage shadow-card hover:shadow-elevated transition-all duration-200 flex items-start gap-5">
+<div class="w-12 h-12 rounded-2xl bg-emerald-50 text-forest-mid flex items-center justify-center flex-shrink-0 shadow-subtle border border-emerald-900/10">
+<span class="material-symbols-outlined text-[24px]">badge</span>
+</div>
+<div class="flex flex-col gap-1.5">
+<h3 class="text-lg font-bold text-forest-dark">Your Full Record, One Place</h3>
+<p class="text-sm text-text-muted leading-relaxed">
+                Your member profile, ongoing capital contributions, dividends, and complete loan amortization histories reside in one unified, auditable digital ledger rather than scattered paper files.
+              </p>
+</div>
+</div>
+<!-- Bento 3 -->
+<div class="p-7 rounded-2xl bg-white border border-border-sage shadow-card hover:shadow-elevated transition-all duration-200 flex items-start gap-5">
+<div class="w-12 h-12 rounded-2xl bg-emerald-50 text-forest-mid flex items-center justify-center flex-shrink-0 shadow-subtle border border-emerald-900/10">
+<span class="material-symbols-outlined text-[24px]">query_stats</span>
+</div>
+<div class="flex flex-col gap-1.5">
+<h3 class="text-lg font-bold text-forest-dark">Real-Time Financial Oversight</h3>
+<p class="text-sm text-text-muted leading-relaxed">
+                Elected officers see the cooperative’s exact liquidity posture, cash flow reserves, and statutory allocations in real time, guaranteeing contributions are managed prudently.
+              </p>
+</div>
+</div>
+<!-- Bento 4 -->
+<div class="p-7 rounded-2xl bg-white border border-border-sage shadow-card hover:shadow-elevated transition-all duration-200 flex items-start gap-5">
+<div class="w-12 h-12 rounded-2xl bg-emerald-50 text-forest-mid flex items-center justify-center flex-shrink-0 shadow-subtle border border-emerald-900/10">
+<span class="material-symbols-outlined text-[24px]">fact_check</span>
+</div>
+<div class="flex flex-col gap-1.5">
+<h3 class="text-lg font-bold text-forest-dark">Full Transparency to the Board</h3>
+<p class="text-sm text-text-muted leading-relaxed">
+                The Board of Directors reviews automated, board-ready financial disclosures and compliance analytics every cycle, guaranteeing CDA and municipal regulatory fidelity.
+              </p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ================= 6. MEMBERSHIP ONBOARDING PATHWAY ================= -->
+<section class="py-24 bg-surface-cream border-t border-border-sage/60" id="membership">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-14">
+<div class="text-center max-w-2xl mx-auto flex flex-col gap-3">
+<div class="inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full bg-white text-forest-mid text-xs font-bold uppercase tracking-wider mx-auto border border-emerald-900/10 shadow-subtle">
+<span>Membership Onboarding</span>
+</div>
+<h2 class="font-serif-heading text-3xl sm:text-4xl font-bold text-forest-dark">
+            Become Part of the TTMPC Community
+          </h2>
+<p class="text-base text-text-muted leading-relaxed">
+            Follow three straightforward steps to activate your cooperative co-ownership status in Tubungan.
+          </p>
+</div>
+<!-- 3 Step Cards Horizontal -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
+<!-- Step 1 -->
+<div class="bg-white rounded-3xl p-8 border border-border-sage shadow-card flex flex-col justify-between relative group hover:border-forest-mid/30 transition-all">
+<div class="flex flex-col gap-4">
+<div class="flex items-center justify-between">
+<span class="w-10 h-10 rounded-full bg-forest-mid text-white font-serif-heading text-lg font-bold flex items-center justify-center shadow-subtle">
+                  01
+                </span>
+<span class="text-[11px] font-bold text-secondary uppercase tracking-wider">Step One</span>
+</div>
+<h3 class="font-serif-heading text-xl font-bold text-forest-dark">Pre-Membership Seminar</h3>
+<p class="text-sm text-text-muted leading-relaxed">
+                Attend an introductory PMES session explaining cooperative principles, member voting rights, mutual aid policies, and sound financial discipline.
+              </p>
+</div>
+<div class="pt-6 mt-6 border-t border-border-sage/60 flex items-center gap-2 text-xs font-semibold text-forest-mid">
+<span class="material-symbols-outlined text-[18px]">calendar_today</span>
+<span>Every 2nd &amp; 4th Saturday</span>
+</div>
+</div>
+<!-- Step 2 -->
+<div class="bg-white rounded-3xl p-8 border border-border-sage shadow-card flex flex-col justify-between relative group hover:border-forest-mid/30 transition-all">
+<div class="flex flex-col gap-4">
+<div class="flex items-center justify-between">
+<span class="w-10 h-10 rounded-full bg-forest-mid text-white font-serif-heading text-lg font-bold flex items-center justify-center shadow-subtle">
+                  02
+                </span>
+<span class="text-[11px] font-bold text-secondary uppercase tracking-wider">Step Two</span>
+</div>
+<h3 class="font-serif-heading text-xl font-bold text-forest-dark">Submit Documentation</h3>
+<p class="text-sm text-text-muted leading-relaxed">
+                Fill out the member profile form and submit government identification, proof of residency in Tubungan, or school employment credentials.
+              </p>
+</div>
+<div class="pt-6 mt-6 border-t border-border-sage/60 flex items-center gap-2 text-xs font-semibold text-forest-mid">
+<span class="material-symbols-outlined text-[18px]">description</span>
+<span>Online or In-Person Submission</span>
+</div>
+</div>
+<!-- Step 3 -->
+<div class="bg-white rounded-3xl p-8 border border-border-sage shadow-card flex flex-col justify-between relative group hover:border-forest-mid/30 transition-all">
+<div class="flex flex-col gap-4">
+<div class="flex items-center justify-between">
+<span class="w-10 h-10 rounded-full bg-forest-mid text-white font-serif-heading text-lg font-bold flex items-center justify-center shadow-subtle">
+                  03
+                </span>
+<span class="text-[11px] font-bold text-secondary uppercase tracking-wider">Step Three</span>
+</div>
+<h3 class="font-serif-heading text-xl font-bold text-forest-dark">Fund Initial Share Capital</h3>
+<p class="text-sm text-text-muted leading-relaxed">
+                Deposit the initial ₱200 membership equity to unlock your cooperative passbook, credit access, and annual dividend distribution participation.
+              </p>
+</div>
+<div class="pt-6 mt-6 border-t border-border-sage/60 flex items-center gap-2 text-xs font-semibold text-forest-mid">
+<span class="material-symbols-outlined text-[18px]">verified</span>
+<span>Immediate Ledger Activation</span>
+</div>
+</div>
+</div>
+<!-- Action Row -->
+<div class="flex flex-wrap items-center justify-center gap-4 pt-4">
+<a class="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-forest-mid text-white font-sans text-sm font-bold shadow-card hover:bg-forest-dark hover:shadow-emerald-glow transition-all transform hover:-translate-y-0.5" href="#register">
+<span>Start Membership Application</span>
+<span class="material-symbols-outlined text-[18px]">how_to_reg</span>
+</a>
+<a class="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-white text-forest-dark font-sans text-sm font-bold border border-border-sage shadow-subtle hover:bg-surface-cream transition-all" href="#contact">
+<span class="material-symbols-outlined text-[18px] text-forest-mid">contact_support</span>
+<span>Inquire at Tubungan Office</span>
+</a>
+</div>
+</div>
+</section>
+<!-- ================= 7. CLOSING HERO CTA BANNER ================= -->
+<section class="py-20 bg-background">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<div class="bg-forest-dark rounded-3xl p-10 sm:p-14 lg:p-16 text-white text-center relative overflow-hidden shadow-elevated border border-emerald-900/30">
+<!-- Background radial glow -->
+<div class="absolute inset-0 opacity-15 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none"></div>
+<div class="absolute -top-24 -left-24 w-80 h-80 bg-secondary/30 rounded-full blur-3xl pointer-events-none"></div>
+<div class="absolute -bottom-24 -right-24 w-80 h-80 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none"></div>
+<div class="relative z-10 max-w-3xl mx-auto flex flex-col items-center gap-6">
+<div class="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-emerald-300 border border-white/10">
+<span class="material-symbols-outlined text-[30px]">groups</span>
+</div>
+<h2 class="font-serif-heading text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white">
+              Ready to Join TTMPC?
+            </h2>
+<p class="text-base sm:text-lg text-emerald-100/90 leading-relaxed max-w-2xl">
+              Become a co-owner of a cooperative that has proudly served Tubungan’s educators and community leaders since 1995, or log in to manage your savings and credit ledger today.
+            </p>
+<!-- Dual action buttons -->
+<div class="flex flex-wrap items-center justify-center gap-4 pt-2">
+<a class="inline-flex items-center justify-center px-8 py-3.5 rounded-xl bg-white text-forest-dark font-sans text-sm font-bold shadow-card hover:bg-emerald-50 transition-all transform hover:-translate-y-0.5" href="#membership">
+                Become a Member
+              </a>
+<a class="inline-flex items-center justify-center px-8 py-3.5 rounded-xl bg-forest-mid/60 text-white font-sans text-sm font-bold border border-emerald-400/30 hover:bg-forest-mid transition-all" href="#login">
+                Portal Login
+              </a>
+</div>
+<div class="flex items-center gap-6 pt-4 text-xs text-emerald-300/80">
+<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px]">check</span> Low ₱200 Capital</span>
+<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px]">check</span> Annual Dividends</span>
+<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px]">check</span> CDA Regulated</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- ================= 8. INSTITUTIONAL FOOTER ================= -->
+<footer class="w-full bg-[#0A2016] text-white/80 border-t border-forest-mid/40" id="contact">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
+<!-- Brand & Mission Column -->
+<div class="flex flex-col gap-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-forest-mid flex items-center justify-center text-emerald-300 border border-emerald-400/20">
+<span class="material-symbols-outlined text-[22px]">account_balance</span>
+</div>
+<div class="flex flex-col">
+<span class="font-serif-heading text-lg font-bold text-white tracking-tight">TTMPC</span>
+<span class="text-[11px] text-emerald-400 font-semibold uppercase tracking-wider">Est. 1995 • Tubungan</span>
+</div>
+</div>
+<p class="text-xs text-white/70 leading-relaxed">
+          Tubungan Teachers' Multi-Purpose Cooperative. Empowering public educators and our community through intelligent financial management, fair credit facilities, and time-honored cooperative values.
+        </p>
+<div class="flex items-center gap-2 text-xs text-emerald-300 font-medium">
+<span class="material-symbols-outlined text-[16px]">verified</span>
+<span>CDA Reg # 9520-06001284</span>
+</div>
+</div>
+<!-- Quick Links -->
+<div class="flex flex-col gap-3">
+<span class="text-sm font-bold text-white uppercase tracking-wider">Quick Links</span>
+<ul class="flex flex-col gap-2.5 text-xs text-white/70">
+<li><a class="hover:text-emerald-300 transition-colors" href="#home">Home Overview</a></li>
+<li><a class="hover:text-emerald-300 transition-colors" href="#about">Our Legacy Since 1995</a></li>
+<li><a class="hover:text-emerald-300 transition-colors" href="#services">Cooperative Services &amp; Loans</a></li>
+<li><a class="hover:text-emerald-300 transition-colors" href="#regant">REGANT Decision Support System</a></li>
+<li><a class="hover:text-emerald-300 transition-colors" href="#membership">Membership &amp; PMES Seminars</a></li>
+</ul>
+</div>
+<!-- Cooperative Services -->
+<div class="flex flex-col gap-3">
+<span class="text-sm font-bold text-white uppercase tracking-wider">Cooperative Services</span>
+<ul class="flex flex-col gap-2.5 text-xs text-white/70">
+<li><a class="hover:text-emerald-300 transition-colors" href="#services">Regular Savings &amp; Passbook</a></li>
+<li><a class="hover:text-emerald-300 transition-colors" href="#services">Share Capital / CBU Accumulation</a></li>
+<li><a class="hover:text-emerald-300 transition-colors" href="#services">Emergency &amp; Consolidated Loans</a></li>
+<li><a class="hover:text-emerald-300 transition-colors" href="#services">Member Seasonal Bonus Program</a></li>
+<li><a class="hover:text-emerald-300 transition-colors" href="#services">Patronage Refund Allocations</a></li>
+</ul>
+</div>
+<!-- Contact & Office -->
+<div class="flex flex-col gap-3">
+<span class="text-sm font-bold text-white uppercase tracking-wider">Office &amp; Headquarters</span>
+<div class="flex flex-col gap-2.5 text-xs text-white/70 leading-relaxed">
+<p class="flex items-start gap-2">
+<span class="material-symbols-outlined text-[16px] text-emerald-400 flex-shrink-0 mt-0.5">location_on</span>
+<span>TTMPC Building, Poblacion, Tubungan, Iloilo 5027, Western Visayas, Philippines</span>
+</p>
+<p class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px] text-emerald-400 flex-shrink-0">call</span>
+<span>Tel: +63 (033) Tubungan Co-op Office</span>
+</p>
+<p class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px] text-emerald-400 flex-shrink-0">schedule</span>
+<span>Mon–Fri: 8:00 AM – 5:00 PM</span>
+</p>
+</div>
+</div>
+</div>
+<!-- Bottom Copyright Strip -->
+<div class="w-full bg-[#071710] border-t border-forest-mid/30 py-5">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-white/60">
+<p>© 2026 Tubungan Teachers' Multi-Purpose Cooperative. Powered by REGANT Decision Support. All rights reserved.</p>
+<div class="flex items-center gap-6">
+<a class="hover:text-white transition-colors" href="#">Cooperative Bylaws</a>
+<a class="hover:text-white transition-colors" href="#">Privacy Notice</a>
+<a class="hover:text-white transition-colors" href="#">CDA Regulatory Compliance</a>
+</div>
+</div>
+</div>
+</footer>
+</body></html>

@@ -1,48 +1,126 @@
-﻿import { useState, useEffect, useRef } from 'react';
+/* eslint-disable no-unused-vars -- the repo ESLint config does not mark destructured JSX components (icon: Icon) as used */
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  CreditCard,
+  ArrowRight,
+  Banknote,
   Brain,
-  Users,
-  TrendingUp,
-  Menu as MenuIcon,
-  X,
-  MapPin,
-  Wallet,
-  Landmark,
-  HeartHandshake,
-  ChevronLeft,
-  ChevronRight,
+  CalendarDays,
+  CircleCheck,
+  Clock,
+  Facebook,
   FileText,
-  PieChart
+  IdCard,
+  Lock,
+  MapPin,
+  Menu as MenuIcon,
+  PiggyBank,
+  ShieldCheck,
+  Handshake,
+  Wallet,
+  X,
+  Zap,
+  Activity,
 } from 'lucide-react';
 
-function Button({ children, variant = 'primary', className = '', to, ...props }) {
-  const baseStyles = 'inline-block text-center px-7 py-3 rounded-full font-semibold transition-all duration-200 shadow-sm active:scale-[0.98]';
+const FACEBOOK_URL = 'https://www.facebook.com/ttmpc.tubungan.5';
+const OFFICE_HOURS = 'Tuesday to Saturday, 8:00 AM to 5:00 PM';
+const OFFICE_ADDRESS = 'Teniente Benito, Tubungan, Iloilo 5027';
+
+// Edge-to-edge sections: backgrounds always run full width, content gets
+// generous side padding that grows with the screen instead of a narrow cap.
+const GUTTER = 'px-5 sm:px-8 lg:px-14 xl:px-20 2xl:px-28';
+
+// Shape rule for the page: panels and images are rounded-2xl, buttons, inputs
+// and tabs are rounded-lg. No pills.
+
+const NAV_LINKS = [
+  { href: '#services', label: 'Services' },
+  { href: '#loans', label: 'Loans' },
+  { href: '#about', label: 'About' },
+  { href: '#regant', label: 'REGANT' },
+  { href: '#membership', label: 'Membership' },
+  { href: '#contact', label: 'Contact' },
+];
+
+const FACTS = [
+  { icon: Zap, title: 'Fast approvals', text: 'Rule-based loan checks keep decisions moving.' },
+  { icon: Clock, title: '24/7 access', text: 'See balances and payment schedules any time.' },
+  { icon: ShieldCheck, title: 'Audited records', text: 'Every approval and transaction leaves a trail.' },
+  { icon: Wallet, title: 'One member record', text: 'Savings, share capital and loans in one place.' },
+];
+
+const SERVICES = [
+  {
+    icon: PiggyBank,
+    title: 'Savings and Deposits',
+    text: 'A regular passbook account for everyday needs, and Share Capital (CBU) that builds real ownership in the cooperative.',
+    bullets: ['Passbook savings earn 1% interest per year', 'Yearly interest on share capital, paid in cash or added to your capital', 'A digital ledger you can check any time'],
+  },
+  {
+    icon: Handshake,
+    title: 'Member Ownership',
+    text: 'Join as a co-owner with a ₱200 membership fee and build your share capital over time.',
+    bullets: ['One member, one vote', 'A seat in the annual General Assembly', 'A share in the cooperative’s yearly results'],
+  },
+];
+
+const REGANT_FEATURES = [
+  {
+    icon: Brain,
+    title: 'Data-driven loan screening',
+    text: 'Every application is weighed against real repayment history, not guesswork or favoritism, so approvals stay fair and consistent for every member.',
+  },
+  {
+    icon: IdCard,
+    title: 'Your full record, one place',
+    text: 'Profile, capital contributions and complete loan history live in one secure record.',
+  },
+  {
+    icon: Activity,
+    title: 'Real-time oversight',
+    text: 'Officers see the cooperative’s financial position as it changes.',
+  },
+  {
+    icon: FileText,
+    title: 'Board-ready reports',
+    text: 'The Board reviews accurate reports every cycle, so your cooperative’s finances stay accountable.',
+  },
+];
+
+const STEPS = [
+  {
+    title: 'Attend the Pre-Membership Seminar',
+    text: 'The PMES covers cooperative principles, member rights and sound money habits. It runs every 2nd and 4th Saturday.',
+  },
+  {
+    title: 'Submit your application',
+    text: 'Fill out the online membership form with your requirements. The Board reviews and approves it.',
+  },
+  {
+    title: 'Fund your share capital',
+    text: 'Pay the ₱200 membership fee to unlock your account, loans and yearly returns, then log in to your member portal.',
+  },
+];
+
+function Button({ children, variant = 'primary', className = '', to, href, ...props }) {
+  const base =
+    'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg px-6 py-3 text-sm font-semibold transition-all duration-200 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-coop-emerald';
   const variants = {
-    primary: 'bg-primary-deep text-white hover:brightness-90 hover:shadow-md hover:-translate-y-0.5',
-    secondary: 'bg-white text-primary-deep hover:bg-gray-50 border border-gray-100 hover:shadow-md',
-    outline: 'border-2 border-white text-white hover:bg-white/10',
+    primary: 'bg-coop-forest-mid text-white hover:bg-coop-forest',
+    secondary: 'bg-white text-coop-forest border border-coop-sage hover:bg-coop-cream-warm',
+    light: 'bg-white text-coop-forest hover:bg-coop-cream-tint',
+    ghost: 'text-white border border-white/40 hover:bg-white/10',
   };
-  
-  if (to) {
-    return (
-      <Link to={to} className={`${baseStyles} ${variants[variant]} ${className}`} {...props}>
-        {children}
-      </Link>
-    );
-  }
-  
-  return (
-    <button className={`${baseStyles} ${variants[variant]} ${className}`} {...props}>
-      {children}
-    </button>
-  );
+  const cls = `${base} ${variants[variant]} ${className}`;
+  if (href) return <a href={href} className={cls} {...props}>{children}</a>;
+  if (to) return <Link to={to} className={cls} {...props}>{children}</Link>;
+  return <button className={cls} {...props}>{children}</button>;
 }
 
-// Fades a section up into place the first time it scrolls into view. IntersectionObserver-based
-// (no scroll listeners, no animation library) — disconnects after firing once. Under
-// prefers-reduced-motion the motion-safe: classes never apply, so content just renders visible.
+// Fades a block up the first time it scrolls into view so sections read in
+// sequence. IntersectionObserver only, disconnects after firing; motion-safe:
+// keeps reduced-motion users on a plain, immediately visible page.
 function Reveal({ children, className = '', delayMs = 0 }) {
   const ref = useRef(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -57,7 +135,7 @@ function Reveal({ children, className = '', delayMs = 0 }) {
           observer.disconnect();
         }
       },
-      { threshold: 0.15 }
+      { threshold: 0.12 }
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -67,7 +145,7 @@ function Reveal({ children, className = '', delayMs = 0 }) {
     <div
       ref={ref}
       className={`motion-safe:transition-all motion-safe:duration-700 motion-safe:ease-out ${
-        isVisible ? 'opacity-100 translate-y-0' : 'motion-safe:opacity-0 motion-safe:translate-y-6'
+        isVisible ? 'opacity-100 translate-y-0' : 'motion-safe:opacity-0 motion-safe:translate-y-5'
       } ${className}`}
       style={delayMs ? { transitionDelay: `${delayMs}ms` } : undefined}
     >
@@ -76,101 +154,180 @@ function Reveal({ children, className = '', delayMs = 0 }) {
   );
 }
 
-// Community-list row used by the "Core Cooperative Services" and "Run With
-// the Discipline..." sections — icon + title + description, no card chrome.
-// Kept as one shared component so both sections read as the same language.
-function IconListItem({ icon, title, description, tag, ctaTo, ctaLabel }) {
+function SectionHeader({ title, text, className = '' }) {
   return (
-    <div className="group flex items-start gap-5 md:gap-6 py-6 md:py-7">
-      <div className="w-12 h-12 md:w-14 md:h-14 shrink-0 rounded-full bg-gradient-to-br from-[#E9F7DE] to-white border border-green-100 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-white group-hover:scale-110 group-hover:border-primary transition-all duration-300">
-        {icon}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex flex-wrap items-center gap-3 mb-1.5">
-          <h4 className="text-lg md:text-xl font-bold text-gray-900 group-hover:text-primary-deep transition-colors duration-300">
-            {title}
-          </h4>
-          {tag && (
-            <span className="text-[11px] font-bold uppercase tracking-wider text-primary-deep bg-[#E9F7DE] px-3 py-1 rounded-full shrink-0">
-              {tag}
-            </span>
-          )}
+    <div className={`flex max-w-2xl flex-col gap-3 ${className}`}>
+      <h2 className="text-3xl font-bold leading-tight tracking-tight text-coop-forest sm:text-4xl">{title}</h2>
+      {text && <p className="max-w-[60ch] text-base leading-relaxed text-coop-muted sm:text-lg">{text}</p>}
+    </div>
+  );
+}
+
+function Header() {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const close = () => setMenuOpen(false);
+
+  return (
+    <header className="sticky top-0 z-50 w-full border-b border-coop-sage/70 bg-white/90 backdrop-blur-md">
+      <div className={`flex h-16 items-center justify-between gap-4 md:h-[72px] ${GUTTER}`}>
+        <Link to="/" className="flex shrink-0 items-center gap-3" onClick={close}>
+          <img src="/img/ttmpc logo.png" alt="TTMPC logo" className="h-10 w-auto md:h-11" />
+          <span className="hidden text-sm font-semibold leading-tight text-coop-forest sm:block">
+            Tubungan Teachers’<br />Multi-Purpose Cooperative
+          </span>
+        </Link>
+
+        <nav className="hidden items-center gap-7 xl:flex" aria-label="Primary">
+          {NAV_LINKS.map((l) => (
+            <a key={l.href} href={l.href} className="text-sm font-medium text-coop-muted transition-colors hover:text-coop-forest-mid">
+              {l.label}
+            </a>
+          ))}
+        </nav>
+
+        <div className="flex items-center gap-2.5">
+          <Button to="/role_selection" variant="secondary" className="px-4 py-2.5 max-lg:hidden">
+            <Lock className="h-4 w-4 text-coop-forest-mid" /> Portal Login
+          </Button>
+          <Button to="/membership_form" className="px-4 py-2.5 max-md:hidden">
+            Become a Member
+          </Button>
+          <button
+            className="rounded-lg border border-coop-sage bg-white p-2.5 text-coop-forest xl:hidden"
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-label="Toggle menu"
+            aria-expanded={menuOpen}
+            aria-controls="mobile-menu-panel"
+          >
+            {menuOpen ? <X className="h-5 w-5" /> : <MenuIcon className="h-5 w-5" />}
+          </button>
         </div>
-        <p className="text-gray-600 leading-relaxed text-sm md:text-base max-w-[60ch]">
-          {description}
-        </p>
-        {ctaTo && (
-          <div className="mt-4">
-            <Button to={ctaTo} variant="secondary" className="px-6 py-2 text-sm">
-              {ctaLabel}
+      </div>
+
+      {menuOpen && (
+        <div id="mobile-menu-panel" className={`flex flex-col gap-1 border-t border-coop-sage bg-white py-4 xl:hidden ${GUTTER}`}>
+          {NAV_LINKS.map((l) => (
+            <a key={l.href} href={l.href} onClick={close} className="rounded-lg px-3 py-3 text-sm font-medium text-coop-forest hover:bg-coop-cream-tint">
+              {l.label}
+            </a>
+          ))}
+          <div className="mt-3 flex flex-col gap-3 border-t border-coop-sage pt-4">
+            <Button to="/membership_form" onClick={close}>Become a Member</Button>
+            <Button to="/role_selection" variant="secondary" onClick={close}>Portal Login</Button>
+          </div>
+        </div>
+      )}
+    </header>
+  );
+}
+
+function InfoStrip() {
+  return (
+    <div className="bg-coop-forest text-xs font-medium text-white">
+      <div className={`flex items-center justify-between gap-4 py-2 ${GUTTER}`}>
+        <span className="text-coop-mint">CDA-registered cooperative</span>
+        <span className="hidden text-white/75 lg:inline">Open {OFFICE_HOURS}</span>
+        <a href={FACEBOOK_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-white/85 hover:text-coop-mint">
+          <Facebook className="h-3.5 w-3.5" /> Message us
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function Hero() {
+  return (
+    <section id="home" className="bg-white pb-14 pt-10 sm:pb-20 lg:pb-24 lg:pt-16">
+      <div className={`grid items-center gap-10 lg:grid-cols-12 lg:gap-14 ${GUTTER}`}>
+        <div className="flex min-w-0 flex-col gap-6 lg:col-span-7">
+          <p className="text-sm font-semibold text-coop-forest-mid">Tubungan, Iloilo. Serving members since 1995.</p>
+          <h1 className="text-[2rem] font-bold leading-[1.15] tracking-tight text-coop-forest sm:text-5xl xl:text-6xl">
+            Empowering Educators, <span className="text-coop-emerald">Sustaining Futures.</span>
+          </h1>
+          <p className="max-w-[52ch] text-base leading-relaxed text-coop-muted sm:text-lg">
+            Savings, loans and a cooperative you co-own, built for Tubungan’s teachers and their families.
+          </p>
+          <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:gap-4">
+            <Button to="/membership_form" className="px-7 py-3.5">
+              Become a Member <ArrowRight className="h-4 w-4" />
+            </Button>
+            <Button to="/role_selection" variant="secondary" className="px-7 py-3.5">
+              <Lock className="h-4 w-4 text-coop-forest-mid" /> Portal Login
             </Button>
           </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function StatCard({ value, label }) {
-  return (
-    <div className="text-center p-6">
-      <div className="text-4xl md:text-5xl font-extrabold text-primary mb-2 tracking-tight">{value}</div>
-      <div className="text-gray-600 font-medium">{label}</div>
-    </div>
-  );
-}
-
-function StatsMarquee() {
-  const statsData = [
-    { id: 1, value: "Smart", label: "Risk Prediction" },
-    { id: 2, value: "MIGS", label: "Automated Scoring" },
-    { id: 3, value: "Fast", label: "Approvals" },
-    { id: 4, value: "24/7", label: "Access Available" },
-    { id: 5, value: "Secure", label: "Cooperative-Grade Access" },
-    { id: 6, value: "All-in-One", label: "Loans, Savings & Records" },
-  ];
-
-  return (
-    <section className="py-10 bg-white border-y border-gray-100 overflow-hidden relative flex">
-      <style>{`
-        @keyframes marquee {
-          0% { transform: translateX(0%); }
-          100% { transform: translateX(-100%); }
-        }
-        .animate-marquee {
-          animation: marquee 20s linear infinite;
-        }
-        .pause-on-hover:hover .animate-marquee,
-        .pause-on-hover:focus-within .animate-marquee {
-          animation-play-state: paused;
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .animate-marquee {
-            animation: none;
-          }
-          .marquee-track-duplicate {
-            display: none;
-          }
-          .marquee-viewport {
-            overflow-x: auto;
-          }
-        }
-      `}</style>
-      <div className="absolute top-0 bottom-0 left-0 w-16 md:w-32 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none"></div>
-      <div className="absolute top-0 bottom-0 right-0 w-16 md:w-32 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none"></div>
-      <div className="marquee-viewport flex w-full pause-on-hover cursor-default">
-        <div className="flex min-w-full justify-around animate-marquee items-center shrink-0">
-          {statsData.map((stat) => (
-            <div key={`track1-${stat.id}`} className="px-8 md:px-16">
-              <StatCard value={stat.value} label={stat.label} />
-            </div>
-          ))}
         </div>
-        <div className="marquee-track-duplicate flex min-w-full justify-around animate-marquee items-center shrink-0" aria-hidden="true">
-          {statsData.map((stat) => (
-            <div key={`track2-${stat.id}`} className="px-8 md:px-16">
-              <StatCard value={stat.value} label={stat.label} />
+
+        <figure className="min-w-0 lg:col-span-5">
+          <img
+            src="/assets/img/TTMPC-1.jpg"
+            alt="TTMPC officers and staff in front of the cooperative logo at the Tubungan office"
+            width="2048"
+            height="1536"
+            fetchPriority="high"
+            className="aspect-[4/3] w-full rounded-2xl object-cover object-[50%_55%] shadow-coop-lift"
+          />
+          <figcaption className="mt-3 text-sm text-coop-muted">Our officers and staff at the Tubungan office.</figcaption>
+        </figure>
+      </div>
+    </section>
+  );
+}
+
+function FactsStrip() {
+  return (
+    <section className="border-y border-coop-sage bg-coop-cream-warm">
+      <dl className={`grid gap-y-8 py-10 sm:grid-cols-2 lg:grid-cols-4 lg:gap-0 lg:divide-x lg:divide-coop-sage ${GUTTER}`}>
+        {FACTS.map(({ icon: Icon, title, text }) => (
+          <div key={title} className="flex items-start gap-4 lg:px-8 lg:first:pl-0 lg:last:pr-0">
+            <Icon className="mt-0.5 h-6 w-6 shrink-0 text-coop-forest-mid" />
+            <div>
+              <dt className="font-semibold text-coop-forest">{title}</dt>
+              <dd className="mt-1 text-sm leading-relaxed text-coop-muted">{text}</dd>
             </div>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+function Services() {
+  return (
+    <section id="services" className="bg-white py-20 sm:py-24">
+      <div className={`grid gap-12 lg:grid-cols-12 lg:gap-16 ${GUTTER}`}>
+        <Reveal className="lg:col-span-4">
+          <div className="lg:sticky lg:top-28">
+            <SectionHeader
+              title="Core Cooperative Services"
+              text="Simple products designed to build your savings and your stake in the cooperative."
+            />
+            <p className="mt-6 text-sm text-coop-muted">
+              Looking for a loan? <a href="#loans" className="font-semibold text-coop-forest-mid underline underline-offset-4">Jump to the loan calculator.</a>
+            </p>
+          </div>
+        </Reveal>
+
+        <div className="flex flex-col divide-y divide-coop-sage lg:col-span-8">
+          {SERVICES.map(({ icon: Icon, title, text, bullets }, i) => (
+            <Reveal key={title} delayMs={i * 100}>
+              <article className="grid gap-5 py-10 first:pt-0 last:pb-0 sm:grid-cols-[3.5rem_1fr] sm:gap-8">
+                <span className="flex h-14 w-14 items-center justify-center rounded-lg bg-coop-cream-tint text-coop-forest-mid">
+                  <Icon className="h-7 w-7" />
+                </span>
+                <div>
+                  <h3 className="text-2xl font-bold text-coop-forest">{title}</h3>
+                  <p className="mt-2 max-w-[60ch] leading-relaxed text-coop-muted">{text}</p>
+                  <ul className="mt-5 flex flex-col gap-2.5 text-sm font-medium text-coop-forest">
+                    {bullets.map((b) => (
+                      <li key={b} className="flex items-start gap-2.5">
+                        <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-coop-emerald" />
+                        <span>{b}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </article>
+            </Reveal>
           ))}
         </div>
       </div>
@@ -178,368 +335,522 @@ function StatsMarquee() {
   );
 }
 
-function AboutImageCarousel() {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(
-    () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
+const peso = (n) =>
+  `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const carouselImages = [
-    { id: 1, src: "/assets/img/TTMPC-1.jpg", alt: "TTMPC Building" },
-    { id: 2, src: "/assets/img/news_2.jpg", alt: "TTMPC Founding Team" },
-    { id: 3, src: "/assets/img/news_3.jpg", alt: "TTMPC Community Outreach" },
-    { id: 4, src: "/assets/img/TTMPC-4.jpg", alt: "TTMPC Event" },
-  ];
+// Fee/rate constants mirror the app's loan_fee_policies fallbacks and the
+// loan policies (src/LOANFORMS/loanComputeApi.js). Public estimate only: the
+// real figures are computed at application time.
+const LOAN_TYPES = {
+  consolidated: {
+    label: 'Consolidated',
+    icon: Banknote,
+    summary:
+      'Our main loan for larger needs such as tuition, home repairs or paying off other debts. Repay in fixed monthly amounts through salary or over the counter.',
+    facts: ['0.83% interest per month (add-on)', 'Terms of 12, 24, 36, 48 or 60 months', 'Open to members in good standing (MIGS)'],
+    terms: [12, 24, 36, 48, 60],
+    defaultTerm: 24,
+    min: 5000,
+    max: 500000,
+    step: 1000,
+    defaultAmount: 100000,
+  },
+  emergency: {
+    label: 'Emergency',
+    icon: Zap,
+    summary:
+      'Quick help for urgent expenses like medical bills or calamity repairs. Small amounts, short terms and interest only on what you still owe.',
+    facts: ['Up to ₱20,000', '2% interest per month on the remaining balance', '6 or 12 monthly payments'],
+    terms: [6, 12],
+    defaultTerm: 12,
+    min: 1000,
+    max: 20000,
+    step: 500,
+    defaultAmount: 10000,
+  },
+  bonus: {
+    label: 'Bonus',
+    icon: CalendarDays,
+    summary:
+      'A short bridge loan against your mid-year (May) or year-end (November) bonus. Interest is deducted upfront, and you pay back only the principal when the bonus arrives.',
+    facts: ['2% per month for members, 3% for non-members', 'Interest taken upfront when the loan is released', 'Principal repaid from your bonus in May or November'],
+    terms: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    defaultTerm: 6,
+    min: 5000,
+    max: 100000,
+    step: 1000,
+    defaultAmount: 30000,
+  },
+};
 
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const handleChange = (e) => setPrefersReducedMotion(e.matches);
-    mediaQuery.addEventListener("change", handleChange);
-    return () => mediaQuery.removeEventListener("change", handleChange);
-  }, []);
+function computeLoan(type, principal, term, isMember) {
+  const p = Number(principal) || 0;
+  if (p <= 0 || !term) return null;
 
-  useEffect(() => {
-    if (isPaused || prefersReducedMotion) return;
-    const timer = setInterval(() => {
-      setCurrentIndex((prev) => (prev === carouselImages.length - 1 ? 0 : prev + 1));
-    }, 3000);
-    return () => clearInterval(timer);
-  }, [carouselImages.length, isPaused, prefersReducedMotion]);
+  if (type === 'consolidated') {
+    const interest = p * 0.0083 * term;
+    const serviceFee = (Math.floor((Math.trunc(p) - 1) / 50000) + 1) * 100;
+    const cbu = p * 0.02;
+    const insurance = p * (1.35 / 1000);
+    const notarial = 100;
+    return {
+      headline: { label: 'Monthly payment', value: (p + interest) / term },
+      rows: [
+        ['Interest over the whole term', interest],
+        ['Total you repay', p + interest],
+        ['Service fee', serviceFee],
+        ['Share capital build-up (2%, stays yours)', cbu],
+        ['Insurance', insurance],
+        ['Notarial fee', notarial],
+      ],
+      net: p - (serviceFee + cbu + insurance + notarial),
+      note: 'Net proceeds shown before any balance from a previous loan.',
+    };
+  }
 
-  const goToNext = () => setCurrentIndex((prev) => (prev === carouselImages.length - 1 ? 0 : prev + 1));
-  const goToPrev = () => setCurrentIndex((prev) => (prev === 0 ? carouselImages.length - 1 : prev - 1));
+  if (type === 'emergency') {
+    const monthlyPrincipal = p / term;
+    let balance = p;
+    let totalInterest = 0;
+    let first = 0;
+    let last = 0;
+    for (let i = 1; i <= term; i += 1) {
+      balance -= monthlyPrincipal;
+      const interest = Math.max(balance, 0) * 0.02;
+      totalInterest += interest;
+      if (i === 1) first = monthlyPrincipal + interest;
+      if (i === term) last = monthlyPrincipal + interest;
+    }
+    const serviceFee = 100;
+    const cbu = p * 0.02;
+    return {
+      headline: { label: 'First monthly payment', value: first },
+      rows: [
+        ['Last monthly payment', last],
+        ['Total interest', totalInterest],
+        ['Total you repay', p + totalInterest],
+        ['Service fee', serviceFee],
+        ['Share capital build-up (2%, stays yours)', cbu],
+      ],
+      net: p - serviceFee - cbu,
+      note: 'Payments get smaller each month because interest is charged on what is left.',
+    };
+  }
+
+  const upfront = p * (isMember ? 0.02 : 0.03) * term;
+  const serviceFee = 100;
+  return {
+    headline: { label: 'You pay at your bonus', value: p },
+    rows: [
+      ['Interest deducted upfront', upfront],
+      ['Service fee', serviceFee],
+    ],
+    net: p - upfront - serviceFee,
+    note: 'Term is the number of months from release until your bonus month.',
+  };
+}
+
+// One panel: pick a loan, read what it is, then see the numbers for it.
+function Loans() {
+  const [type, setType] = useState('consolidated');
+  const cfg = LOAN_TYPES[type];
+  const [amount, setAmount] = useState(cfg.defaultAmount);
+  const [term, setTerm] = useState(cfg.defaultTerm);
+  const [isMember, setIsMember] = useState(true);
+
+  const switchType = (next) => {
+    const n = LOAN_TYPES[next];
+    setType(next);
+    setAmount(n.defaultAmount);
+    setTerm(n.defaultTerm);
+  };
+
+  const clamped = Math.min(Math.max(Number(amount) || 0, 0), cfg.max);
+  const result = clamped >= cfg.min ? computeLoan(type, clamped, term, isMember) : null;
 
   return (
-    <div
-      className="relative rounded-3xl bg-gray-50 border border-gray-200 shadow-xl overflow-hidden aspect-[4/3] group"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
-      onFocus={() => setIsPaused(true)}
-      onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget)) setIsPaused(false);
-      }}
-    >
-      <div
-        className={`flex w-full h-full ${prefersReducedMotion ? "" : "transition-transform duration-700 ease-[cubic-bezier(0.25,0.1,0.25,1)]"}`}
-        style={{ transform: `translateX(-${currentIndex * 100}%)` }}
-      >
-        {carouselImages.map((img, idx) => (
-          <div key={img.id} className="w-full flex-[0_0_100%] relative h-full flex items-center justify-center bg-gray-100 shrink-0">
-            {img.src ? (
-              <img
-                src={img.src}
-                alt={img.alt}
-                className="w-full h-full object-contain"
-                loading={idx === 0 ? "eager" : "lazy"}
-              />
-            ) : (
-              <div className="absolute inset-4 flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl bg-white">
-                <MapPin className="w-8 h-8 mb-3 text-gray-300" />
-                <span className="font-semibold text-sm tracking-wide">[ Insert Image {img.id} Here ]</span>
+    <section id="loans" className="bg-coop-cream-warm py-20 sm:py-24">
+      <div className={`flex flex-col gap-10 ${GUTTER}`}>
+        <Reveal>
+          <SectionHeader
+            title="Pick a Loan, See the Numbers"
+            text="Three loans for three kinds of need. Choose one to read how it works and estimate your payments."
+          />
+        </Reveal>
+
+        <Reveal>
+          <div className="overflow-hidden rounded-2xl border border-coop-sage bg-white shadow-coop-card">
+            <div role="tablist" aria-label="Loan type" className="grid grid-cols-3 border-b border-coop-sage">
+              {Object.entries(LOAN_TYPES).map(([key, t]) => (
+                <button
+                  key={key}
+                  role="tab"
+                  aria-selected={type === key}
+                  onClick={() => switchType(key)}
+                  className={`flex items-center justify-center gap-2 border-b-2 px-3 py-4 text-sm font-semibold transition-colors sm:text-base ${
+                    type === key
+                      ? 'border-coop-forest-mid bg-coop-cream-tint text-coop-forest'
+                      : 'border-transparent text-coop-muted hover:bg-coop-cream-warm'
+                  }`}
+                >
+                  <t.icon className="hidden h-5 w-5 sm:block" />
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid lg:grid-cols-12">
+              <div className="flex flex-col gap-7 p-6 sm:p-8 lg:col-span-7">
+                <div>
+                  <p className="max-w-[60ch] leading-relaxed text-coop-muted">{cfg.summary}</p>
+                  <ul className="mt-4 flex flex-col gap-2 text-sm font-medium text-coop-forest">
+                    {cfg.facts.map((f) => (
+                      <li key={f} className="flex items-start gap-2.5">
+                        <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-coop-emerald" />
+                        <span>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="flex flex-col gap-2 border-t border-coop-sage pt-7">
+                  <label htmlFor="calc-amount" className="text-sm font-semibold text-coop-forest">Loan amount</label>
+                  <div className="flex items-center gap-2 rounded-lg border border-coop-muted/40 bg-white px-4 py-3 focus-within:border-coop-emerald focus-within:ring-4 focus-within:ring-coop-emerald/15">
+                    <span className="font-semibold text-coop-muted">₱</span>
+                    <input
+                      id="calc-amount"
+                      type="number"
+                      inputMode="numeric"
+                      min={cfg.min}
+                      max={cfg.max}
+                      step={cfg.step}
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      className="w-full bg-transparent text-lg font-semibold tabular-nums text-coop-forest outline-none"
+                    />
+                  </div>
+                  <input
+                    type="range"
+                    min={cfg.min}
+                    max={cfg.max}
+                    step={cfg.step}
+                    value={clamped || cfg.min}
+                    onChange={(e) => setAmount(Number(e.target.value))}
+                    aria-label="Loan amount slider"
+                    className="w-full accent-coop-emerald"
+                  />
+                  <div className="flex justify-between text-xs text-coop-muted">
+                    <span>{peso(cfg.min)}</span>
+                    <span>Up to {peso(cfg.max)}</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <span className="text-sm font-semibold text-coop-forest">
+                    {type === 'bonus' ? 'Months until your bonus' : 'Term in months'}
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {cfg.terms.map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setTerm(t)}
+                        aria-pressed={term === t}
+                        className={`min-w-12 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
+                          term === t
+                            ? 'border-coop-forest-mid bg-coop-forest-mid text-white'
+                            : 'border-coop-muted/40 bg-white text-coop-forest hover:bg-coop-cream-tint'
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {type === 'bonus' && (
+                  <label className="flex cursor-pointer items-center gap-3 text-sm font-medium text-coop-forest">
+                    <input
+                      type="checkbox"
+                      checked={isMember}
+                      onChange={(e) => setIsMember(e.target.checked)}
+                      className="h-4 w-4 accent-coop-emerald"
+                    />
+                    I am a TTMPC member (2% instead of 3%)
+                  </label>
+                )}
               </div>
-            )}
+
+              <div className="flex flex-col gap-5 border-t border-coop-sage bg-coop-cream-tint p-6 sm:p-8 lg:col-span-5 lg:border-l lg:border-t-0">
+                {result ? (
+                  <>
+                    <div>
+                      <p className="text-sm font-medium text-coop-muted">{result.headline.label}</p>
+                      <p className="mt-1 text-4xl font-bold tabular-nums text-coop-forest sm:text-5xl">{peso(result.headline.value)}</p>
+                    </div>
+                    <dl className="flex flex-col divide-y divide-coop-sage text-sm">
+                      {result.rows.map(([label, value]) => (
+                        <div key={label} className="flex items-center justify-between gap-4 py-2.5">
+                          <dt className="text-coop-muted">{label}</dt>
+                          <dd className="font-semibold tabular-nums text-coop-forest">{peso(value)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                    <div className="rounded-lg bg-coop-forest-mid p-4 text-white">
+                      <p className="text-sm font-medium text-white/85">Estimated net proceeds</p>
+                      <p className="text-2xl font-bold tabular-nums">{peso(result.net)}</p>
+                      <p className="mt-1 text-xs text-white/80">{result.note}</p>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-coop-muted">Enter an amount of at least {peso(cfg.min)} to see your estimate.</p>
+                )}
+                <p className="mt-auto text-xs leading-relaxed text-coop-muted">
+                  This is an estimate only. Final amounts depend on your approval, eligibility and any existing balance.
+                </p>
+              </div>
+            </div>
           </div>
-        ))}
+        </Reveal>
       </div>
-      <div className="absolute inset-0 flex items-center justify-between p-4 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-300 pointer-events-none">
-        <button 
-          onClick={goToPrev} 
-          className="pointer-events-auto p-2.5 rounded-full bg-white/70 text-gray-800 hover:bg-white hover:text-primary backdrop-blur-md shadow-lg transition-all focus:outline-none transform hover:scale-110"
-          aria-label="Previous image"
-        >
-          <ChevronLeft className="w-6 h-6" strokeWidth={2.5} />
-        </button>
-        <button 
-          onClick={goToNext} 
-          className="pointer-events-auto p-2.5 rounded-full bg-white/70 text-gray-800 hover:bg-white hover:text-primary backdrop-blur-md shadow-lg transition-all focus:outline-none transform hover:scale-110"
-          aria-label="Next image"
-        >
-          <ChevronRight className="w-6 h-6" strokeWidth={2.5} />
-        </button>
-      </div>
-      <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-3 z-20">
-        {carouselImages.map((_, idx) => (
-          <button
-            key={idx}
-            onClick={() => setCurrentIndex(idx)}
-            className="p-2 flex items-center justify-center"
-            aria-label={`Go to slide ${idx + 1}`}
-          >
-            <span
-              className={`block h-2 rounded-full transition-all duration-300 shadow-sm ${
-                currentIndex === idx ? "bg-primary w-8" : "bg-gray-300/80 hover:bg-gray-400 w-2"
-              }`}
+    </section>
+  );
+}
+
+function About() {
+  const numbers = [
+    { value: '30+', label: 'years serving Tubungan' },
+    { value: '₱200', label: 'to become a co-owner' },
+    { value: '1 vote', label: 'for every member' },
+  ];
+  return (
+    <section id="about" className="bg-white py-20 sm:py-24">
+      <div className={`flex flex-col gap-12 ${GUTTER}`}>
+        <Reveal>
+          <figure>
+            <img
+              src="/assets/img/news_2.jpg"
+              alt="TTMPC members handing out school supplies at an elementary school"
+              width="2048"
+              height="1536"
+              loading="lazy"
+              className="aspect-[4/3] w-full rounded-2xl object-cover object-[50%_68%] sm:aspect-[16/9] lg:aspect-[21/9]"
             />
-          </button>
-        ))}
+            <figcaption className="mt-3 text-sm text-coop-muted">TTMPC members delivering school supplies to a partner school.</figcaption>
+          </figure>
+        </Reveal>
+
+        <Reveal className="grid gap-10 lg:grid-cols-12 lg:gap-16">
+          <div className="flex flex-col gap-5 lg:col-span-7">
+            <p className="text-sm font-semibold text-coop-forest-mid">Our legacy</p>
+            <h2 className="text-3xl font-bold leading-tight tracking-tight text-coop-forest sm:text-4xl">
+              Built by Tubungan’s teachers, for Tubungan’s teachers.
+            </h2>
+            <p className="max-w-[62ch] leading-relaxed text-coop-muted sm:text-lg">
+              TTMPC began in 1995 with one mission: secure, accessible and fair financial services for educators and local families. We have grown from a small group pooling their savings into a registered cooperative, and we keep our records accountable through the REGANT system.
+            </p>
+          </div>
+          <dl className="grid grid-cols-3 gap-4 self-end lg:col-span-5">
+            {numbers.map((n) => (
+              <div key={n.label} className="border-l-2 border-coop-emerald pl-4">
+                <dd className="text-2xl font-bold tabular-nums text-coop-forest sm:text-3xl">{n.value}</dd>
+                <dt className="mt-1 text-xs leading-snug text-coop-muted sm:text-sm">{n.label}</dt>
+              </div>
+            ))}
+          </dl>
+        </Reveal>
       </div>
-    </div>
+    </section>
+  );
+}
+
+function Regant() {
+  const [main, ...rest] = REGANT_FEATURES;
+  return (
+    <section id="regant" className="bg-coop-cream-warm py-20 sm:py-24">
+      <div className={`flex flex-col gap-12 ${GUTTER}`}>
+        <Reveal>
+          <SectionHeader
+            title="Run With the Discipline of a Real Financial Institution"
+            text="REGANT is the decision support system behind every deposit and loan. It keeps records accurate, approvals fair and officers accountable to every member."
+          />
+        </Reveal>
+
+        <div className="grid gap-4 lg:grid-cols-3 lg:grid-rows-2">
+          <Reveal className="lg:col-span-2 lg:row-span-2">
+            <article className="relative flex h-full min-h-72 flex-col justify-between gap-10 overflow-hidden rounded-2xl bg-coop-forest-mid p-7 text-white sm:p-10">
+              <div className="pointer-events-none absolute -bottom-20 -right-16 h-72 w-72 rounded-full bg-coop-emerald-bright/25 blur-3xl" aria-hidden="true" />
+              <main.icon className="relative h-9 w-9 text-coop-mint" />
+              <div className="relative">
+                <h3 className="text-2xl font-bold sm:text-3xl">{main.title}</h3>
+                <p className="mt-3 max-w-[48ch] leading-relaxed text-white/90 sm:text-lg">{main.text}</p>
+              </div>
+            </article>
+          </Reveal>
+          {rest.map(({ icon: Icon, title, text }, i) => (
+            <Reveal key={title} delayMs={(i + 1) * 100}>
+              <article
+                className={`flex h-full flex-col gap-3 rounded-2xl p-6 ${
+                  i === 0 ? 'bg-coop-cream-tint' : i === 1 ? 'border border-coop-sage bg-white' : 'bg-coop-sage/60'
+                }`}
+              >
+                <Icon className="h-6 w-6 text-coop-forest-mid" />
+                <h3 className="text-lg font-bold text-coop-forest">{title}</h3>
+                <p className="text-sm leading-relaxed text-coop-muted">{text}</p>
+              </article>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Membership() {
+  return (
+    <section id="membership" className="bg-white py-20 sm:py-24">
+      <div className={`grid items-start gap-12 lg:grid-cols-12 lg:gap-16 ${GUTTER}`}>
+        <div className="flex flex-col gap-10 lg:col-span-7">
+          <Reveal>
+            <SectionHeader
+              title="Become Part of the TTMPC Community"
+              text="Three steps to become a co-owner of the cooperative."
+            />
+          </Reveal>
+          <ol className="flex flex-col">
+            {STEPS.map(({ title, text }, i) => (
+              <Reveal key={title} delayMs={i * 100}>
+                <li className="relative flex gap-5 pb-10 last:pb-0">
+                  {i < STEPS.length - 1 && <span className="absolute left-5 top-11 h-[calc(100%-2.75rem)] w-px bg-coop-sage" aria-hidden="true" />}
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-coop-forest-mid font-bold text-white">
+                    {i + 1}
+                  </span>
+                  <div>
+                    <h3 className="text-xl font-bold text-coop-forest">{title}</h3>
+                    <p className="mt-1.5 max-w-[56ch] leading-relaxed text-coop-muted">{text}</p>
+                  </div>
+                </li>
+              </Reveal>
+            ))}
+          </ol>
+        </div>
+
+        <Reveal className="lg:col-span-5" delayMs={150}>
+          <figure className="overflow-hidden rounded-2xl border border-coop-sage bg-white shadow-coop-card">
+            <img
+              src="/assets/img/TTMPC-4.jpg"
+              alt="TTMPC officers and members at a community outreach"
+              width="1536"
+              height="1024"
+              loading="lazy"
+              className="aspect-[3/2] w-full object-cover"
+            />
+            <figcaption className="flex flex-col gap-4 p-6 sm:p-7">
+              <p className="text-lg font-bold text-coop-forest">Ready to start?</p>
+              <p className="text-sm leading-relaxed text-coop-muted">Apply online anytime, or visit our office in Tubungan.</p>
+              <Button to="/membership_form" className="w-full sm:w-fit">
+                Become a Member <ArrowRight className="h-4 w-4" />
+              </Button>
+            </figcaption>
+          </figure>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+function ClosingCta() {
+  return (
+    <section className="bg-coop-forest-mid text-white">
+      <div className={`flex flex-col items-start justify-between gap-8 py-14 sm:py-16 lg:flex-row lg:items-center ${GUTTER}`}>
+        <Reveal className="max-w-2xl">
+          <h2 className="text-3xl font-bold leading-tight tracking-tight sm:text-4xl">Own a share of your cooperative.</h2>
+          <p className="mt-3 text-base leading-relaxed text-white/90 sm:text-lg">
+            Join the teachers and families who have built TTMPC since 1995, or log in to manage your account.
+          </p>
+        </Reveal>
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+          <Button to="/membership_form" variant="light" className="px-8 py-3.5">Become a Member</Button>
+          <Button to="/role_selection" variant="ghost" className="px-8 py-3.5">Portal Login</Button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Footer() {
+  return (
+    <footer id="contact" className="bg-coop-forest-deep text-white/80">
+      <div className={`grid gap-10 py-14 sm:grid-cols-2 lg:grid-cols-4 ${GUTTER}`}>
+        <div className="flex flex-col gap-4 sm:col-span-2 lg:col-span-1">
+          <img src="/img/ttmpc logo.png" alt="TTMPC logo" className="h-14 w-auto self-start brightness-0 invert" />
+          <p className="max-w-[40ch] text-sm leading-relaxed text-white/75">
+            Tubungan Teachers’ Multi-Purpose Cooperative. A CDA-registered cooperative serving educators and families since 1995.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <h3 className="text-sm font-semibold text-white">Explore</h3>
+          <ul className="flex flex-col gap-2.5 text-sm text-white/75">
+            {NAV_LINKS.map((l) => (
+              <li key={l.href}><a href={l.href} className="transition-colors hover:text-coop-mint">{l.label}</a></li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <h3 className="text-sm font-semibold text-white">Get started</h3>
+          <ul className="flex flex-col gap-2.5 text-sm text-white/75">
+            <li><Link to="/membership_form" className="transition-colors hover:text-coop-mint">Become a Member</Link></li>
+            <li><Link to="/role_selection" className="transition-colors hover:text-coop-mint">Portal Login</Link></li>
+            <li><a href="#loans" className="transition-colors hover:text-coop-mint">Loan Calculator</a></li>
+          </ul>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <h3 className="text-sm font-semibold text-white">Visit us</h3>
+          <ul className="flex flex-col gap-3 text-sm leading-relaxed text-white/75">
+            <li className="flex items-start gap-2.5">
+              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-coop-mint" />
+              <span>{OFFICE_ADDRESS}</span>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <Clock className="mt-0.5 h-4 w-4 shrink-0 text-coop-mint" />
+              <span>{OFFICE_HOURS}</span>
+            </li>
+            <li>
+              <a href={FACEBOOK_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2.5 transition-colors hover:text-coop-mint">
+                <Facebook className="h-4 w-4 shrink-0 text-coop-mint" />
+                facebook.com/ttmpc.tubungan.5
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div className="border-t border-white/10 py-5">
+        <p className={`text-center text-xs text-white/65 sm:text-left ${GUTTER}`}>
+          &copy; {new Date().getFullYear()} Tubungan Teachers’ Multi-Purpose Cooperative. Powered by REGANT. All rights reserved.
+        </p>
+      </div>
+    </footer>
   );
 }
 
 function App() {
-  const [menuOpen, setMenuOpen] = useState(false);
-
   return (
-    <div className="min-h-screen bg-white font-['Poppins'] text-gray-900 selection:bg-[#E9F7DE] selection:text-primary">
-      <header className="bg-white/80 backdrop-blur-md h-16 flex items-center shadow-sm border-b border-gray-100 sticky top-0 z-50 px-6 lg:px-12">
-        <div className="w-full flex items-center justify-between">
-          <Link to="/" className="flex-shrink-0">
-            <img
-              src="/img/ttmpc logo.png"
-              alt="TTMPC Logo"
-              className="h-8 md:h-10 w-auto"
-            />
-          </Link>
-          <nav className="hidden md:flex items-center">
-            <ul className="flex items-center gap-8 text-sm font-semibold text-gray-600">
-              <li><Link to="/" className="hover:text-primary-deep transition-colors">Home</Link></li>
-              <li><a href="#about" className="hover:text-primary-deep transition-colors">About</a></li>
-              <li><a href="#features" className="hover:text-primary-deep transition-colors">Features</a></li>
-              <li><a href="#contact" className="hover:text-primary-deep transition-colors">Contact</a></li>
-            </ul>
-            <div className="flex items-center gap-6 ml-8 pl-8 border-l border-gray-200 h-8">
-              <Link to="/membership_form" className="text-sm font-semibold text-primary-deep hover:brightness-90 transition-colors">
-                Become a Member
-              </Link>
-              <Button to="/role_selection" variant="primary" className="py-2 px-6 text-sm">
-                Portal Login
-              </Button>
-            </div>
-          </nav>
-          <button
-            className="md:hidden p-2.5 rounded-md text-gray-600 focus:outline-none bg-gray-50 hover:bg-gray-100 transition-colors"
-            onClick={() => setMenuOpen(!menuOpen)}
-            aria-label="Toggle menu"
-            aria-expanded={menuOpen}
-            aria-controls="mobile-menu-panel"
-          >
-            {menuOpen ? <X className="h-6 w-6" strokeWidth={2.5} /> : <MenuIcon className="h-6 w-6" strokeWidth={2.5} />}
-          </button>
-        </div>
-      </header>
-
-      {menuOpen && (
-        <div id="mobile-menu-panel" className="md:hidden bg-white shadow-xl z-40 px-6 py-6 flex flex-col gap-4 text-base font-medium text-gray-700 absolute w-full border-t border-gray-100">
-          <Link to="/" onClick={() => setMenuOpen(false)} className="py-2 border-b border-gray-50">Home</Link>
-          <a href="#about" onClick={() => setMenuOpen(false)} className="py-2 border-b border-gray-50">About</a>
-          <a href="#features" onClick={() => setMenuOpen(false)} className="py-2 border-b border-gray-50">Features</a>
-          <a href="#contact" onClick={() => setMenuOpen(false)} className="py-2">Contact</a>
-          <div className="flex flex-col gap-3 mt-4 pt-4 border-t border-gray-100">
-            <Button to="/membership_form" variant="secondary" onClick={() => setMenuOpen(false)}>
-              Become a Member
-            </Button>
-            <Button to="/role_selection" variant="primary" onClick={() => setMenuOpen(false)}>
-              Portal Login
-            </Button>
-          </div>
-        </div>
-      )}
-
-      <section className="bg-gradient-to-b from-[#E9F7DE]/60 to-white pt-20 pb-24 px-4 overflow-hidden relative">
-        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-12 lg:gap-20">
-          <Reveal className="flex-1 text-center lg:text-left z-10">
-            <h1 className="text-3xl md:text-5xl lg:text-6xl font-extrabold text-gray-900 mb-6 leading-[1.15] tracking-tight">
-              Tubungan Teachers' <br className="hidden lg:block" />
-              <span className="text-primary">Multi-Purpose Cooperative</span>
-            </h1>
-            <p className="text-gray-600 text-lg md:text-xl mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed">
-             Empowering our community through intelligent financial management since 1995.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-              <Button to="/role_selection" className="w-full sm:w-auto text-lg">Portal Login</Button>
-            </div>
-          </Reveal>
-          <Reveal className="flex-1 w-full max-w-2xl lg:max-w-none relative z-10" delayMs={150}>
-            <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 to-transparent rounded-3xl transform translate-x-4 translate-y-4 -z-10 blur-xl"></div>
-            <img
-              src="/img/landing page.png"
-              alt="System Dashboard Preview"
-              className="w-full h-auto rounded-2xl shadow-2xl border border-gray-100"
-            />
-          </Reveal>
-        </div>
-      </section>
-      
-      <StatsMarquee />
-
-      <section id="about" className="py-24 px-4 bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-20 mb-24">
-            <Reveal className="flex-1 lg:pr-8 text-center lg:text-left">
-              <span className="text-primary font-bold tracking-[0.2em] uppercase mb-4 block text-xs">Our Legacy</span>
-              <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-6 tracking-tight">
-                Empowering the Community Since 1995.
-              </h2>
-              <p className="text-gray-600 text-lg leading-relaxed mb-6 max-w-[60ch] mx-auto lg:mx-0">
-                Tubungan Teachers' Multi-Purpose Cooperative (TTMPC) was founded with a singular mission: to provide secure, accessible, and fair financial services to educators and local community members.
-              </p>
-              <p className="text-gray-600 text-lg leading-relaxed max-w-[60ch] mx-auto lg:mx-0">
-                Over the decades, we have grown from a small group of passionate teachers into a robust financial institution, continuously adapting to serve the evolving needs of our members while staying true to our cooperative roots.
-              </p>
-            </Reveal>
-            <Reveal className="flex-1 w-full" delayMs={150}>
-              <AboutImageCarousel />
-            </Reveal>
-          </div>
-
-          <Reveal className="text-center mb-20 mt-12">
-            <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4 tracking-tight">Core Cooperative Services</h3>
-            <p className="text-gray-600 max-w-2xl mx-auto text-lg">We offer a variety of financial products designed to build your savings and support your goals.</p>
-          </Reveal>
-
-          <div className="max-w-3xl mx-auto divide-y divide-gray-100">
-            <Reveal>
-              <IconListItem
-                icon={<Wallet strokeWidth={2} className="w-6 h-6 md:w-7 md:h-7" />}
-                title="Savings & Deposits"
-                description="Two dedicated ways to save: a regular passbook account, and Share Capital (CBU) that builds real equity in the cooperative you co-own."
-              />
-            </Reveal>
-
-            <Reveal delayMs={100}>
-              <IconListItem
-                icon={<Landmark strokeWidth={2} className="w-6 h-6 md:w-7 md:h-7" />}
-                title="Loan Programs"
-                tag="Core Service"
-                description="3 loan programs built around real needs: Emergency, Consolidated, and Bonus, tailored to your immediate financial needs."
-              />
-            </Reveal>
-
-            <Reveal delayMs={200}>
-              <IconListItem
-                icon={<HeartHandshake strokeWidth={2} className="w-6 h-6 md:w-7 md:h-7" />}
-                title="Member Benefits"
-                description="Become a co-owner for a ₱200 membership fee, build toward ₱20,000 in paid-up capital over time, and enjoy annual dividends and patronage refunds along the way."
-              />
-            </Reveal>
-          </div>
-        </div>
-      </section>
-
-      <section id="features" className="py-24 bg-gray-50 relative px-4 overflow-hidden">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:24px_24px]"></div>
-        <div className="max-w-7xl mx-auto relative z-10">
-          <Reveal className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-5 tracking-tight">
-              Run With the Discipline of a Real Financial Institution.
-            </h2>
-            <p className="text-gray-600 text-lg md:text-xl max-w-2xl mx-auto font-medium leading-relaxed">
-              Behind every deposit and loan is a modern system that keeps our books accurate, our approvals fair, and our officers accountable to you.
-            </p>
-          </Reveal>
-          <div className="grid md:grid-cols-2 gap-x-12 max-w-5xl mx-auto">
-            <div className="divide-y divide-gray-200 md:pr-8">
-              <Reveal>
-                <IconListItem
-                  icon={<Brain strokeWidth={2} className="w-6 h-6 md:w-7 md:h-7" />}
-                  title="Data-Driven Loan Screening"
-                  description="Every application is weighed against real repayment history, not guesswork or favoritism, so approvals stay fair and consistent for every member."
-                />
-              </Reveal>
-              <Reveal delayMs={100}>
-                <IconListItem
-                  icon={<PieChart strokeWidth={2} className="w-6 h-6 md:w-7 md:h-7" />}
-                  title="Real-Time Financial Oversight"
-                  description="Officers see the cooperative's full financial position at all times, so your contributions are never mismanaged or misplaced."
-                />
-              </Reveal>
-              <Reveal delayMs={200}>
-                <IconListItem
-                  icon={<CreditCard strokeWidth={2} className="w-6 h-6 md:w-7 md:h-7" />}
-                  title="Standardized Loan Rules"
-                  description="Every application runs through the same eligibility checks and amortization schedule, so every member is evaluated by the same rules."
-                />
-              </Reveal>
-            </div>
-            <div className="divide-y divide-gray-200 md:pl-8 md:border-l md:border-gray-200">
-              <Reveal delayMs={100}>
-                <IconListItem
-                  icon={<Users strokeWidth={2} className="w-6 h-6 md:w-7 md:h-7" />}
-                  title="Your Full Record, One Place"
-                  description="Your profile, capital contributions, and complete loan history live in one secure record, not scattered paper files."
-                />
-              </Reveal>
-              <Reveal delayMs={200}>
-                <IconListItem
-                  icon={<TrendingUp strokeWidth={2} className="w-6 h-6 md:w-7 md:h-7" />}
-                  title="Funds Ready When You Need Them"
-                  description="We plan ahead for seasonal loan demand, so the cooperative isn't caught short when members need funds most."
-                />
-              </Reveal>
-              <Reveal delayMs={300}>
-                <IconListItem
-                  icon={<FileText strokeWidth={2} className="w-6 h-6 md:w-7 md:h-7" />}
-                  title="Full Transparency to the Board"
-                  description="The Board reviews accurate, board-ready financial reports every cycle, so your cooperative's finances stay fully accountable."
-                  ctaTo="/role_selection"
-                  ctaLabel="See Our Reports"
-                />
-              </Reveal>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="py-24 px-4 bg-primary-deep relative overflow-hidden">
-        <div className="absolute top-0 right-0 -mt-20 -mr-20 w-80 h-80 bg-white opacity-10 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-80 h-80 bg-black opacity-10 rounded-full blur-3xl"></div>
-        <Reveal className="max-w-4xl mx-auto text-center text-white relative z-10">
-          <h2 className="text-4xl md:text-5xl font-bold mb-6 tracking-tight">
-            Ready to Join TTMPC?
-          </h2>
-          <p className="text-white/90 text-xl mb-10 max-w-2xl mx-auto leading-relaxed">
-            Become a co-owner of a cooperative that's served Tubungan's teachers since 1995, or log in to manage your account today.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-5 justify-center">
-            <Button to="/membership_form" variant="secondary" className="text-lg px-8">
-              Become a Member
-            </Button>
-            <Button to="/role_selection" variant="outline" className="text-lg px-8">
-              Portal Login
-            </Button>
-          </div>
-        </Reveal>
-      </section>
-
-      <footer className="bg-gray-900 text-white py-16 px-4 border-t-4 border-primary">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid md:grid-cols-4 gap-12 mb-12">
-            <div className="col-span-1 md:col-span-1">
-              <img
-                src="/img/ttmpc logo.png"
-                alt="TTMPC Logo"
-                className="h-14 w-auto mb-6 brightness-0 invert"
-              />
-              <p className="text-gray-400 text-sm leading-relaxed mb-6">
-                Tubungan Teachers' Multi-Purpose Cooperative.<br />
-                Empowering our community through intelligent financial management since 1995.
-              </p>
-            </div>
-            <div>
-              <h4 className="text-lg font-bold mb-6 text-white">Services</h4>
-              <ul className="space-y-4 text-gray-400 text-sm font-medium">
-                <li><Link to="/loan_services" className="hover:text-white transition-colors">Loan Services</Link></li>
-                <li><Link to="/membership_form" className="hover:text-white transition-colors">Become a Member</Link></li>
-                <li><Link to="/role_selection" className="hover:text-white transition-colors">Portal Login</Link></li>
-              </ul>
-            </div>
-            <div id="contact" className="col-span-1 md:col-span-2">
-              <h4 className="text-lg font-bold mb-6 text-white">Contact</h4>
-              <ul className="space-y-4 text-gray-400 text-sm font-medium">
-                <li className="flex items-start gap-3">
-                  <MapPin className="w-5 h-5 text-primary shrink-0" />
-                  <span>Tubungan, Iloilo, Philippines</span>
-                </li>
-              </ul>
-            </div>
-          </div>
-          <div className="pt-8 border-t border-gray-800 text-center text-gray-500 text-sm font-medium">
-            &copy; {new Date().getFullYear()} TTMPC Integrated System. All rights reserved.
-          </div>
-        </div>
-      </footer>
+    <div className="min-h-screen w-full overflow-x-clip bg-white font-body text-coop-forest antialiased selection:bg-coop-mint selection:text-coop-forest">
+      <InfoStrip />
+      <Header />
+      <main className="w-full">
+        <Hero />
+        <FactsStrip />
+        <Services />
+        <Loans />
+        <About />
+        <Regant />
+        <Membership />
+        <ClosingCta />
+      </main>
+      <Footer />
     </div>
   );
 }
