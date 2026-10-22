@@ -38,3 +38,20 @@ export const formatShortDate = (value) => {
 
 export const formatCurrency = (value) =>
   `₱${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// The installment actually due next, from the repayment schedule. Emergency
+// loans are diminishing, so this is smaller than the first amortization later on.
+export const nextInstallmentAmount = (loan) => {
+  const next = loan?.next_due_schedule;
+  if (!next) return Number(loan?.monthly_amortization || 0);
+  const components = Number(next.expected_principal || 0) + Number(next.expected_interest || 0);
+  return components > 0 ? components : Number(next.expected_amount || loan.monthly_amortization || 0);
+};
+
+// The loan whose installment falls due soonest (null when none has a schedule).
+// The Dashboard's "Next Payment" and My Loans' "Next Payment Due" both use this,
+// so the two pages can never show different payments.
+export const findNextPaymentLoan = (loans) =>
+  [...loans]
+    .filter((loan) => loan.next_due_schedule?.due_date)
+    .sort((a, b) => String(a.next_due_schedule.due_date).localeCompare(String(b.next_due_schedule.due_date)))[0] || null;

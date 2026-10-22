@@ -16,6 +16,7 @@ import MemberDashboardLoading from "./MemberDashboardLoading";
 import AccountSetupGate from "./AccountSetupGate";
 import { getOrFetch, invalidate, peek } from "../memberDataCache";
 import { pickLatestCbuRow } from "../../utils/cbuOrdering";
+import { findNextPaymentLoan, nextInstallmentAmount } from "./loanDisplay";
 import {
   LayoutDashboard,
   Users,
@@ -683,21 +684,31 @@ const MemberDashboard = () => {
     [activeLoans]
   );
 
+  // Same rule as My Loans: the installment due soonest (from the repayment
+  // schedule), not the sum of every loan's fixed amortization. Until the
+  // lifecycle data has arrived (no schedules yet) fall back to the login
+  // bundle's figures so the card is never blank.
+  const nextPayment = useMemo(() => findNextPaymentLoan(activeLoans), [activeLoans]);
+
   const nextPaymentAmount = useMemo(
-    () => activeLoans.reduce((sum, loan) => sum + (loan.monthly || 0), 0),
-    [activeLoans]
+    () => (nextPayment
+      ? nextInstallmentAmount(nextPayment)
+      : activeLoans.reduce((sum, loan) => sum + (loan.monthly || 0), 0)),
+    [nextPayment, activeLoans]
   );
 
-  const nextPaymentDate = nextDueDate ? formatDate(nextDueDate) : (activeLoans[0]?.application_date ? formatDate(activeLoans[0].application_date) : 'N/A');
+  const nextDueIso = nextPayment?.next_due_schedule?.due_date || nextDueDate;
+
+  const nextPaymentDate = nextDueIso ? formatDate(nextDueIso) : (activeLoans[0]?.application_date ? formatDate(activeLoans[0].application_date) : 'N/A');
 
   const daysUntilNextDue = useMemo(() => {
-    if (!nextDueDate) return null;
-    const due = new Date(nextDueDate);
+    if (!nextDueIso) return null;
+    const due = new Date(nextDueIso);
     if (Number.isNaN(due.getTime())) return null;
     const now = new Date();
     const diffMs = due.getTime() - now.getTime();
     return Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-  }, [nextDueDate]);
+  }, [nextDueIso]);
 
   // Show loading skeleton while dashboard data is loading
   if (loadingProfile) {
@@ -999,7 +1010,7 @@ const MemberDashboard = () => {
               <p className="text-[11px] sm:text-xs font-semibold text-green-100 mb-1">Next Payment</p>
               <h3 className="text-base sm:text-xl lg:text-2xl font-black mb-1.5 sm:mb-2 break-words">{formatCurrency(nextPaymentAmount)}</h3>
               <p className="text-[10px] font-medium text-green-100 mt-auto">
-                Due on: {nextPaymentDate}
+                Due on: {nextPaymentDate}{nextPayment?.loan_type ? ` · ${nextPayment.loan_type}` : ''}
               </p>
             </div>
           </div>

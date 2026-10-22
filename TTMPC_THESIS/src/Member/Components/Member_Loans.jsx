@@ -11,10 +11,12 @@ import TableStateRow from "../../components/TableStateRow";
 import LoanJourneyPanel from "./LoanJourneyPanel";
 import {
   formatCurrency,
+  findNextPaymentLoan,
   formatShortDate,
   isFullyPaidLoan,
   isReleasedLoan,
   memberStatusLabel,
+  nextInstallmentAmount,
   toneStyles,
 } from "./loanDisplay";
 import { getOrFetch, invalidate, peek } from "../memberDataCache";
@@ -24,7 +26,6 @@ import {
   Activity,
   Banknote,
   CalendarClock,
-  FileText,
   ArrowRight,
   Receipt,
   Settings,
@@ -66,15 +67,6 @@ const routeMap = {
 
 // Released and still being paid. Pending applications owe nothing yet.
 const isActiveLoan = (loan) => isReleasedLoan(loan) && !isFullyPaidLoan(loan);
-
-// The installment actually due next, from the repayment schedule. Emergency
-// loans are diminishing, so this is smaller than the first amortization later on.
-const nextInstallmentAmount = (loan) => {
-  const next = loan.next_due_schedule;
-  if (!next) return Number(loan.monthly_amortization || 0);
-  const components = Number(next.expected_principal || 0) + Number(next.expected_interest || 0);
-  return components > 0 ? components : Number(next.expected_amount || loan.monthly_amortization || 0);
-};
 
 const StatusBadge = ({ loan }) => {
   const status = memberStatusLabel(loan);
@@ -190,27 +182,12 @@ const Member_Loans = () => {
 
   const activeLoans = useMemo(() => loans.filter(isActiveLoan), [loans]);
 
-  const totalOutstanding = useMemo(
-    () => activeLoans.reduce((sum, loan) => sum + Number(loan.remaining_balance || 0), 0),
-    [activeLoans]
-  );
-
   const totalMonthly = useMemo(
     () => activeLoans.reduce((sum, loan) => sum + nextInstallmentAmount(loan), 0),
     [activeLoans]
   );
 
-  const nextPayment = useMemo(() => {
-    const upcoming = activeLoans
-      .filter((loan) => loan.next_due_schedule?.due_date)
-      .sort((a, b) => String(a.next_due_schedule.due_date).localeCompare(String(b.next_due_schedule.due_date)));
-    return upcoming[0] || null;
-  }, [activeLoans]);
-
-  const activeTypes = useMemo(
-    () => [...new Set(activeLoans.map((loan) => String(loan.loan_type || '').trim()).filter(Boolean))],
-    [activeLoans]
-  );
+  const nextPayment = useMemo(() => findNextPaymentLoan(activeLoans), [activeLoans]);
 
   // View opens a loan; clicking View on the open loan closes it again.
   const toggleLoan = (loanId) => {
@@ -318,17 +295,9 @@ const Member_Loans = () => {
             </div>
           </div>
 
-          {/* Summary cards — released loans only */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-8">
-            <div className="bg-white dark:bg-mdark-card p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border flex flex-col">
-              <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-mdark-elevated flex items-center justify-center mb-2.5 sm:mb-4 border border-gray-200 dark:border-mdark-border">
-                <Banknote className="w-4 h-4 text-gray-600 dark:text-mdark-text-secondary" />
-              </div>
-              <p className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-mdark-text-secondary mb-1">Total Outstanding Balance</p>
-              <h3 className="text-base sm:text-2xl font-black text-gray-900 dark:text-mdark-text break-words">{formatCurrency(totalOutstanding)}</h3>
-              <p className="text-[10px] font-medium text-gray-500 dark:text-mdark-text-secondary mt-auto pt-2">Across active loans</p>
-            </div>
-
+          {/* Summary cards — released loans only. The balance and loan count live on
+              the Dashboard; these two are what only this page adds. */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:gap-6 mb-8 lg:max-w-3xl">
             <div className="bg-white dark:bg-mdark-card p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border flex flex-col">
               <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-mdark-elevated flex items-center justify-center mb-2.5 sm:mb-4 border border-gray-200 dark:border-mdark-border">
                 <CalendarClock className="w-4 h-4 text-member-green dark:text-mdark-accent" />
@@ -336,17 +305,6 @@ const Member_Loans = () => {
               <p className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-mdark-text-secondary mb-1">Total Monthly Payment</p>
               <h3 className="text-base sm:text-2xl font-black text-gray-900 dark:text-mdark-text break-words">{formatCurrency(totalMonthly)}</h3>
               <p className="text-[10px] font-medium text-gray-500 dark:text-mdark-text-secondary mt-auto pt-2">Next installment of each active loan</p>
-            </div>
-
-            <div className="bg-white dark:bg-mdark-card p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border flex flex-col">
-              <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-mdark-elevated flex items-center justify-center mb-2.5 sm:mb-4 border border-gray-200 dark:border-mdark-border">
-                <FileText className="w-4 h-4 text-gray-600 dark:text-mdark-text-secondary" />
-              </div>
-              <p className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-mdark-text-secondary mb-1">Active Loans</p>
-              <h3 className="text-base sm:text-2xl font-black text-gray-900 dark:text-mdark-text">{activeLoans.length}</h3>
-              <p className="text-[10px] font-medium text-gray-500 dark:text-mdark-text-secondary mt-auto pt-2 break-words">
-                {activeTypes.join(', ') || 'No active loans'}
-              </p>
             </div>
 
             <div className="bg-white dark:bg-mdark-card p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border flex flex-col">
