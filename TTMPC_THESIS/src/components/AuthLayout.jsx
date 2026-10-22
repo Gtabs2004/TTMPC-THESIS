@@ -169,6 +169,40 @@ function BrandPanel({ variant = 'default' }) {
   );
 }
 
+// Phone/tablet version of the staff brand panel (the side panel is hidden below
+// md): the illustration as a banner with the logo and name centred over it. A
+// light veil in the panel colour keeps the text readable and lets the building
+// show through. Tune the crop with objectPosition (higher = lower in the
+// picture) and the banner height.
+function MobileBanner() {
+  return (
+    <header className="relative h-40 overflow-hidden bg-[#eaf6df] sm:h-48 md:hidden">
+      <img
+        src="/assets/img/bg-login.png"
+        alt=""
+        aria-hidden="true"
+        decoding="async"
+        className="absolute inset-0 h-full w-full object-cover"
+        style={{ objectPosition: '50% 85%' }}
+      />
+      <div
+        aria-hidden="true"
+        className="absolute inset-0"
+        style={{ background: 'linear-gradient(to bottom, rgba(234,246,223,0.9) 0%, rgba(234,246,223,0.78) 50%, rgba(234,246,223,0.55) 100%)' }}
+      />
+      <div className="relative z-10 flex h-full flex-col items-center justify-center px-6 text-center">
+        <img src="/img/ttmpc logo.png" alt="TTMPC Logo" className="h-12 w-auto drop-shadow-sm" />
+        <p className="mt-2 text-sm font-semibold leading-snug text-[#1f7d26]">
+          Tubungan Teachers Multi-Purpose Cooperative
+        </p>
+        <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#238527]">
+          Smarter. Secure. Connected.
+        </p>
+      </div>
+    </header>
+  );
+}
+
 /**
  * @param {string} title     Heading above the form (default "Welcome back!")
  * @param {string} subtitle  Sub-line under the heading
@@ -201,15 +235,20 @@ export default function AuthLayout({
       <div className={`auth-rise grid w-full max-w-5xl overflow-hidden rounded-3xl bg-white shadow-[0_20px_60px_rgba(30,80,30,0.15)] md:min-h-[36rem] md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] ${variant === 'staff' ? 'md:max-w-[56rem] md:min-h-[37rem] md:grid-cols-[minmax(0,1fr)_minmax(0,1.12fr)]' : ''}`}>
         <BrandPanel variant={variant} />
 
+        {/* Below md the brand panel is hidden: the staff/member pages get the
+            illustration as a banner, other variants a compact logo block. */}
+        {variant === 'staff' && <MobileBanner />}
+
         <main className="flex flex-col justify-center px-6 py-10 sm:px-12 md:py-12 lg:px-16">
-          {/* Compact mobile branding — the brand panel is hidden below md */}
-          <div className="mb-6 flex flex-col items-center text-center md:hidden">
-            <img src="/img/ttmpc logo.png" alt="TTMPC Logo" className="h-16 w-auto" />
-            <p className="mt-3 text-sm font-semibold text-gray-800">
-              Tubungan Teachers Multi-Purpose Cooperative
-            </p>
-            <p className="mt-0.5 text-xs text-gray-500">Smarter. Secure. Connected.</p>
-          </div>
+          {variant !== 'staff' && (
+            <div className="mb-6 flex flex-col items-center text-center md:hidden">
+              <img src="/img/ttmpc logo.png" alt="TTMPC Logo" className="h-16 w-auto" />
+              <p className="mt-3 text-sm font-semibold text-gray-800">
+                Tubungan Teachers Multi-Purpose Cooperative
+              </p>
+              <p className="mt-0.5 text-xs text-gray-500">Smarter. Secure. Connected.</p>
+            </div>
+          )}
 
           <div className="auth-rise-2 mx-auto w-full max-w-sm">
             <Link
