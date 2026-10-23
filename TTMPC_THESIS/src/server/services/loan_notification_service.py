@@ -38,6 +38,7 @@ NotificationType = Literal[
     "approve",              # manager -> treasurer (loan approved, ready for disbursement)
     "revise",               # manager -> bookkeeper (returned for revision)
     "reject",               # manager -> bookkeeper (rejected at manager stage)
+    "resubmit",             # member -> bookkeeper (revised application resubmitted)
     # Member-facing types ----------------------------------------------------
     "member_submitted",     # application received (bookkeeper review pending)
     "member_recommended",   # bookkeeper recommended your loan to manager
@@ -58,6 +59,7 @@ _SEVERITY_BY_TYPE: dict[str, str] = {
     "decline": "danger",
     "reject": "danger",
     "revise": "warning",
+    "resubmit": "info",
     "member_submitted": "info",
     "member_recommended": "success",
     "member_bk_declined": "danger",
@@ -145,6 +147,12 @@ def _build_message(
         message = (
             f"The loan application of {safe_member} ({safe_loan_type}) has been "
             f"rejected by the Manager."
+        )
+    elif notification_type == "resubmit":
+        title = "Revised loan application resubmitted"
+        message = (
+            f"{safe_member} resubmitted their revised {safe_loan_type} application. "
+            f"Please review it again."
         )
     # ---- Member-facing messages ----
     elif notification_type == "member_submitted":

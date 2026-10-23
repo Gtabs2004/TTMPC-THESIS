@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { UserAuth } from '../contex/AuthContext';
 import { Wallet, Landmark, ChevronRight, Lock } from 'lucide-react';
 import { fetchLoanPrefill } from '../LOANFORMS/loanSubmission';
@@ -12,7 +12,18 @@ const SHARE_CAPITAL_MULTIPLIER = 3;
 const Conso_Choice = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const editControlNumber = searchParams.get('editControlNumber') || '';
   const [upEligibility, setUpEligibility] = useState({ loading: true, eligible: false, reason: '' });
+
+  // Revising an existing Consolidated application: skip the amount-range
+  // choice (the member is editing, not picking a new range) and go straight
+  // to the ≤500k form, which carries the edit identifier.
+  useEffect(() => {
+    if (editControlNumber) {
+      navigate(`/Consolidated_Loan?editControlNumber=${encodeURIComponent(editControlNumber)}`, { replace: true });
+    }
+  }, [editControlNumber, navigate]);
 
   useEffect(() => {
     let isMounted = true;

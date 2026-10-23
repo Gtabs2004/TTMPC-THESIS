@@ -2629,23 +2629,29 @@ const LoanApprovalDetails = () => {
           </div>
           <div className="flex flex-wrap items-center gap-2 ml-auto">
             {isBookkeeperFlow ? (
-              <button
-                onClick={() => {
-                  setBookkeeperInternalRemarks(loanDetails?.summary?.bookkeeperInternalRemarks === 'No internal remarks submitted.' ? '' : (loanDetails?.summary?.bookkeeperInternalRemarks || ''));
-                  setActiveModal('recommend');
-                }}
-                className="flex items-center px-5 py-2 rounded-lg bg-member-green text-white hover:bg-[#154718] font-bold text-sm transition-colors"
-              >
-                <Check className="w-4 h-4 mr-2" /> {(() => {
-                  const isConsolidatedHigh =
-                    String(loanDetails?.summary?.loanType || '').toLowerCase().includes('consolidated')
-                    && Number(loanDetails?.summary?.recommendedAmountRaw || 0) > 500000;
-                  const nextStage = isConsolidatedHigh ? 'BOD' : 'Manager';
-                  return String(loanDetails?.status || '').toLowerCase().includes('revision')
-                    ? `Resubmit to ${nextStage}`
-                    : `Recommend for ${nextStage} Approval`;
-                })()}
-              </button>
+              String(loanDetails?.status || '').toLowerCase().replace(/\s+/g, '_') === 'revision_requested' ? (
+                <div className="flex items-center px-4 py-2 rounded-lg border border-yellow-200 text-yellow-800 bg-[#FEF9C3] font-semibold text-sm">
+                  <FileEdit className="w-4 h-4 mr-2" /> Waiting for member to revise and resubmit
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setBookkeeperInternalRemarks(loanDetails?.summary?.bookkeeperInternalRemarks === 'No internal remarks submitted.' ? '' : (loanDetails?.summary?.bookkeeperInternalRemarks || ''));
+                    setActiveModal('recommend');
+                  }}
+                  className="flex items-center px-5 py-2 rounded-lg bg-member-green text-white hover:bg-[#154718] font-bold text-sm transition-colors"
+                >
+                  <Check className="w-4 h-4 mr-2" /> {(() => {
+                    const isConsolidatedHigh =
+                      String(loanDetails?.summary?.loanType || '').toLowerCase().includes('consolidated')
+                      && Number(loanDetails?.summary?.recommendedAmountRaw || 0) > 500000;
+                    const nextStage = isConsolidatedHigh ? 'BOD' : 'Manager';
+                    return String(loanDetails?.status || '').toLowerCase().replace(/\s+/g, '_') === 'revised_submitted'
+                      ? `Resubmit to ${nextStage}`
+                      : `Recommend for ${nextStage} Approval`;
+                  })()}
+                </button>
+              )
             ) : isBodFlow ? (
               <>
                 <button

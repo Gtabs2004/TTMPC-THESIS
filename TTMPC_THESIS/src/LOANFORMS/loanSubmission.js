@@ -812,3 +812,49 @@ export async function submitUnifiedLoan({
     insertedCoMakers: coMakerRows.length,
   };
 }
+
+async function authedFetch(path, options = {}) {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData?.session?.access_token;
+  if (!accessToken) throw new Error('Please sign in again to continue.');
+  return fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+}
+
+// Fetches one of the member's own loan rows for revision edit-mode prefill.
+export async function fetchLoanForRevisionEdit(controlNumber) {
+  const response = await authedFetch(`/api/member/loans/${encodeURIComponent(controlNumber)}`);
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result?.success) {
+    throw new Error(result?.detail || 'Unable to load this loan application for editing.');
+  }
+  return result.data;
+}
+
+// Resubmits a loan the Manager sent back for revision. `fields` carries only
+// the loan's own editable columns (amount/term/purpose/etc.) — identity and
+// workflow-status fields are set server-side.
+export async function resubmitLoanRevision(controlNumber, fields) {
+  const response = await authedFetch(`/api/member/loans/${encodeURIComponent(controlNumber)}/resubmit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields }),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result?.success) {
+    throw new Error(result?.detail || 'Unable to resubmit your revised application.');
+  }
+
+  const { data: { user } = {} } = await supabase.auth.getUser();
+  if (user?.id) {
+    invalidate(`member-loans:${user.id}`);
+    invalidate(`member-dashboard:${user.id}`);
+  }
+
+  return result;
+}

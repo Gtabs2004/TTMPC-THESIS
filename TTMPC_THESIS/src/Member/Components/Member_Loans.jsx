@@ -15,10 +15,12 @@ import {
   formatShortDate,
   isFullyPaidLoan,
   isReleasedLoan,
+  isRevisionRequestedLoan,
   memberStatusLabel,
   nextInstallmentAmount,
   toneStyles,
 } from "./loanDisplay";
+import { loanFormPathForType } from "./loanFormRouting";
 import { getOrFetch, invalidate, peek } from "../memberDataCache";
 import {
   LayoutDashboard,
@@ -215,6 +217,12 @@ const Member_Loans = () => {
   const rateLabel = (loan) => (loan.interest_rate ? `${Number(loan.interest_rate).toFixed(2)}%` : 'N/A');
   const paymentLabel = (loan) => (Number(loan.monthly_amortization) > 0 ? formatCurrency(loan.monthly_amortization) : 'N/A');
 
+  const goToEditResubmit = (loan) => {
+    const formPath = loanFormPathForType(loan.loan_type);
+    if (!formPath) return;
+    navigate(`${formPath}?editControlNumber=${encodeURIComponent(loan.loan_id)}`);
+  };
+
   return (
     <div className="relative flex h-screen overflow-hidden bg-[#F8F9FA] dark:bg-mdark-bg">
       <style>{styles}</style>
@@ -373,18 +381,29 @@ const Member_Loans = () => {
                         <td className="p-5 text-sm font-bold text-member-green dark:text-mdark-accent">{paymentLabel(loan)}</td>
                         <td className="p-5"><StatusBadge loan={loan} /></td>
                         <td className="p-5 text-right">
-                          <button
-                            type="button"
-                            onClick={() => toggleLoan(loan.loan_id)}
-                            aria-expanded={isSelected}
-                            className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-                              isSelected
-                                ? 'bg-member-green text-white hover:bg-[#154718] dark:bg-mdark-accent dark:hover:bg-mdark-accent/90'
-                                : 'border border-member-green text-member-green hover:bg-[#EAF1EB] dark:border-mdark-accent dark:text-mdark-accent dark:hover:bg-mdark-accent/15'
-                            }`}
-                          >
-                            {isSelected ? <>Close <X className="w-3.5 h-3.5" /></> : <>View <ArrowRight className="w-3.5 h-3.5" /></>}
-                          </button>
+                          <div className="inline-flex items-center gap-2">
+                            {isRevisionRequestedLoan(loan) && (
+                              <button
+                                type="button"
+                                onClick={() => goToEditResubmit(loan)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 transition-colors hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-400"
+                              >
+                                Edit & Resubmit
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => toggleLoan(loan.loan_id)}
+                              aria-expanded={isSelected}
+                              className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+                                isSelected
+                                  ? 'bg-member-green text-white hover:bg-[#154718] dark:bg-mdark-accent dark:hover:bg-mdark-accent/90'
+                                  : 'border border-member-green text-member-green hover:bg-[#EAF1EB] dark:border-mdark-accent dark:text-mdark-accent dark:hover:bg-mdark-accent/15'
+                              }`}
+                            >
+                              {isSelected ? <>Close <X className="w-3.5 h-3.5" /></> : <>View <ArrowRight className="w-3.5 h-3.5" /></>}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -410,39 +429,51 @@ const Member_Loans = () => {
                   ? `left of ${formatCurrency(loan.principal)}`
                   : isReleasedLoan(loan) ? 'loan amount' : 'applied for';
                 return (
-                  <button
-                    type="button"
-                    key={loan.loan_id}
-                    onClick={() => toggleLoan(loan.loan_id)}
-                    aria-expanded={isSelected}
-                    className={`flex w-full items-center gap-3 text-left px-4 py-3 transition-colors ${
-                      isSelected
-                        ? 'bg-[#EAF1EB]/70 dark:bg-mdark-accent/10 shadow-[inset_3px_0_0_0_var(--color-member-green)]'
-                        : 'active:bg-gray-50 dark:active:bg-gray-800/60'
-                    }`}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="truncate text-sm font-bold text-gray-900 dark:text-mdark-text">{loan.loan_type}</p>
-                        <StatusBadge loan={loan} />
+                  <div key={loan.loan_id}>
+                    <button
+                      type="button"
+                      onClick={() => toggleLoan(loan.loan_id)}
+                      aria-expanded={isSelected}
+                      className={`flex w-full items-center gap-3 text-left px-4 py-3 transition-colors ${
+                        isSelected
+                          ? 'bg-[#EAF1EB]/70 dark:bg-mdark-accent/10 shadow-[inset_3px_0_0_0_var(--color-member-green)]'
+                          : 'active:bg-gray-50 dark:active:bg-gray-800/60'
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="truncate text-sm font-bold text-gray-900 dark:text-mdark-text">{loan.loan_type}</p>
+                          <StatusBadge loan={loan} />
+                        </div>
+                        <p className="mt-1 text-lg font-black leading-tight text-gray-900 dark:text-mdark-text">
+                          {headline}
+                          <span className="ml-1.5 text-[11px] font-medium text-gray-500 dark:text-mdark-text-secondary">{headlineLabel}</span>
+                        </p>
+                        <p className="mt-1 truncate text-[11px] text-gray-500 dark:text-mdark-text-secondary">
+                          <span className="font-semibold text-member-green dark:text-mdark-accent">{paymentLabel(loan)}/mo</span>
+                          <span className="mx-1.5 text-gray-300 dark:text-mdark-text-muted">·</span>
+                          {rateLabel(loan)} monthly
+                          <span className="mx-1.5 text-gray-300 dark:text-mdark-text-muted">·</span>
+                          <span className="font-mono">{loan.loan_id}</span>
+                        </p>
                       </div>
-                      <p className="mt-1 text-lg font-black leading-tight text-gray-900 dark:text-mdark-text">
-                        {headline}
-                        <span className="ml-1.5 text-[11px] font-medium text-gray-500 dark:text-mdark-text-secondary">{headlineLabel}</span>
-                      </p>
-                      <p className="mt-1 truncate text-[11px] text-gray-500 dark:text-mdark-text-secondary">
-                        <span className="font-semibold text-member-green dark:text-mdark-accent">{paymentLabel(loan)}/mo</span>
-                        <span className="mx-1.5 text-gray-300 dark:text-mdark-text-muted">·</span>
-                        {rateLabel(loan)} monthly
-                        <span className="mx-1.5 text-gray-300 dark:text-mdark-text-muted">·</span>
-                        <span className="font-mono">{loan.loan_id}</span>
-                      </p>
-                    </div>
-                    <ChevronRight
-                      className={`w-4 h-4 shrink-0 text-gray-400 transition-transform ${isSelected ? 'rotate-90 text-member-green' : ''}`}
-                      aria-hidden="true"
-                    />
-                  </button>
+                      <ChevronRight
+                        className={`w-4 h-4 shrink-0 text-gray-400 transition-transform ${isSelected ? 'rotate-90 text-member-green' : ''}`}
+                        aria-hidden="true"
+                      />
+                    </button>
+                    {isRevisionRequestedLoan(loan) && (
+                      <div className="px-4 pb-3">
+                        <button
+                          type="button"
+                          onClick={() => goToEditResubmit(loan)}
+                          className="w-full rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700 transition-colors hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-400"
+                        >
+                          Edit & Resubmit
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>

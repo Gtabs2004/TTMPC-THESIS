@@ -1,8 +1,8 @@
 ﻿import React, { useEffect, useRef, useState } from 'react';
 import { Download } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import LoanSubmittedDialog from '../components/LoanSubmittedDialog';
-import { createUniqueControlNumber, fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
+import { createUniqueControlNumber, fetchLoanForRevisionEdit, fetchLoanPrefill, resubmitLoanRevision, submitUnifiedLoan } from './loanSubmission';
 import { buildBonusPayload, computeLoan } from './loanComputeApi';
 import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
 import { useLoanEligibility } from '../hooks/useLoanEligibility';
@@ -95,6 +95,10 @@ function Bonus_Loan({ staffIntake = false }) {
   const [submittedOpen, setSubmittedOpen] = useState(false);
   const { addNotification } = useNotification();
   const isNonMemberBonus = staffIntake;
+  const [searchParams] = useSearchParams();
+  const editControlNumber = !isNonMemberBonus ? (searchParams.get('editControlNumber') || '') : '';
+  const isRevisionEdit = Boolean(editControlNumber);
+  const [revisionRemarks, setRevisionRemarks] = useState('');
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
   const PDF_PREVIEW_WINDOW_NAME = isNonMemberBonus ? 'nonmember-bonus-loan-preview' : 'bonus-loan-preview';
@@ -140,7 +144,7 @@ function Bonus_Loan({ staffIntake = false }) {
   const [printing, setPrinting] = useState(false);
   const [formData, setFormData] = useState({
     application_type: 'New',
-    control_no: createUniqueControlNumber(isNonMemberBonus ? 'NMBL' : 'BL'),
+    control_no: editControlNumber || createUniqueControlNumber(isNonMemberBonus ? 'NMBL' : 'BL'),
     date_applied: new Date().toISOString().split('T')[0],
     surname: '',
     first_name: '',
@@ -359,6 +363,40 @@ function Bonus_Loan({ staffIntake = false }) {
     };
   }, [isNonMemberBonus]);
 
+  // Editing a loan the Manager sent back for revision: pull the loan's own
+  // fields (amount/term/purpose/etc.) to prefill on top of the profile
+  // prefill above, which only covers member-profile fields.
+  useEffect(() => {
+    if (!isRevisionEdit) return;
+    let isMounted = true;
+    (async () => {
+      try {
+        const loanRow = await fetchLoanForRevisionEdit(editControlNumber);
+        if (!isMounted || !loanRow) return;
+        setFormData((prev) => ({
+          ...prev,
+          control_no: loanRow.control_number || prev.control_no,
+          application_type: loanRow.application_type || prev.application_type,
+          loan_amount_numeric: loanRow.loan_amount != null ? String(loanRow.loan_amount) : prev.loan_amount_numeric,
+          bonus_amount_numeric: loanRow.bonus_amount_numeric != null ? String(loanRow.bonus_amount_numeric) : prev.bonus_amount_numeric,
+          loan_term_months: loanRow.term != null ? String(loanRow.term) : prev.loan_term_months,
+          loan_purpose: loanRow.loan_purpose || prev.loan_purpose,
+          monthly_amortization: loanRow.monthly_amortization != null ? String(loanRow.monthly_amortization) : prev.monthly_amortization,
+          source_of_income: loanRow.source_of_income || prev.source_of_income,
+          payment_start_date: loanRow.payment_start_date || prev.payment_start_date,
+        }));
+        setRevisionRemarks(
+          loanRow.raw_payload?.optionalFields?.manager_review_details?.remarks || ''
+        );
+      } catch (err) {
+        addNotification(err.message || 'Unable to load your loan application for editing.', 'error');
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, [isRevisionEdit, editControlNumber]);
+
   // Keep amount words synced to whichever numeric amount source user edits.
   useEffect(() => {
     const numericAmount = formData.loan_amount_numeric || formData.bonus_amount_numeric;
@@ -490,6 +528,25 @@ function Bonus_Loan({ staffIntake = false }) {
     setLoading(true);
 
     try {
+      if (isRevisionEdit) {
+        await resubmitLoanRevision(editControlNumber, {
+          loan_amount: formData.loan_amount_numeric,
+          principal_amount: formData.loan_amount_numeric,
+          term: formData.loan_term_months,
+          total_interest: formData.total_interest || null,
+          loan_amount_words: formData.loan_amount_words || null,
+          loan_purpose: formData.loan_purpose || null,
+          monthly_amortization: formData.monthly_amortization || null,
+          source_of_income: formData.source_of_income || null,
+          payment_start_date: formData.payment_start_date || null,
+          bonus_amount_words: formData.bonus_amount_words || null,
+          bonus_amount_numeric: formData.bonus_amount_numeric || null,
+        });
+        setSubmittedOpen(true);
+        setLoading(false);
+        return;
+      }
+
       await submitUnifiedLoan({
         loanTypeCode: resolvedLoanTypeCode,
         // Step 8: non-member Bonus now inserts into `loans` too (member_id
@@ -569,9 +626,22 @@ function Bonus_Loan({ staffIntake = false }) {
 
       <LoanSubmittedDialog
         open={submittedOpen}
-        message={staffIntake ? 'The non-member Bonus loan application was submitted.' : 'Your Bonus loan application was submitted. You can follow its progress under My Loans.'}
+        message={staffIntake
+          ? 'The non-member Bonus loan application was submitted.'
+          : isRevisionEdit
+            ? 'Your revised Bonus loan application was resubmitted. The Bookkeeper will review it again.'
+            : 'Your Bonus loan application was submitted. You can follow its progress under My Loans.'}
         onContinue={() => navigate(staffIntake ? '/Cashier_Dashboard' : '/member-dashboard')}
       />
+
+      {isRevisionEdit && (
+        <div className="mx-3 mt-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 sm:mx-4">
+          <p className="font-bold">Revision requested by the Manager</p>
+          <p className="mt-1">
+            {revisionRemarks || 'Please review your application and resubmit after making the needed changes.'}
+          </p>
+        </div>
+      )}
 
       <form ref={formRef} noValidate={window.matchMedia('(max-width: 767px)').matches} onSubmit={handleSubmit} className="px-3 sm:px-4">
         <section className="grid gap-6 px-3 sm:gap-8 sm:px-4">

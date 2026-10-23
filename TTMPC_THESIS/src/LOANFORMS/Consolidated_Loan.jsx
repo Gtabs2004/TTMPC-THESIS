@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import LoanSubmittedDialog from '../components/LoanSubmittedDialog';
-import { fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
+import { fetchLoanForRevisionEdit, fetchLoanPrefill, resubmitLoanRevision, submitUnifiedLoan } from './loanSubmission';
 import { buildConsolidatedPayload, clampTermMonths, computeLoan } from './loanComputeApi';
 import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
 import { supabase } from '../supabaseClient';
@@ -80,6 +80,10 @@ function Consolidated_Loan() {
   const navigate = useNavigate();
   const [submittedOpen, setSubmittedOpen] = useState(false);
   const { addNotification } = useNotification();
+  const [searchParams] = useSearchParams();
+  const editControlNumber = searchParams.get('editControlNumber') || '';
+  const isRevisionEdit = Boolean(editControlNumber);
+  const [revisionRemarks, setRevisionRemarks] = useState('');
 
   const inputStyles = "border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary outline-none w-full bg-white text-sm transition-all";
   const labelStyles = "block text-xs font-bold text-gray-700 mb-1";
@@ -128,7 +132,7 @@ function Consolidated_Loan() {
   const inputClassFor = (name) => (isLockedField(name) ? lockedInputStyles : inputStyles);
   const [formData, setFormData] = useState({
     application_type: 'New',
-    control_no: generateControlNumber(),
+    control_no: editControlNumber || generateControlNumber(),
     date_applied: new Date().toISOString().split('T')[0],
     surname: '',
     first_name: '',
@@ -870,6 +874,38 @@ function Consolidated_Loan() {
     };
   }, []);
 
+  // Editing a loan the Manager sent back for revision: pull the loan's own
+  // fields (amount/term/purpose/etc.) to prefill on top of the profile
+  // prefill above, which only covers member-profile fields.
+  useEffect(() => {
+    if (!isRevisionEdit) return;
+    let isMounted = true;
+    (async () => {
+      try {
+        const loanRow = await fetchLoanForRevisionEdit(editControlNumber);
+        if (!isMounted || !loanRow) return;
+        setFormData((prev) => ({
+          ...prev,
+          control_no: loanRow.control_number || prev.control_no,
+          application_type: loanRow.application_type || prev.application_type,
+          loan_amount_numeric: loanRow.loan_amount != null ? String(loanRow.loan_amount) : prev.loan_amount_numeric,
+          loan_term_months: loanRow.term != null ? String(loanRow.term) : prev.loan_term_months,
+          loan_purpose: loanRow.loan_purpose || prev.loan_purpose,
+          monthly_amortization: loanRow.monthly_amortization != null ? String(loanRow.monthly_amortization) : prev.monthly_amortization,
+          source_of_income: loanRow.source_of_income || prev.source_of_income,
+        }));
+        setRevisionRemarks(
+          loanRow.raw_payload?.optionalFields?.manager_review_details?.remarks || ''
+        );
+      } catch (err) {
+        addNotification(err.message || 'Unable to load your loan application for editing.', 'error');
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, [isRevisionEdit, editControlNumber]);
+
   // When the live MIGS label resolves, override the locally-cached member_class
   // so capacity math (5x vs 3x) reflects the official cooperative snapshot.
   useEffect(() => {
@@ -925,6 +961,23 @@ function Consolidated_Loan() {
     setLoading(true);
 
     try {
+      if (isRevisionEdit) {
+        await resubmitLoanRevision(editControlNumber, {
+          loan_amount: formData.loan_amount_numeric,
+          principal_amount: formData.loan_amount_numeric,
+          term: formData.loan_term_months,
+          total_interest: formData.total_interest || null,
+          loan_amount_words: formData.loan_amount_words || null,
+          loan_purpose: formData.loan_purpose || null,
+          monthly_amortization: formData.monthly_amortization || null,
+          source_of_income: formData.source_of_income || null,
+          latest_net_pay: formData.latest_net_pay || null,
+          share_capital: formData.share_capital || null,
+        });
+        setSubmittedOpen(true);
+        return;
+      }
+
       const submitResult = await submitUnifiedLoan({
         loanTypeCode: 'CONSOLIDATED',
         controlNumber: formData.control_no,
@@ -1103,9 +1156,20 @@ function Consolidated_Loan() {
       {/* Main Form Wrapping everything */}
       <LoanSubmittedDialog
         open={submittedOpen}
-        message="Your Consolidated loan application was submitted. You can follow its progress under My Loans."
+        message={isRevisionEdit
+          ? 'Your revised Consolidated loan application was resubmitted. The Bookkeeper will review it again.'
+          : 'Your Consolidated loan application was submitted. You can follow its progress under My Loans.'}
         onContinue={() => navigate('/member-dashboard')}
       />
+
+      {isRevisionEdit && (
+        <div className="mx-3 mt-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 sm:mx-4">
+          <p className="font-bold">Revision requested by the Manager</p>
+          <p className="mt-1">
+            {revisionRemarks || 'Please review your application and resubmit after making the needed changes.'}
+          </p>
+        </div>
+      )}
 
       <form ref={formRef} noValidate={window.matchMedia('(max-width: 767px)').matches} onSubmit={handleFormSubmit} className="px-3 sm:px-4">
         <section className="grid gap-6 px-3 sm:gap-8 sm:px-4">

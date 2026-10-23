@@ -5,6 +5,7 @@ export const statusKey = (loan) => String(loan?.loan_status || loan?.application
 const RELEASED_STATUSES = new Set(["released", "partially paid", "fully paid"]);
 export const isReleasedLoan = (loan) => RELEASED_STATUSES.has(statusKey(loan));
 export const isFullyPaidLoan = (loan) => statusKey(loan) === "fully paid";
+export const isRevisionRequestedLoan = (loan) => statusKey(loan) === "revision_requested";
 
 export const memberStatusLabel = (loan) => {
   const status = statusKey(loan);
@@ -16,6 +17,8 @@ export const memberStatusLabel = (loan) => {
   if (status === "approved") return { text: "Approved", tone: "success" };
   if (status === "recommended for approval") return { text: "Under Review", tone: "warn" };
   if (status === "pending") return { text: "Submitted", tone: "warn" };
+  if (status === "revision_requested") return { text: "Revision Requested", tone: "warn" };
+  if (status === "revised_submitted") return { text: "Resubmitted — Under Review", tone: "info" };
   if (status === "rejected") return { text: "Not Approved", tone: "error" };
   if (status === "cancelled") return { text: "Cancelled", tone: "neutral" };
   return { text: "In Process", tone: "neutral" };

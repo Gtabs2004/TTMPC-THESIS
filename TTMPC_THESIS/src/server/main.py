@@ -396,7 +396,7 @@ class LoanStatusEmailRequest(BaseModel):
 class LoanInAppNotificationRequest(BaseModel):
     loan_id: str
     recipient_role: Literal["manager", "treasurer", "bookkeeper"]
-    notification_type: Literal["recommend", "decline", "approve", "revise", "reject"]
+    notification_type: Literal["recommend", "decline", "approve", "revise", "reject", "resubmit"]
     actor_user_id: str | None = None
     # Optional client-supplied metadata; backend re-reads the loan to fill blanks.
     member_name: str | None = None
@@ -5853,6 +5853,15 @@ def is_validated_payment_status(status_value: str | None) -> bool:
 # defense demo can flip states in one URL change. Never do this in production —
 # the frontend also gates ?sim on a demo-account flag.
 ACTIVE_LOAN_STATUSES = {"released", "paid", "partially paid"}
+# A loan still moving through the approval pipeline (not yet disbursed, not
+# rejected/cancelled). A member with one of these open shouldn't be able to
+# start a second New application of the same type — ACTIVE_LOAN_STATUSES
+# alone misses this because it only covers already-disbursed loans.
+OPEN_APPLICATION_STATUSES = {
+    "draft", "pending", "recommended for approval", "recommended for bod approval",
+    "revision_requested", "revised_submitted", "approved", "ready for disbursement",
+    "to be disbursed",
+}
 RENEWAL_MIN_PAYMENTS = 6
 ELIGIBILITY_LOAN_TYPES = ("consolidated", "bonus", "emergency")
 
@@ -5888,6 +5897,20 @@ def _clean_bucket(loan_type: str, simulated: bool = False) -> dict:
         "payments_made": 0,
         "simulation_active": simulated,
     }
+
+def _open_application_bucket(loan_type: str, status: str, control_number: str | None) -> dict:
+    status_label = status.replace('_', ' ').title()
+    return {
+        "loan_type": loan_type,
+        "can_apply_new": False,
+        "can_renew": False,
+        "reason": f"You already have a {loan_type} application in progress ({status_label}).",
+        "active_loan_id": control_number,
+        "open_application_status": status,
+        "payments_made": 0,
+        "simulation_active": False,
+    }
+
 
 def _blocked_bucket(loan_type: str, payments_made: int, active_id: str | None, simulated: bool = False) -> dict:
     can_renew = payments_made >= RENEWAL_MIN_PAYMENTS
@@ -5969,6 +5992,16 @@ def _bucket_from_loans(
     November restriction applies only when the Bookkeeper recommends it to
     the Manager, enforced by the DB trigger, not here.
     """
+    # An application still in the pipeline (not yet disbursed, not
+    # rejected/cancelled) blocks a second New application of the same type,
+    # independent of whether an older, already-disbursed loan also exists.
+    for row in loan_rows:
+        if _resolve_loan_type_code(row) != loan_type:
+            continue
+        status = str(row.get("loan_status") or "").strip().lower()
+        if status in OPEN_APPLICATION_STATUSES:
+            return _open_application_bucket(loan_type, status, row.get("control_number"))
+
     active_loan = None
     for row in loan_rows:
         if _resolve_loan_type_code(row) != loan_type:
@@ -6319,6 +6352,144 @@ def _require_bookkeeper(current_user: dict) -> None:
         raise HTTPException(status_code=403, detail="Only the Bookkeeper can review renewal override requests.")
 
 
+# ============================================================================
+# SECTION: Member loan revision resubmission
+# Manager "Revise" sets loan_status='revision_requested' (see
+# LoanApprovalDetails.jsx); the member edits the application themselves and
+# resubmits it here, which moves it to 'revised_submitted' so the
+# Bookkeeper's queue can tell a resubmission apart from a brand-new
+# application. See REVISION flow notes in the implementation plan.
+# ============================================================================
+
+class LoanRevisionResubmit(BaseModel):
+    fields: dict = Field(default_factory=dict)
+
+
+def _revision_loan_table_and_row(control_number: str) -> tuple[str, dict]:
+    """(table name, row) for a control_number across loans/koica_loans."""
+    for table in ("loans", "koica_loans"):
+        resp = (
+            supabase.table(table)
+            .select("*")
+            .eq("control_number", control_number)
+            .limit(1)
+            .execute()
+        )
+        row = (resp.data or [None])[0]
+        if row:
+            return table, row
+    raise HTTPException(status_code=404, detail="Loan application not found.")
+
+
+@app.get("/api/member/loans/{control_number}")
+def get_member_loan_for_edit(
+    control_number: str,
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Fetch one of the member's own loan rows, for revision edit-mode prefill."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    account = _override_account(current_user)
+    member_id = account["member_id"]
+
+    table, row = _revision_loan_table_and_row(control_number)
+    if str(row.get("member_id") or "").strip() != member_id:
+        raise HTTPException(status_code=403, detail="This loan application does not belong to you.")
+
+    return {"success": True, "data": {**row, "source_table": table}}
+
+
+@app.post("/api/member/loans/{control_number}/resubmit")
+def resubmit_member_loan_revision(
+    control_number: str,
+    body: LoanRevisionResubmit,
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Member resubmits a loan the Manager sent back for revision."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    account = _override_account(current_user)
+    member_id = account["member_id"]
+
+    table, row = _revision_loan_table_and_row(control_number)
+    if str(row.get("member_id") or "").strip() != member_id:
+        raise HTTPException(status_code=403, detail="This loan application does not belong to you.")
+
+    current_status = str(row.get("loan_status") or "").strip().lower()
+    if current_status != "revision_requested":
+        raise HTTPException(
+            status_code=409,
+            detail="This loan application is not currently awaiting your revision.",
+        )
+
+    # Identity/workflow fields are never client-editable via this endpoint.
+    protected_fields = {
+        "control_number", "member_id", "loan_id", "loan_status", "application_status",
+        "bookkeeper_internal_remarks", "bookkeeper_reviewed_at", "manager_review_requested_at",
+        "created_at", "updated_at",
+    }
+    edits = {k: v for k, v in (body.fields or {}).items() if k not in protected_fields}
+
+    update_payload = {
+        **edits,
+        "loan_status": "revised_submitted",
+        "application_status": "revised_submitted",
+    }
+
+    try:
+        updated = (
+            supabase.table(table)
+            .update(update_payload)
+            .eq("control_number", control_number)
+            .select("control_number, loan_status, application_status")
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not resubmit loan application: {exc}")
+
+    if not (updated.data or []):
+        raise HTTPException(status_code=500, detail="Loan application was not updated.")
+
+    try:
+        role = _resolve_staff_role(current_user["id"], current_user.get("email") or "") or "member"
+        supabase.table("audit_log").insert({
+            "actor_user_id": current_user["id"],
+            "actor_role": role,
+            "actor_email": current_user.get("email") or None,
+            "entity_type": "loan",
+            "entity_id": control_number,
+            "action": "resubmit",
+            "before": {"loan_status": current_status},
+            "after": {"loan_status": "revised_submitted"},
+            "context": {
+                "kind": "revision_resubmission",
+                "member_id": member_id,
+                "loan_type": row.get("loan_type_id"),
+            },
+        }).execute()
+    except Exception as err:
+        logger.warning("revision resubmission audit_log write failed: %s", err)
+
+    try:
+        meta = _resolve_loan_member_meta(control_number)
+        _create_loan_notification(
+            supabase,
+            recipient_role="bookkeeper",
+            notification_type="resubmit",
+            loan_id=control_number,
+            member_name=meta.get("member_name") or None,
+            loan_type=meta.get("loan_type") or None,
+            status_label="resubmit",
+            actor_user_id=current_user["id"],
+        )
+    except Exception as err:
+        logger.warning("revision resubmission notification failed: %s", err)
+
+    return {"success": True, "loan_status": "revised_submitted"}
+
+
 
 
 @app.post("/api/member/renewal-override-requests")
@@ -6587,9 +6758,11 @@ def get_bookkeeper_pending_counts(current_user: dict = _Depends(_get_current_use
             "loan_status.ilike.pending,"
             "loan_status.ilike.draft,"
             "loan_status.ilike.revision_requested,"
+            "loan_status.ilike.revised_submitted,"
             "application_status.ilike.pending,"
             "application_status.ilike.draft,"
-            "application_status.ilike.revision_requested"
+            "application_status.ilike.revision_requested,"
+            "application_status.ilike.revised_submitted"
         )
 
     try:
@@ -6707,7 +6880,7 @@ async def get_bookkeeper_loan_approval_queue(current_user: dict = _Depends(_get_
     if role != "bookkeeper":
         raise HTTPException(status_code=403, detail="Only the Bookkeeper can view the loan approval queue.")
 
-    queue_statuses = {"pending", "draft", "revision_requested"}
+    queue_statuses = {"pending", "draft", "revision_requested", "revised_submitted"}
     # Filter in the query: the tables hold >1000 rows, which is PostgREST's
     # default row cap, so an unfiltered oldest-first read drops the newest
     # (i.e. the pending) loans. ilike with no wildcard = case-insensitive equals.
@@ -7244,8 +7417,8 @@ def _pc_open_loan_applications(member_id: str) -> int:
             .select("*", count="exact", head=True)
             .eq("member_id", member_id)
             .or_(
-                "loan_status.ilike.pending,loan_status.ilike.draft,loan_status.ilike.revision_requested,"
-                "application_status.ilike.pending,application_status.ilike.draft,application_status.ilike.revision_requested"
+                "loan_status.ilike.pending,loan_status.ilike.draft,loan_status.ilike.revision_requested,loan_status.ilike.revised_submitted,"
+                "application_status.ilike.pending,application_status.ilike.draft,application_status.ilike.revision_requested,application_status.ilike.revised_submitted"
             )
             .execute()
         )
@@ -21303,7 +21476,7 @@ async def get_bookkeeper_reports():
 
     # Also include loans whose loan_status marks them as in-pipeline (not yet
     # on a schedule but not cancelled/rejected either).
-    _pipeline_statuses = {"pending", "approved", "revision_requested", "ready for disbursement", "to be disbursed"}
+    _pipeline_statuses = {"pending", "approved", "revision_requested", "revised_submitted", "ready for disbursement", "to be disbursed"}
     _excluded_statuses = {"rejected", "cancelled"}
     # loan_status IS authoritative when it already says the loan is done: 432
     # legacy loans are 'fully paid'/'completed'/'closed' but the historical

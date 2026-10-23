@@ -370,8 +370,9 @@ const Member_ApplyLoans = () => {
                       const partial = !bucket.can_apply_new && bucket.can_renew;
                       if (!locked && !partial) return null;
                       // Only an active loan blocked by the 6-month rule can be
-                      // overridden (not, say, a closed Bonus window).
-                      const canRequestOverride = locked && Boolean(bucket.active_loan_id);
+                      // overridden (not, say, a closed Bonus window or an
+                      // application still in the approval pipeline).
+                      const canRequestOverride = locked && Boolean(bucket.active_loan_id) && !bucket.open_application_status;
                       const request = canRequestOverride ? latestOverrideFor(key, bucket) : null;
                       const isPending = request?.status === "pending";
                       return (
@@ -404,7 +405,7 @@ const Member_ApplyLoans = () => {
                 const bucket = bucketFor(item.key);
                 const disabledReason = bucket?.reason || "This loan type is locked while you have an active one.";
                 const canRequestOverride =
-                  disabled && Boolean(bucket?.active_loan_id) && !bucket?.can_renew;
+                  disabled && Boolean(bucket?.active_loan_id) && !bucket?.can_renew && !bucket?.open_application_status;
                 const request = canRequestOverride ? latestOverrideFor(item.key, bucket) : null;
                 const isPending = request?.status === "pending";
                 const isDeclined = request?.status === "rejected";
@@ -475,6 +476,21 @@ const Member_ApplyLoans = () => {
                             </button>
                           </>
                         )}
+                      </div>
+                    )}
+
+                    {bucket?.open_application_status === "revision_requested" && (
+                      <div className="mt-3 w-full border-t border-slate-100 pt-3 text-center dark:border-mdark-border">
+                        <p className="mb-1.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                          The Manager requested revisions on this application.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => navigate(`${item.path}?editControlNumber=${encodeURIComponent(bucket.active_loan_id)}`)}
+                          className="rounded-md border border-amber-400 bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-400"
+                        >
+                          Edit & Resubmit
+                        </button>
                       </div>
                     )}
                   </div>
