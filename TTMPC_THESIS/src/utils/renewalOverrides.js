@@ -35,7 +35,9 @@ async function request(path, { method = "GET", body } = {}) {
 export const fetchMyOverrideRequests = async () =>
   (await request("/api/member/renewal-override-requests")).data || [];
 
-// overrideKind: "six_month" (early renewal) or "bonus_window" (Bonus outside May/November).
+// overrideKind: "six_month" (early renewal). ("bonus_window" removed by
+// decision 3.3-1, 2026-10-23 -- Bonus no longer has an application-time
+// window to override.)
 export const createOverrideRequest = async (loanType, reason, overrideKind = "six_month") =>
   (await request("/api/member/renewal-override-requests", {
     method: "POST",

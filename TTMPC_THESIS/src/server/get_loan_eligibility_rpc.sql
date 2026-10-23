@@ -9,10 +9,14 @@
 -- Each bucket:
 --   { loan_type, can_apply_new, can_renew, reason, active_loan_id, payments_made }
 --
--- Bonus window (Q6, BONUS_LOAN_PLAN.md): open Dec-Apr (targets the Mid-Year
--- May bonus) and Jun-Oct (targets the Year-End November bonus); closed in
--- May and November themselves, since those are repayment months, not
--- application months.
+-- Decision 3.3-1 (Simulation findings, confirmed 2026-10-23): Bonus loan
+-- applications are open all year -- there is no application-time window
+-- check here any more. The May/November restriction now applies only at
+-- the Bookkeeper->Manager recommend step (loan_status -> 'recommended for
+-- approval'), enforced by the enforce_bonus_loan_window trigger
+-- (bonus_loan_window_trigger.sql), not here. (Superseded policy, for
+-- history only: Q6/BONUS_LOAN_PLAN.md 2026-10-14 blocked applications
+-- Dec-Apr/Jun-Oct only, closed May/November.)
 -- Renewal threshold: 6 payments, matching RENEWAL_MIN_PAYMENTS = 6.
 
 CREATE OR REPLACE FUNCTION public.get_loan_eligibility(p_member_id uuid)
@@ -22,8 +26,6 @@ STABLE
 SECURITY DEFINER
 AS $$
 DECLARE
-  v_current_month  int  := EXTRACT(MONTH FROM now())::int;
-  v_bonus_open     bool := v_current_month IN (12, 1, 2, 3, 4, 6, 7, 8, 9, 10);
   v_renewal_min    int  := 6;
 
   -- active loan per type (most recent by disbursal_date / application_date)
@@ -131,17 +133,8 @@ BEGIN
     );
   END IF;
 
-  -- Build bonus bucket (window check first)
-  IF NOT v_bonus_open THEN
-    v_bucket_bonus := jsonb_build_object(
-      'loan_type',      'bonus',
-      'can_apply_new',  false,
-      'can_renew',      false,
-      'reason',         'Bonus loan applications are accepted Dec-Apr (Mid-Year bonus) and Jun-Oct (Year-End bonus), not in May or November.',
-      'active_loan_id', null,
-      'payments_made',  0
-    );
-  ELSIF v_bonus_id IS NULL THEN
+  -- Build bonus bucket (no application-time window -- decision 3.3-1)
+  IF v_bonus_id IS NULL THEN
     v_bucket_bonus := jsonb_build_object(
       'loan_type',      'bonus',
       'can_apply_new',  true,

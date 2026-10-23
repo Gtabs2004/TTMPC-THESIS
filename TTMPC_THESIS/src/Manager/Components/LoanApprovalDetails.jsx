@@ -327,6 +327,23 @@ const LoanApprovalDetails = () => {
         return normalized;
       };
 
+      // Active members only -- a terminated/closed/exiting member can't
+      // meaningfully guarantee someone else's loan (Simulation findings #28).
+      const { data: activeMembers, error: activeError } = await supabase
+        .from('member')
+        .select('membership_id, member_status')
+        .not('membership_id', 'is', null);
+      const activeMembershipIds = !activeError
+        ? new Set(
+            (activeMembers || [])
+              .filter((row) => {
+                const status = String(row.member_status || 'active').trim().toLowerCase();
+                return status === '' || status === 'active';
+              })
+              .map((row) => String(row.membership_id))
+          )
+        : null; // null = status unknown (column missing / query failed) -- don't filter, same fallback posture as elsewhere in this file.
+
       const { data, error } = await supabase
         .from('personal_data_sheet')
         .select('membership_number_id, surname, first_name, middle_name, permanent_address, contact_number, email, tin_number, created_at')
@@ -369,6 +386,10 @@ const LoanApprovalDetails = () => {
             }))
           );
         }
+      }
+
+      if (activeMembershipIds) {
+        options = options.filter((option) => activeMembershipIds.has(String(option.membership_number_id)));
       }
 
       setCoMakerMemberOptions(options);
@@ -606,6 +627,7 @@ const LoanApprovalDetails = () => {
           memberName,
           status: formatStatus(data.loan_status || data.application_status),
           borrowerMemberId: data.member?.id || data.member_id || null,
+          borrowerMembershipId: data.member?.membership_id || null,
           summary: {
             loanType: resolvedLoanType,
             recommendedAmount: formatCurrency(data.loan_amount),
@@ -1106,8 +1128,20 @@ const LoanApprovalDetails = () => {
 
   const filteredCoMakerOptions = (index) => {
     const query = String(coMakerSearch[index] || '').trim().toLowerCase();
-    if (!query) return coMakerMemberOptions;
-    return coMakerMemberOptions.filter((option) => {
+    // Exclude the borrower (can't guarantee their own loan) and whoever is
+    // already picked in the OTHER co-maker slot (can't be both co-makers)
+    // (Simulation findings #28).
+    const otherIndex = index === 0 ? 1 : 0;
+    const excluded = new Set(
+      [loanDetails?.borrowerMembershipId, coMakerDetails[otherIndex]?.membership_number_id]
+        .filter(Boolean)
+        .map(String)
+    );
+    const base = coMakerMemberOptions.filter(
+      (option) => !excluded.has(String(option.membership_number_id))
+    );
+    if (!query) return base;
+    return base.filter((option) => {
       const name = String(option.name || '').toLowerCase();
       const membership = String(option.membership_number_id || '').toLowerCase();
       return name.includes(query) || membership.includes(query);
@@ -1279,6 +1313,15 @@ const LoanApprovalDetails = () => {
       // `loans` row (Step 8) — only legacy non_member_loans-sourced rows
       // (which have no verified_bonus_amount column) are exempt.
       const isBonusLoan = String(loanDetails.summary?.loanType || '').toLowerCase().includes('bonus');
+      // Decision 3.3-1 (confirmed 2026-10-23): a Bonus loan can't be
+      // recommended to the Manager in May or November (its own repayment
+      // months) — no override at this stage. Enforced for real by the
+      // enforce_bonus_loan_window DB trigger; this is just the clear,
+      // immediate error instead of a raw Postgres exception.
+      if (isBonusLoan && [5, 11].includes(new Date().getMonth() + 1)) {
+        setActionError('A Bonus loan cannot be recommended for approval in May or November (its own repayment months). Please wait until the window reopens.');
+        return;
+      }
       if (isBonusLoan && !isNonMemberSource) {
         if (verifiedBonusAmountSaved === null || verifiedBonusAmountSaved === undefined) {
           setActionError('Please verify and save the bonus amount (from the borrower\'s payslip) before sending to Manager.');

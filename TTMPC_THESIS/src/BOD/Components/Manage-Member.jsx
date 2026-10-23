@@ -196,6 +196,7 @@ const BOD_Manage_Member = () => {
                   <th className="p-5 font-bold text-center">Email</th>
                   <th className="p-5 font-bold text-center">Contact</th>
                   <th className="p-5 font-bold text-center">Address</th>
+                  <th className="p-5 font-bold text-center">Net Take-Home Pay</th>
                   <th className="p-5 font-bold text-center">Active Loans</th>
                   <th className="p-5 font-bold text-center">Paid Loans</th>
                   <th className="p-5 font-bold text-center">Action</th>
@@ -203,9 +204,9 @@ const BOD_Manage_Member = () => {
               </thead>
               <tbody>
                 {loading ? (
-                  <TableStateRow colSpan={8} variant="loading" label="Loading members..." />
+                  <TableStateRow colSpan={9} variant="loading" label="Loading members..." />
                 ) : filtered.length === 0 ? (
-                  <TableStateRow colSpan={8} variant="empty" icon={Users} label="No personal datasheet records found." />
+                  <TableStateRow colSpan={9} variant="empty" icon={Users} label="No personal datasheet records found." />
                 ) : (
                   paginatedRows.map((r) => {
                     const summary = loanSummaryByMemberId[String(r.member_id || "").trim()] || { paidCount: 0, activeCount: 0 };
@@ -217,6 +218,11 @@ const BOD_Manage_Member = () => {
                         <td className="p-5 text-sm text-gray-700 text-center">{r.email}</td>
                         <td className="p-5 text-sm text-gray-700 text-center">{r.contact_number}</td>
                         <td className="p-5 text-sm text-gray-700 text-center">{r.address}</td>
+                        <td className="p-5 text-sm text-gray-700 text-center font-semibold">
+                          {r.net_take_home_pay != null && r.net_take_home_pay !== ''
+                            ? `₱${Number(r.net_take_home_pay).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            : '—'}
+                        </td>
                         <td className="p-5 text-sm text-gray-700 text-center">{summary.activeCount}</td>
                         <td className="p-5 text-sm text-gray-700 text-center">{summary.paidCount}</td>
                         <td className="p-5 text-sm text-center">

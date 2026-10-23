@@ -586,7 +586,10 @@ const LoanLedger = () => {
                   <Download size={13} />
                   {downloadingId === selectedLoan.loan_id ? "Generating..." : "Download SOA"}
                 </button>
-                {!isManagerView && !isRenewed && (
+                {/* Restructure Loan button hidden for the defense (stale ledger
+                    after approval, Bonus loans unsupported — see Simulation
+                    findings #2/#3). Backend + modal logic kept intact below. */}
+                {false && !isManagerView && !isRenewed && (
                   <button
                     type="button"
                     onClick={() => { setNewTerm(String(selectedLoan.term_months || "")); setRestructureError(""); setRestructureSubmitted(false); setShowRestructure(true); }}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { UserAuth } from '../contex/AuthContext';
 import { Mail, Lock, User, ChevronDown } from 'lucide-react';
 import PasswordInput from '../components/PasswordInput';
@@ -125,9 +125,17 @@ function Login() {
 
         {/* PASSWORD FIELD */}
         <div>
-          <label htmlFor="password" className={authLabelClass}>
-            Password
-          </label>
+          <div className="flex items-center justify-between">
+            <label htmlFor="password" className={authLabelClass}>
+              Password
+            </label>
+            <Link
+              to="/forgot-password"
+              className="rounded text-sm font-medium text-[#3A7D1C] underline-offset-2 hover:text-[#2F6616] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#66B538]"
+            >
+              Forgot password?
+            </Link>
+          </div>
           <PasswordInput
             id="password"
             name="password"

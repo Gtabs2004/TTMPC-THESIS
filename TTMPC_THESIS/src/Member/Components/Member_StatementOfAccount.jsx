@@ -372,7 +372,11 @@ const Member_StatementOfAccount = () => {
           .from("loan_schedules")
           .select("id, installment_no, due_date, expected_amount, expected_principal, expected_interest, schedule_status, applied_credit")
           .eq("loan_id", selectedLoan.control_number)
-          .in("schedule_status", ["partially_paid", "Paid"])
+          // "paid" lowercase is a legacy-import spelling (Simulation findings
+          // #29a) -- this is a DB query filter, so both cases must be listed
+          // explicitly (can't .toLowerCase() a Postgres column here). Mirrors
+          // Bookkeeper/Components/Loan-Ledger.jsx's existing list.
+          .in("schedule_status", ["partially_paid", "Paid", "paid"])
           .order("installment_no", { ascending: true });
         if (isMounted) setCarriedRows(carriedError ? [] : carriedData || []);
       } catch (err) {
@@ -635,7 +639,9 @@ const Member_StatementOfAccount = () => {
         // by an earlier overpayment's credit covering it in full -- same
         // "no payment of its own" shape, different reason, so label them
         // differently rather than letting a credit-settled month vanish.
-        status: s.schedule_status === "Paid" ? "Prepaid" : "Carried",
+        // Case-insensitive: legacy-imported rows store "paid" lowercase
+        // (Simulation findings #29a).
+        status: String(s.schedule_status || "").toLowerCase() === "paid" ? "Prepaid" : "Carried",
         installment: s.installment_no,
         dueDate: s.due_date,
         paidOn: null,
@@ -643,7 +649,7 @@ const Member_StatementOfAccount = () => {
         principal: s.expected_principal,
         interest: s.expected_interest,
         penalty: null,
-        amount: s.schedule_status === "Paid" ? 0 : s.expected_amount,
+        amount: String(s.schedule_status || "").toLowerCase() === "paid" ? 0 : s.expected_amount,
         balance: null,
       }));
     return [...paidRows, ...carried, ...owedRows].sort((a, b) =>

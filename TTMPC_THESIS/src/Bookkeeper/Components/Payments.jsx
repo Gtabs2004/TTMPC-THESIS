@@ -5,6 +5,7 @@ import { QUICK_REASONS } from "../../utils/quickReasons";
 import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
 import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
+import { formatStatus } from "../../utils/formatStatus";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
@@ -588,7 +589,7 @@ const BookkeeperPayments = () => {
                         <td className="p-5 text-xs text-gray-700 font-medium">{item.entered_by}</td>
                         <td className="p-5">
                           <span className={`status-badge ${getStatusStyle(item.confirmation_status)}`}>
-                            {item.confirmation_status}
+                            {formatStatus(item.confirmation_status)}
                           </span>
                         </td>
                         <td className="p-5 text-center">

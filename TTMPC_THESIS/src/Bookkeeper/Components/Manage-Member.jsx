@@ -324,13 +324,14 @@ const Manage_Member = () => {
                       <th className="p-5 font-bold">Email</th>
                       <th className="p-5 font-bold">Contact</th>
                       <th className="p-5 font-bold">Address</th>
+                      <th className="p-5 font-bold text-right">Net Take-Home Pay</th>
                       <th className="p-5 font-bold text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filtered.length === 0 ? (
                       <TableStateRow
-                        colSpan={6}
+                        colSpan={7}
                         variant="empty"
                         icon={Users}
                         label="No members match your search criteria."
@@ -358,6 +359,11 @@ const Manage_Member = () => {
                           <td className="p-5 text-sm text-gray-600">{r.email}</td>
                           <td className="p-5 text-sm text-gray-600">{r.contact_number}</td>
                           <td className="p-5 text-sm text-gray-600">{r.address}</td>
+                          <td className="p-5 text-sm text-gray-700 text-right font-semibold">
+                            {r.net_take_home_pay != null && r.net_take_home_pay !== ''
+                              ? `₱${Number(r.net_take_home_pay).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              : '—'}
+                          </td>
                           <td className="p-5 text-sm text-right">
                             <TableActionButton
                               onClick={() => navigate(`/member_details?member_id=${encodeURIComponent(String(r.member_id || ""))}&portal=bookkeeper`, { state: { member: r, portal: "bookkeeper" } })}

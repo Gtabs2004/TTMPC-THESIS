@@ -88,7 +88,10 @@ const buildDiminishingRows = (schedules) => {
       total,
       balance,
       openingBalance: balance + principal,
-      isPaid: sched.schedule_status === "Paid",
+      // 2,638 legacy-imported rows store "paid" lowercase instead of "Paid"
+      // (Simulation findings #29a) -- case-insensitive so those installments
+      // don't show as unpaid on the member's own Loan Journey.
+      isPaid: String(sched.schedule_status || "").toLowerCase() === "paid",
     };
   });
 };
@@ -720,7 +723,7 @@ export default function LoanJourneyPanel({ loan, payments }) {
           >
             <ul className="divide-y divide-gray-100 dark:divide-mdark-border">
               {loan.schedules.map((sched, idx) => {
-                const isPaid = sched.schedule_status === "Paid";
+                const isPaid = String(sched.schedule_status || "").toLowerCase() === "paid";
                 return (
                   <li key={`${sched.schedule_id || sched.installment_no}-${idx}`} className="px-4 sm:px-5 py-3 flex items-center justify-between gap-3">
                     <div>

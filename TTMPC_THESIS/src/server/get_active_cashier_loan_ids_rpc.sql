@@ -26,6 +26,14 @@
 --
 -- Returns: one row per active loan control_number, e.g.
 --   [{ "control_number": "TTMPC-CN-000123" }, ...]
+--
+-- UPDATE (Simulation findings #5): 432 legacy loans are loan_status =
+-- 'fully paid'/'completed'/'closed' but kept an open (Unpaid) schedule row
+-- that the historical import never closed out, so the EXISTS check below
+-- used to count them as active, inflating "active loans" (311 vs a real
+-- ~75) and delinquency (85.85% vs a real ~38.7%). loan_status is the
+-- cooperative's own ledger and is authoritative when it already says the
+-- loan is done; loan_schedules is only the truth for loans still open.
 
 CREATE OR REPLACE FUNCTION public.get_active_cashier_loan_ids()
 RETURNS TABLE (control_number varchar)
@@ -33,14 +41,15 @@ LANGUAGE sql
 STABLE
 SECURITY DEFINER
 AS $$
-  -- Loans not rejected/cancelled that have at least one schedule row still
-  -- outstanding. Mirrors the loan_schedules.schedule_status IN (...) filter
-  -- that used to run in main.py, using the idx_loan_schedules_status /
-  -- idx_loan_schedules_loan_id indexes. No per-member/type dedup — see note
-  -- above.
+  -- Loans not rejected/cancelled/fully paid/completed/closed that have at
+  -- least one schedule row still outstanding. Mirrors the
+  -- loan_schedules.schedule_status IN (...) filter that used to run in
+  -- main.py, using the idx_loan_schedules_status / idx_loan_schedules_loan_id
+  -- indexes. No per-member/type dedup — see note above.
   SELECT DISTINCT l.control_number
   FROM public.loans l
-  WHERE lower(coalesce(l.loan_status, '')) NOT IN ('rejected', 'cancelled')
+  WHERE lower(coalesce(l.loan_status, '')) NOT IN
+          ('rejected', 'cancelled', 'fully paid', 'completed', 'closed')
     AND EXISTS (
       SELECT 1
       FROM public.loan_schedules ls

@@ -34,6 +34,27 @@ const OTHER_INCOME_OPTIONS = [
   { value: 'Other', label: 'Other — specify' },
 ];
 
+// Person-name fields: letters, spaces, and . - ' only (e.g. "D'Angelo",
+// "Jose Jr.", "Dela Cruz-Santos") — rejects "N/A", "x", digits, and other
+// placeholder junk that used to pass the old "just not empty" check
+// (Simulation findings item 27 / Priority 1 item 8).
+const NAME_PATTERN = /^[A-Za-zÀ-ſ][A-Za-zÀ-ſ\s.\-']*$/;
+const NAME_FIELDS = {
+  surname: 'Surname', first_name: 'First Name', middle_name: 'Middle Name',
+  father_name: "Father's Name", mother_name: "Mother's Name",
+  maiden_name: 'Maiden Name', spouse_name: 'Name of Spouse',
+};
+
+// Philippine mobile number: 11 digits, starting 09.
+const CONTACT_NUMBER_PATTERN = /^09\d{9}$/;
+
+const HEIGHT_MIN_CM = 50;
+const HEIGHT_MAX_CM = 250;
+const WEIGHT_MIN_KG = 20;
+const WEIGHT_MAX_KG = 300;
+const DEPENDENTS_MIN = 0;
+const DEPENDENTS_MAX = 20;
+
 // Correct (day-accurate) age as of today, not a bare calendar-year
 // subtraction — that overcounts by a year for anyone whose birthday hasn't
 // happened yet this year.
@@ -218,6 +239,48 @@ function Membership_Form() {
       }
     });
 
+    // Person-name fields: letters/spaces/. - ' only, and reject "N/A"-style
+    // placeholders explicitly (NAME_PATTERN alone would already reject most
+    // of them, but "N/A" itself is all letters so it needs its own check).
+    Object.entries(NAME_FIELDS).forEach(([field, label]) => {
+      const value = String(formdata[field] || '').trim();
+      if (!value || newErrors[field]) return;
+      if (value.toLowerCase() === 'n/a' || value.toLowerCase() === 'na' || !NAME_PATTERN.test(value)) {
+        newErrors[field] = `${label} must contain letters only (no numbers or "N/A").`;
+      }
+    });
+
+    // Contact number: exactly 11 digits, starting with 09.
+    if (formdata.contact_number && !newErrors.contact_number) {
+      const digits = String(formdata.contact_number).replace(/\D/g, '');
+      if (!CONTACT_NUMBER_PATTERN.test(digits)) {
+        newErrors.contact_number = 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).';
+      }
+    }
+
+    // Height / weight: plausible human ranges, not just "not empty".
+    if (formdata.height && !newErrors.height) {
+      const heightCm = Number(formdata.height);
+      if (!Number.isFinite(heightCm) || heightCm < HEIGHT_MIN_CM || heightCm > HEIGHT_MAX_CM) {
+        newErrors.height = `Enter a height between ${HEIGHT_MIN_CM} and ${HEIGHT_MAX_CM} cm.`;
+      }
+    }
+    if (formdata.weight && !newErrors.weight) {
+      const weightKg = Number(formdata.weight);
+      if (!Number.isFinite(weightKg) || weightKg < WEIGHT_MIN_KG || weightKg > WEIGHT_MAX_KG) {
+        newErrors.weight = `Enter a weight between ${WEIGHT_MIN_KG} and ${WEIGHT_MAX_KG} kg.`;
+      }
+    }
+
+    // Number of dependents: whole number, 0-20 (only asked when not Single,
+    // but validated here whenever it's present).
+    if (formdata.number_of_dependents !== '' && formdata.number_of_dependents != null && !newErrors.number_of_dependents) {
+      const dependents = Number(formdata.number_of_dependents);
+      if (!Number.isInteger(dependents) || dependents < DEPENDENTS_MIN || dependents > DEPENDENTS_MAX) {
+        newErrors.number_of_dependents = `Enter a whole number between ${DEPENDENTS_MIN} and ${DEPENDENTS_MAX}.`;
+      }
+    }
+
     // Income Source: "Other" requires the applicant to specify what it is.
     if (formdata.income_source === 'Other' && !formdata.income_source_other.trim()) {
       newErrors.income_source_other = 'Please specify the source of income.';
@@ -396,7 +459,11 @@ function Membership_Form() {
       number_of_dependents: toIntOrNull(formdata.number_of_dependents),
       height: toIntOrNull(formdata.height),
       weight: toIntOrNull(formdata.weight),
-      contact_number: toIntOrNull(formdata.contact_number),
+      // member_applications.contact_number is varchar(20) -- keep it as
+      // digits-only text so a leading 0 (every PH mobile number) survives.
+      // toIntOrNull() here used to parse it as a number and silently drop
+      // the leading 0 before insert (Simulation findings item 9).
+      contact_number: String(formdata.contact_number || '').replace(/\D/g, ''),
     };
     // Form-only helper fields — member_applications has no matching columns.
     delete payload.income_source_other;
@@ -774,7 +841,7 @@ function Membership_Form() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Monthly Salary <span className="text-red-500">*</span></label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Net Take-Home Pay (Monthly) <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     name="salary"
@@ -800,10 +867,10 @@ function Membership_Form() {
                           })
                         : ''
                     }
-                    placeholder="Computed from Monthly Salary × 12"
+                    placeholder="Computed from Net Take-Home Pay × 12"
                     className="w-full border border-gray-300 rounded-md p-2.5 text-sm bg-gray-100 outline-none text-gray-500 cursor-not-allowed"
                   />
-                  <p className="text-[10px] text-gray-400 mt-1">Automatically computed: Monthly Salary × 12</p>
+                  <p className="text-[10px] text-gray-400 mt-1">Automatically computed: Net Take-Home Pay × 12</p>
                 </div>
 
                 <div>

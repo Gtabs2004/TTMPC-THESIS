@@ -419,19 +419,10 @@ function Bonus_Loan({ staffIntake = false }) {
     return () => clearTimeout(timer);
   }, [formData.loan_amount_numeric, formData.loan_term_months, formData.payment_start_date]);
 
-  // Bonus loans may only be availed during the Mid-year (May) and
-  // Year-end (November) bonus release windows. Open Dec-Apr (targets the
-  // Mid-Year May bonus) and Jun-Oct (targets the Year-End November bonus);
-  // closed in May and November themselves (Q6). The server enforces the
-  // same rule as the source of truth (main.py). Month is 1-indexed.
-  const BONUS_APPLICATION_MONTHS = [12, 1, 2, 3, 4, 6, 7, 8, 9, 10];
-  const currentMonth = new Date().getMonth() + 1;
-  // An approved Bookkeeper override opens the window for this member; the DB
-  // trigger accepts the insert and marks the override used.
-  const bonusWindowOpen =
-    BONUS_APPLICATION_MONTHS.includes(currentMonth) || Boolean(eligibility?.bonus_window_override);
-  const bonusWindowMessage =
-    'Bonus loan applications are accepted Dec-Apr (Mid-Year bonus) and Jun-Oct (Year-End bonus), not in May or November.';
+  // Decision 3.3-1 (confirmed 2026-10-23): Bonus applications are open all
+  // year -- the May/November restriction now applies only at the
+  // Bookkeeper->Manager recommend step (enforced by the DB trigger,
+  // bonus_loan_window_trigger.sql), not at application time.
   // Q1/Q11: block a new Bonus application while a prior one is still unpaid.
   const canSubmitBonus = isNonMemberBonus || canApplyNew;
 
@@ -483,11 +474,6 @@ function Bonus_Loan({ staffIntake = false }) {
       return;
     }
     if (window.matchMedia('(max-width: 767px)').matches && !validateAllMobileSteps()) return;
-
-    if (!bonusWindowOpen) {
-      addNotification(bonusWindowMessage, 'error');
-      return;
-    }
 
     // Q1/Q11: a prior Bonus loan must be fully paid before another is
     // submitted — there's no mid-cycle renewal, only payoff then a new
@@ -893,8 +879,8 @@ function Bonus_Loan({ staffIntake = false }) {
             </button>
             <button
               type="submit"
-              disabled={loading || printing || !bonusWindowOpen || !canSubmitBonus}
-              title={!bonusWindowOpen ? bonusWindowMessage : (!canSubmitBonus ? (eligibility?.reason || 'An active Bonus loan must be fully paid before applying again.') : '')}
+              disabled={loading || printing || !canSubmitBonus}
+              title={!canSubmitBonus ? (eligibility?.reason || 'An active Bonus loan must be fully paid before applying again.') : ''}
               className="w-full bg-primary-deep text-white px-5 py-2 rounded hover:bg-member-green transition-colors text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed sm:w-auto"
             >
               {loading ? 'Processing...' : 'Submit Application'}
@@ -986,7 +972,7 @@ function Bonus_Loan({ staffIntake = false }) {
             <Download size={16} aria-hidden="true" />
             {printing ? 'Preparing PDF...' : 'Download PDF'}
           </button>
-          <button type="submit" disabled={loading || printing || !bonusWindowOpen || !canSubmitBonus} className="mt-5 w-full rounded bg-primary-deep px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-member-green disabled:cursor-not-allowed disabled:opacity-50">
+          <button type="submit" disabled={loading || printing || !canSubmitBonus} className="mt-5 w-full rounded bg-primary-deep px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-member-green disabled:cursor-not-allowed disabled:opacity-50">
             {loading ? 'Processing...' : 'Submit Application'}
           </button>
         </div>

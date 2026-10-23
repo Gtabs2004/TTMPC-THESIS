@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
 import { getLoanTypeDotClass as loanTypeAccent } from "../../utils/loanTypeColors";
+import { formatStatus } from "../../utils/formatStatus";
 import {
   ArrowLeft,
   Phone,
@@ -132,7 +133,7 @@ const ActiveLoansPanel = ({ membershipId }) => {
                   <td className="p-5 font-mono text-xs text-gray-700">{loan.control_number}</td>
                   <td className="p-5">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold border ${statusBadge(loan.loan_status)}`}>
-                      {loan.loan_status || 'Unknown'}
+                      {formatStatus(loan.loan_status) || 'Unknown'}
                     </span>
                   </td>
                   <td className="p-5 text-right text-gray-700">{formatPeso(loan.principal)}</td>
@@ -293,6 +294,14 @@ const Member_Details = () => {
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Permanent Address</p>
             <p className="font-medium text-gray-800">{asText(record?.permanent_address)}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Net Take-Home Pay</p>
+            <p className="font-medium text-gray-800">
+              {record?.salary != null && record?.salary !== ''
+                ? `₱${Number(record.salary).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : asText(record?.salary)}
+            </p>
           </div>
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Gender</p>

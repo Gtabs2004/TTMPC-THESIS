@@ -50,14 +50,10 @@ const selectorOptions = [
   },
 ];
 
-// Bonus loan applications are open Dec-Apr (targets the Mid-Year May bonus)
-// and Jun-Oct (targets the Year-End November bonus); closed in May and
-// November themselves, since those are repayment months, not application
-// months (Q6, BONUS_LOAN_PLAN.md). The FastAPI backend enforces the same
-// rule as the source of truth.
-const BONUS_APPLICATION_MONTHS = [12, 1, 2, 3, 4, 6, 7, 8, 9, 10];
-const BONUS_WINDOW_MESSAGE =
-  'Bonus loan applications are accepted Dec-Apr (Mid-Year bonus) and Jun-Oct (Year-End bonus), not in May or November.';
+// Decision 3.3-1 (confirmed 2026-10-23): Bonus loan applications are open
+// all year -- the May/November restriction now applies only at the
+// Bookkeeper->Manager recommend step, not here, and has no override. See
+// bonus_loan_window_trigger.sql.
 
 const styles = `
   @keyframes fadeInUp {
@@ -126,14 +122,8 @@ const Member_ApplyLoans = () => {
 
   // Per-type helpers. An active loan of one type does not block other types.
   const bucketFor = (key) => perType[key] || null;
-  const currentMonth = new Date().getMonth() + 1;
-  const bonusMonthOpen = BONUS_APPLICATION_MONTHS.includes(currentMonth);
-  // An approved Bookkeeper override opens the window for this member only.
-  const bonusWindowOverride = Boolean(perType.bonus?.bonus_window_override);
-  const bonusWindowOpen = bonusMonthOpen || bonusWindowOverride;
 
   const isLocked = (key) => {
-    if (key === 'bonus' && !bonusWindowOpen) return true;
     // While loading, lock all cards — safer than showing them as open
     if (!eligibilityReady) return true;
     const b = bucketFor(key);
@@ -172,10 +162,8 @@ const Member_ApplyLoans = () => {
   // currently active (an older request for a since-renewed loan is history).
   const latestOverrideFor = (key, bucket) =>
     overrideRequests.find(
-      (r) => r.override_kind !== "bonus_window" && r.loan_type === key && r.loan_id === bucket?.active_loan_id,
+      (r) => r.loan_type === key && r.loan_id === bucket?.active_loan_id,
     ) || null;
-  const latestWindowRequest =
-    overrideRequests.find((r) => r.override_kind === "bonus_window") || null;
 
   const handleCancelOverride = async (requestId) => {
     setCancellingId(requestId);
@@ -414,21 +402,12 @@ const Member_ApplyLoans = () => {
                 const Icon = item.icon;
                 const disabled = isLocked(item.key);
                 const bucket = bucketFor(item.key);
-                const bonusClosed = item.key === 'bonus' && !bonusWindowOpen;
-                const disabledReason = bonusClosed
-                  ? BONUS_WINDOW_MESSAGE
-                  : (bucket?.reason || "This loan type is locked while you have an active one.");
-                // Only an active loan blocked by the 6-month rule can be
-                // overridden -- not a closed Bonus window.
+                const disabledReason = bucket?.reason || "This loan type is locked while you have an active one.";
                 const canRequestOverride =
-                  disabled && !bonusClosed && Boolean(bucket?.active_loan_id) && !bucket?.can_renew;
+                  disabled && Boolean(bucket?.active_loan_id) && !bucket?.can_renew;
                 const request = canRequestOverride ? latestOverrideFor(item.key, bucket) : null;
                 const isPending = request?.status === "pending";
                 const isDeclined = request?.status === "rejected";
-                // A closed Bonus window can be waived per member by the Bookkeeper.
-                const canRequestWindow = bonusClosed && eligibilityReady;
-                const windowPending = latestWindowRequest?.status === "pending";
-                const windowDeclined = latestWindowRequest?.status === "rejected";
 
                 return (
                   // The card is a wrapper, not a button: the override action
@@ -459,50 +438,10 @@ const Member_ApplyLoans = () => {
                       <h1 className="font-bold text-slate-800 text-sm text-center dark:text-mdark-text">{item.label}</h1>
                       {disabled && (
                         <span className="mt-2 text-[10px] font-bold uppercase tracking-wider text-red-600 dark:text-red-400">
-                          {!eligibilityReady ? 'Checking...' : bonusClosed ? 'Window closed' : 'Locked'}
-                        </span>
-                      )}
-                      {item.key === 'bonus' && !bonusMonthOpen && bonusWindowOverride && (
-                        <span className="mt-2 text-[10px] font-bold uppercase tracking-wider text-member-green dark:text-mdark-accent">
-                          Opened by Bookkeeper
+                          {!eligibilityReady ? 'Checking...' : 'Locked'}
                         </span>
                       )}
                     </button>
-
-                    {canRequestWindow && (
-                      <div className="mt-3 w-full border-t border-slate-100 pt-3 text-center dark:border-mdark-border">
-                        {windowPending ? (
-                          <>
-                            <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-300">
-                              Override requested. Waiting for the Bookkeeper.
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => handleCancelOverride(latestWindowRequest.id)}
-                              disabled={cancellingId === latestWindowRequest.id}
-                              className="mt-1.5 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-mdark-border dark:text-mdark-text-secondary dark:hover:bg-mdark-elevated"
-                            >
-                              {cancellingId === latestWindowRequest.id ? "Cancelling..." : "Cancel request"}
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            {windowDeclined && (
-                              <p className="mb-1.5 text-[10px] font-semibold text-red-600 dark:text-red-400">
-                                Declined{latestWindowRequest.review_note ? `: ${latestWindowRequest.review_note}` : "."}
-                              </p>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => openOverrideModal("bonus", "bonus_window")}
-                              className="rounded-md border border-[#2C7A3F] px-2.5 py-1 text-[11px] font-bold text-[#2C7A3F] hover:bg-[#EAF6DF] dark:border-mdark-accent dark:text-mdark-accent dark:hover:bg-mdark-accent/15"
-                            >
-                              {windowDeclined ? "Request again" : "Request Window Override"}
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    )}
 
                     {canRequestOverride && (
                       <div className="mt-3 w-full border-t border-slate-100 pt-3 text-center dark:border-mdark-border">

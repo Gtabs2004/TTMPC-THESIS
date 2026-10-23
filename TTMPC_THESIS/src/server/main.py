@@ -5856,45 +5856,27 @@ ACTIVE_LOAN_STATUSES = {"released", "paid", "partially paid"}
 RENEWAL_MIN_PAYMENTS = 6
 ELIGIBILITY_LOAN_TYPES = ("consolidated", "bonus", "emergency")
 
-# Bonus loan applications are open Dec-Apr (targets the Mid-Year May bonus)
-# and Jun-Oct (targets the Year-End November bonus) — Q6, BONUS_LOAN_PLAN.md.
-# Closed in May and November themselves, since those are repayment months,
-# not application months. Server time is the source of truth so a
-# client-side clock cannot bypass the rule.
-BONUS_APPLICATION_MONTHS = {12, 1, 2, 3, 4, 6, 7, 8, 9, 10}
-BONUS_WINDOW_REASON = (
-    "Bonus loan applications are accepted Dec-Apr (Mid-Year bonus) and "
-    "Jun-Oct (Year-End bonus), not in May or November."
+# Decision 3.3-1 (Simulation findings, confirmed 2026-10-23): Bonus loan
+# applications are open all year -- a member may apply in any month,
+# including May/November. The May/November restriction now applies only at
+# the Bookkeeper->Manager handoff (recommending moves loan_status to
+# 'recommended for approval'), since May/November are the Bonus's own
+# repayment months, not application months. There is no override for this
+# stage -- the Bookkeeper waits until the window reopens. Server time is the
+# source of truth; the `enforce_bonus_loan_window` trigger (BEFORE UPDATE on
+# loans/non_member_loans, bonus_loan_window_trigger.sql) is the real
+# enforcement, since the recommend action writes via the Supabase client,
+# not FastAPI. This constant/helper exist only so the Bookkeeper UI can show
+# a clear error before hitting that trigger.
+BONUS_RECOMMEND_BLOCKED_MONTHS = {5, 11}
+BONUS_RECOMMEND_BLOCKED_REASON = (
+    "A Bonus loan cannot be recommended for approval in May or November "
+    "(its own repayment months). Please wait until the window reopens."
 )
 
-def _bonus_window_open(now: datetime | None = None) -> bool:
-    return (now or datetime.now()).month in BONUS_APPLICATION_MONTHS
+def _bonus_recommend_blocked(now: datetime | None = None) -> bool:
+    return (now or datetime.now()).month in BONUS_RECOMMEND_BLOCKED_MONTHS
 
-
-def _has_bonus_window_override(member_id: str) -> bool:
-    """Approved, unexpired, unused Bookkeeper override of the May/November window."""
-    if not supabase or not member_id:
-        return False
-    try:
-        resp = (
-            supabase.table("loan_renewal_override_requests")
-            .select("id")
-            .eq("member_id", member_id)
-            .eq("loan_type", "bonus")
-            .eq("override_kind", "bonus_window")
-            .eq("status", "approved")
-            .gt("expires_at", datetime.utcnow().isoformat() + "Z")
-            .limit(1)
-            .execute()
-        )
-    except Exception as err:
-        logger.warning("bonus window override lookup failed: %s", err)
-        return False
-    return bool(resp.data)
-
-
-def _bonus_open_for(member_id: str) -> bool:
-    return _bonus_window_open() or _has_bonus_window_override(member_id)
 
 def _clean_bucket(loan_type: str, simulated: bool = False) -> dict:
     return {
@@ -5972,34 +5954,21 @@ def _compute_bucket_for_type(member_id: str, loan_type: str) -> dict:
         .execute()
     )
     loan_rows = loans_response.data or []
-    bonus_open = _bonus_open_for(member_id) if loan_type == "bonus" else True
-    return _bucket_from_loans(loan_rows, loan_type, bonus_open=bonus_open)
+    return _bucket_from_loans(loan_rows, loan_type)
 
 
 def _bucket_from_loans(
     loan_rows: list[dict],
     loan_type: str,
     payments_by_loan: dict[str, int] | None = None,
-    bonus_open: bool | None = None,
 ) -> dict:
     """Compute a bucket for one loan type from a pre-fetched loan list.
 
     If payments_by_loan is provided, skips the per-loan payment count query.
-    bonus_open: whether the Bonus window is open for this member (month or an
-    approved window override); defaults to the plain month check.
+    Bonus has no application-time window (decision 3.3-1) -- the May/
+    November restriction applies only when the Bookkeeper recommends it to
+    the Manager, enforced by the DB trigger, not here.
     """
-    if bonus_open is None:
-        bonus_open = _bonus_window_open()
-    if loan_type == "bonus" and not bonus_open:
-        return {
-            "loan_type": "bonus",
-            "can_apply_new": False,
-            "can_renew": False,
-            "reason": BONUS_WINDOW_REASON,
-            "active_loan_id": None,
-            "payments_made": 0,
-            "simulation_active": False,
-        }
     active_loan = None
     for row in loan_rows:
         if _resolve_loan_type_code(row) != loan_type:
@@ -6075,9 +6044,8 @@ def _compute_all_buckets(member_id: str) -> dict[str, dict]:
         except Exception:
             payments_by_loan = {}
 
-    bonus_open = _bonus_open_for(member_id)
     return {
-        lt: _bucket_from_loans(loan_rows, lt, payments_by_loan, bonus_open=bonus_open)
+        lt: _bucket_from_loans(loan_rows, lt, payments_by_loan)
         for lt in ELIGIBILITY_LOAN_TYPES
     }
 
@@ -6203,11 +6171,12 @@ RENEWAL_OVERRIDE_MEMBER_COLUMNS = (
     "review_note,reviewed_at,expires_at,used_at,created_at"
 )
 # six_month: waive the 6-payment renewal rule for one active loan.
-# bonus_window: let one Bonus application through outside May/November
-# (spent by the enforce_bonus_loan_window trigger; bonus_window_override.sql).
+# bonus_window override REMOVED (decision 3.3-1, confirmed 2026-10-23): the
+# Bonus May/November restriction now applies only at the Bookkeeper->Manager
+# recommend step, and there is no override for it -- the Bookkeeper waits
+# until the window reopens. bonus_window_override.sql's table rows (if any)
+# are historical only.
 OVERRIDE_KIND_SIX_MONTH = "six_month"
-OVERRIDE_KIND_BONUS_WINDOW = "bonus_window"
-BONUS_WINDOW_OVERRIDE_HINT = " You can ask the Bookkeeper for a Bonus window override."
 
 
 class _RenewalOverrideLoanTypeModel(BaseModel):
@@ -6225,7 +6194,7 @@ class _RenewalOverrideLoanTypeModel(BaseModel):
 # validator's ValueError lands in that payload as a non-serialisable object.
 class RenewalOverrideCreate(_RenewalOverrideLoanTypeModel):
     reason: str = Field(..., max_length=RENEWAL_OVERRIDE_REASON_MAX)
-    override_kind: Literal["six_month", "bonus_window"] = "six_month"
+    override_kind: Literal["six_month"] = "six_month"
 
 
 class RenewalOverrideConsume(_RenewalOverrideLoanTypeModel):
@@ -6350,64 +6319,6 @@ def _require_bookkeeper(current_user: dict) -> None:
         raise HTTPException(status_code=403, detail="Only the Bookkeeper can review renewal override requests.")
 
 
-def _create_bonus_window_override(account: dict, member_row: dict, reason: str, current_user: dict) -> dict:
-    """Member asks the Bookkeeper to accept one Bonus application outside May/November."""
-    member_id = account["member_id"]
-    if _bonus_window_open():
-        raise HTTPException(
-            status_code=400,
-            detail="The Bonus window is open this month. You can apply for a Bonus loan directly.",
-        )
-    if _has_bonus_window_override(member_id):
-        raise HTTPException(
-            status_code=409,
-            detail="You already have an approved Bonus window override. You can apply for a Bonus loan now.",
-        )
-
-    member_name = resolve_member_full_name(member_row) if member_row else ""
-    record = {
-        "member_id": member_id,
-        "membership_id": account.get("membership_id") or member_row.get("membership_id"),
-        "member_name": member_name,
-        "requested_by_user_id": current_user["id"],
-        "requested_by_email": current_user.get("email") or None,
-        "override_kind": OVERRIDE_KIND_BONUS_WINDOW,
-        "loan_type": "bonus",
-        "loan_id": None,
-        "payments_made": 0,
-        "reason": reason,
-        "status": "pending",
-    }
-    try:
-        inserted = supabase.table(RENEWAL_OVERRIDE_TABLE).insert(record).execute()
-    except Exception as exc:
-        message = str(exc).lower()
-        if "uq_renewal_override_one_pending" in message or "duplicate key" in message:
-            raise HTTPException(
-                status_code=409,
-                detail="You already have a pending Bonus window request. Please wait for the Bookkeeper's decision.",
-            )
-        raise HTTPException(status_code=500, detail=f"Could not save the request: {exc}")
-
-    row = (inserted.data or [None])[0]
-    if not row:
-        raise HTTPException(status_code=500, detail="Could not save the request.")
-
-    _override_audit("create", row, current_user, after={"status": "pending", "override_kind": OVERRIDE_KIND_BONUS_WINDOW})
-    _override_notify(
-        recipient_role="bookkeeper",
-        notification_type="renewal_override_request",
-        severity="warning",
-        title="Bonus window override requested",
-        message=(
-            f"{member_name or 'A member'} is asking to apply for a Bonus loan outside the "
-            f"May/November window. Please review the request."
-        ),
-        loan_id=None,
-        redirect_url="/bookkeeper-renewal-overrides",
-        actor_user_id=current_user["id"],
-    )
-    return {"success": True, "data": {k: row.get(k) for k in RENEWAL_OVERRIDE_MEMBER_COLUMNS.split(",")}}
 
 
 @app.post("/api/member/renewal-override-requests")
@@ -6436,14 +6347,6 @@ def create_renewal_override_request(
             status_code=403,
             detail=f"Member account is {raw_status or 'deactivated'} and is not eligible to apply for loans.",
         )
-
-    if body.override_kind == OVERRIDE_KIND_BONUS_WINDOW:
-        return _create_bonus_window_override(account, member_row, reason, current_user)
-
-    # The 6-month override does not open the Bonus window by itself; a member
-    # outside May/November needs an approved window override as well.
-    if body.loan_type == "bonus" and not _bonus_open_for(member_id):
-        raise HTTPException(status_code=400, detail=BONUS_WINDOW_REASON + BONUS_WINDOW_OVERRIDE_HINT)
 
     try:
         active_loan_id, bucket = _override_active_loan(member_id, body.loan_type)
@@ -6575,17 +6478,18 @@ def get_active_renewal_overrides(current_user: dict = _Depends(_get_current_user
         rows = resp.data or []
         if not rows:
             return {"success": True, "data": []}
-        six_month_rows = [r for r in rows if r.get("override_kind") != OVERRIDE_KIND_BONUS_WINDOW]
         # A 6-month override is tied to one specific loan; once that loan is no
-        # longer the active one (renewed, paid off) it stops applying.
-        buckets = _compute_all_buckets(member_id) if six_month_rows else {}
+        # longer the active one (renewed, paid off) it stops applying. (Any
+        # lingering bonus_window rows from before decision 3.3-1 removed that
+        # kind are historical only -- the loan_id check below simply excludes
+        # them, since they were stored with loan_id=None.)
+        buckets = _compute_all_buckets(member_id)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Could not load active overrides: {exc}")
 
     active = [
         r for r in rows
-        if r.get("override_kind") == OVERRIDE_KIND_BONUS_WINDOW
-        or (buckets.get(r["loan_type"]) or {}).get("active_loan_id") == r["loan_id"]
+        if (buckets.get(r["loan_type"]) or {}).get("active_loan_id") == r["loan_id"]
     ]
     return {"success": True, "data": active}
 
@@ -6958,15 +6862,14 @@ def review_renewal_override_request(
         "review_note": note,
     }
 
-    is_window = req.get("override_kind") == OVERRIDE_KIND_BONUS_WINDOW
+    # bonus_window override kind REMOVED (decision 3.3-1) -- a pending row of
+    # that kind can only be a leftover from before the removal; approving it
+    # just grants the historical window-override behavior one last time
+    # rather than erroring on a dangling reference.
+    is_window = req.get("override_kind") == "bonus_window"
     if body.action == "approved" and is_window:
         patch["expires_at"] = _override_iso(now + timedelta(days=RENEWAL_OVERRIDE_VALIDITY_DAYS))
     elif body.action == "approved":
-        if req["loan_type"] == "bonus" and not _bonus_open_for(req["member_id"]):
-            raise HTTPException(
-                status_code=409,
-                detail=BONUS_WINDOW_REASON + " The member needs an approved Bonus window override first.",
-            )
         try:
             active_loan_id, _bucket = _override_active_loan(req["member_id"], req["loan_type"])
         except Exception as exc:
@@ -7450,6 +7353,19 @@ def create_profile_change_requests(
 
     member_row = resolve_member_by_ref(member_id) or {}
     _pc_member_status_gate(member_row)
+    # Decision 3.3 (Simulation findings, confirmed 2026-10-23): a profile
+    # change can't be submitted at all while a loan application of this
+    # member's is still in the Bookkeeper's hands -- the figures those loans
+    # are judged on (net pay and otherwise) must stay fixed for the duration
+    # of that review. Net-pay approval already had its own open-loan
+    # acknowledgement further down; this blocks submission outright for
+    # every field, which is stricter and makes that acknowledgement
+    # unreachable in practice (kept as-is; it's still correct, just moot now).
+    if _pc_open_loan_applications(member_id):
+        raise HTTPException(
+            status_code=409,
+            detail="You have a loan application still in review. Profile changes can't be submitted until it's decided.",
+        )
     pds = _pc_load_pds(membership_id)
     member_name = resolve_member_full_name(member_row) if member_row else ""
 
@@ -8004,12 +7920,22 @@ async def get_member_debt_capacity(member_key: str):
             .select(
                 "control_number,principal_amount,loan_amount,total_interest,"
                 "monthly_amortization,term,loan_status,application_date,disbursal_date,"
+                "raw_payload,"
                 "loan_types:loan_type_id(code,name)"
             )
             .eq("member_id", member_uuid)
             .execute()
         )
         loan_rows = loans_resp.data or []
+        # Legacy marker is set at migration time on the loan itself
+        # (raw_payload->>'legacy' = 'true'), not inferred from whether a row
+        # happens to exist in loan_payments_legacy — a legacy loan with zero
+        # recorded historical payments still has no rows there.
+        legacy_control_numbers = {
+            str(r.get("control_number"))
+            for r in loan_rows
+            if r.get("control_number") and str((r.get("raw_payload") or {}).get("legacy")).lower() == "true"
+        }
 
         # Statuses whose outstanding balance counts toward debt-capacity ceilings.
         # (Fully paid / rejected / cancelled loans still show in the member's
@@ -8039,7 +7965,7 @@ async def get_member_debt_capacity(member_key: str):
             if r.get("control_number")
         ]
         paid_by_loan: dict[str, Decimal] = {}
-        legacy_loan_ids: set[str] = set()
+        legacy_loan_ids: set[str] = set(legacy_control_numbers)
         if all_ids:
             try:
                 pay_resp = (
@@ -10538,6 +10464,10 @@ async def get_personal_datasheet_records():
                     "contact_number": contact_number,
                     "address": address_value,
                     "permanent_address": row.get("permanent_address") or "",
+                    # Net take-home pay -- shown only to Bookkeeper/BOD roster
+                    # pages (Simulation findings #30); frontend decides who
+                    # actually renders the column.
+                    "net_take_home_pay": row.get("salary"),
                     "created_at": row.get("created_at"),
                     "cluster": cluster,
                     "cluster_label": MEMBER_CLUSTER_LABELS.get(cluster, cluster),
@@ -12203,12 +12133,39 @@ def _require_manager(current_user: dict) -> None:
         raise HTTPException(status_code=403, detail="Only the Manager can reverse a savings interest posting.")
 
 
-def _require_savings_interest_viewer(current_user: dict) -> None:
+def _require_savings_interest_viewer(current_user: dict, account_number: str | None = None) -> None:
     """Cashier sees the accrued-interest preview on their Savings Detail page
-    (read-only); Bookkeeper sees it too, since they're the one who posts."""
+    (read-only); Bookkeeper sees it too, since they're the one who posts.
+    A member may also preview the account's own interest — their Statement
+    of Account's "Next Interest Posting" card calls this for their own
+    account_number; previously it 403'd for every member (Simulation
+    findings #23)."""
     role = _resolve_staff_role(current_user["id"], current_user.get("email") or "")
-    if role not in ("cashier", "bookkeeper"):
-        raise HTTPException(status_code=403, detail="Only the Cashier or Bookkeeper can view savings interest.")
+    if role in ("cashier", "bookkeeper"):
+        return
+    if account_number:
+        try:
+            owner_resp = (
+                supabase.table("savings_accounts")
+                .select("member_id")
+                .eq("account_number", account_number)
+                .limit(1)
+                .execute()
+            )
+            owner_member_id = (owner_resp.data or [{}])[0].get("member_id")
+            member_resp = (
+                supabase.table("member_account")
+                .select("user_id")
+                .eq("auth_user_id", current_user["id"])
+                .limit(1)
+                .execute()
+            )
+            own_member_id = (member_resp.data or [{}])[0].get("user_id")
+            if owner_member_id and own_member_id and str(owner_member_id) == str(own_member_id):
+                return
+        except Exception:
+            pass
+    raise HTTPException(status_code=403, detail="Only the Cashier, Bookkeeper, or the account's own member can view savings interest.")
 
 
 def _savings_quarter_candidates(opening_date: date, limit: int = 8) -> list[date]:
@@ -12432,9 +12389,11 @@ async def preview_savings_interest(
 ):
     """Computes (without posting) the interest due for the next unposted
     quarter-close on this account. Used by the Cashier's 'Post Quarterly
-    Interest' confirmation modal. Cashier and Bookkeeper can both view this
-    (read-only) — only the Bookkeeper can actually post (see below)."""
-    _require_savings_interest_viewer(current_user)
+    Interest' confirmation modal, and by a member's own Statement of Account.
+    Cashier and Bookkeeper can view any account (read-only) — only the
+    Bookkeeper can actually post (see below); a member may view only their
+    own account."""
+    _require_savings_interest_viewer(current_user, account_number)
 
     engine, pending_quarters, _last_posted = _run_savings_ledger_engine(account_number)
     if not pending_quarters:
@@ -12895,7 +12854,7 @@ async def _list_migs_members(year: int | None = None):
 
             for row in all_loans:
                 status_lc = str(row.get("loan_status") or "").lower()
-                if status_lc in {"rejected", "cancelled", "canceled"}:
+                if status_lc in {"rejected", "cancelled", "canceled", "bod rejected"}:
                     continue
                 mid = row.get("member_id")
                 if not mid:
@@ -12993,6 +12952,27 @@ async def _list_migs_members(year: int | None = None):
         except Exception as exc:  # noqa: BLE001
             print(f"[migs] savings lookup failed: {exc}")
 
+        # Open Time Deposit principal counts toward MIGS "Savings / Time
+        # Deposit" too (score_savings_balance()'s own docstring says so) --
+        # settled_at IS NULL means the principal is still held regardless of
+        # whether the certificate is locked or matured-awaiting-instruction.
+        try:
+            td_response = (
+                supabase.table("time_deposits")
+                .select("member_id,principal,settled_at")
+                .in_("member_id", member_ids)
+                .is_("settled_at", "null")
+                .execute()
+            )
+            for row in td_response.data or []:
+                mid = row.get("member_id")
+                if mid:
+                    savings_by_member[mid] = savings_by_member.get(mid, 0.0) + float(
+                        row.get("principal") or 0
+                    )
+        except Exception as exc:  # noqa: BLE001
+            print(f"[migs] time deposit lookup failed: {exc}")
+
         # --- Late payment count YTD ---------------------------------------
         # Pull validated payments for this year, join in-memory to schedules
         # so we can compare payment_date > due_date.
@@ -13011,12 +12991,17 @@ async def _list_migs_members(year: int | None = None):
             schedule_ids = sorted({p["schedule_id"] for p in payments if p.get("schedule_id")})
             loan_ids = sorted({p["loan_id"] for p in payments if p.get("loan_id")})
 
+            def _id_chunks(values, size=200):
+                values = list(values)
+                for i in range(0, len(values), size):
+                    yield values[i:i + size]
+
             schedule_due: dict[str, str] = {}
-            if schedule_ids:
+            for chunk in _id_chunks(schedule_ids):
                 sched_response = (
                     supabase.table("loan_schedules")
                     .select("id,due_date")
-                    .in_("id", schedule_ids)
+                    .in_("id", chunk)
                     .execute()
                 )
                 for s in sched_response.data or []:
@@ -13024,11 +13009,11 @@ async def _list_migs_members(year: int | None = None):
                         schedule_due[s["id"]] = s["due_date"]
 
             loan_to_member: dict[str, str] = {}
-            if loan_ids:
+            for chunk in _id_chunks(loan_ids):
                 loan_member_response = (
                     supabase.table("loans")
                     .select("control_number,member_id")
-                    .in_("control_number", loan_ids)
+                    .in_("control_number", chunk)
                     .execute()
                 )
                 for l in loan_member_response.data or []:
@@ -13504,7 +13489,7 @@ async def _get_migs_member_detail(member_key: str, year: int | None = None):
 
             for row in _member_loans:
                 status_lc = str(row.get("loan_status") or "").lower()
-                if status_lc in {"rejected", "cancelled", "canceled"}:
+                if status_lc in {"rejected", "cancelled", "canceled", "bod rejected"}:
                     continue
                 principal = float(row.get("principal_amount") or 0)
                 term_months = int(row.get("term") or 0)
@@ -13563,6 +13548,21 @@ async def _get_migs_member_detail(member_key: str, year: int | None = None):
                 savings += float(row.get("balance") or 0)
         except Exception as exc:  # noqa: BLE001
             print(f"[migs detail] savings lookup failed: {exc}")
+
+        # Open Time Deposit principal counts toward "Savings / Time Deposit"
+        # too — settled_at IS NULL means the principal is still held.
+        try:
+            td_response = (
+                supabase.table("time_deposits")
+                .select("principal,settled_at")
+                .eq("member_id", mid)
+                .is_("settled_at", "null")
+                .execute()
+            )
+            for row in td_response.data or []:
+                savings += float(row.get("principal") or 0)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[migs detail] time deposit lookup failed: {exc}")
 
         # --- Late payments (this year) -----------------------------------
         late_count = 0
@@ -20744,13 +20744,15 @@ def account_onboarding_profile(
 
     updates = {}
     if contact:
-        # personal_data_sheet.contact_number is bigint, so store digits only.
-        # This also normalises the 09xxxxxxxxx / +639xxxxxxxxx / spaced
-        # variants members type into one comparable value.
+        # personal_data_sheet.contact_number is text (Simulation findings #9 --
+        # it used to be bigint, which silently dropped the leading 0 off every
+        # 09xxxxxxxxx number). Store digits only, as text, so the leading 0
+        # survives. This also normalises the 09xxxxxxxxx / +639xxxxxxxxx /
+        # spaced variants members type into one comparable value.
         digits = _re.sub(r"\D", "", contact)
         if not digits:
             raise HTTPException(status_code=400, detail="Enter a valid mobile number.")
-        updates["contact_number"] = int(digits)
+        updates["contact_number"] = digits
     if address:
         updates["permanent_address"] = address
     if birth:
@@ -21303,13 +21305,22 @@ async def get_bookkeeper_reports():
     # on a schedule but not cancelled/rejected either).
     _pipeline_statuses = {"pending", "approved", "revision_requested", "ready for disbursement", "to be disbursed"}
     _excluded_statuses = {"rejected", "cancelled"}
+    # loan_status IS authoritative when it already says the loan is done: 432
+    # legacy loans are 'fully paid'/'completed'/'closed' but the historical
+    # import never closed out their trailing schedule row, so they'd
+    # otherwise still match _active_schedule_ids and inflate the active-loan
+    # count and delinquency rate (Simulation findings #5).
+    _done_statuses = {"fully paid", "completed", "closed"}
 
     _raw_active = [
         r for r in all_loans
-        if str(r.get("control_number") or "") in _active_schedule_ids
-        or (
-            str(r.get("loan_status") or "").strip().lower() in _pipeline_statuses
-            and str(r.get("loan_status") or "").strip().lower() not in _excluded_statuses
+        if str(r.get("loan_status") or "").strip().lower() not in _done_statuses
+        and (
+            str(r.get("control_number") or "") in _active_schedule_ids
+            or (
+                str(r.get("loan_status") or "").strip().lower() in _pipeline_statuses
+                and str(r.get("loan_status") or "").strip().lower() not in _excluded_statuses
+            )
         )
     ]
 
@@ -21328,9 +21339,12 @@ async def get_bookkeeper_reports():
 
     fully_paid_loans = [
         r for r in all_loans
-        if str(r.get("control_number") or "") not in _active_schedule_ids
-        and str(r.get("loan_status") or "").strip().lower() not in _pipeline_statuses
-        and str(r.get("loan_status") or "").strip().lower() not in _excluded_statuses
+        if str(r.get("loan_status") or "").strip().lower() in _done_statuses
+        or (
+            str(r.get("control_number") or "") not in _active_schedule_ids
+            and str(r.get("loan_status") or "").strip().lower() not in _pipeline_statuses
+            and str(r.get("loan_status") or "").strip().lower() not in _excluded_statuses
+        )
     ]
 
     total_loan_portfolio = sum(

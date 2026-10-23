@@ -15,10 +15,13 @@ import {
 
   The form is a separate component mounted only while the modal is open, so it
   starts empty every time without any reset logic.
+
+  (The Bonus "window override" variant this modal used to also render was
+  removed by decision 3.3-1, 2026-10-23 -- Bonus has no application-time
+  window to override any more.)
 */
 
 function OverrideForm({ onClose, loanType, kind = "six_month", bucket, onSubmitted }) {
-  const isWindow = kind === "bonus_window";
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -68,13 +71,11 @@ function OverrideForm({ onClose, loanType, kind = "six_month", bucket, onSubmitt
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h2 id="renewal-override-title" className="text-lg font-bold text-gray-900 dark:text-mdark-text">
-              {isWindow ? "Request to apply outside the Bonus window" : `Request early ${typeLabel} renewal`}
+              Request early {typeLabel} renewal
             </h2>
-            {!isWindow && (
-              <p className="mt-1 text-xs text-gray-500 dark:text-mdark-text-secondary">
-                {typeLabel} Loan {bucket?.active_loan_id || ""}
-              </p>
-            )}
+            <p className="mt-1 text-xs text-gray-500 dark:text-mdark-text-secondary">
+              {typeLabel} Loan {bucket?.active_loan_id || ""}
+            </p>
           </div>
           <button
             type="button"
@@ -88,19 +89,9 @@ function OverrideForm({ onClose, loanType, kind = "six_month", bucket, onSubmitt
         </div>
 
         <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-900/20 dark:text-amber-200">
-          {isWindow ? (
-            <>
-              Bonus loans are normally accepted only in <span className="font-bold">May and November</span>. If you
-              have an urgent need, tell the Bookkeeper why. If they approve, you can submit one Bonus loan
-              application within 30 days.
-            </>
-          ) : (
-            <>
-              Renewal normally opens after 6 monthly payments. You have made{" "}
-              <span className="font-bold">{paymentsMade} of 6</span>. If you have an urgent need, tell the Bookkeeper why.
-              They will review your request and may unlock Renewal for this loan.
-            </>
-          )}
+          Renewal normally opens after 6 monthly payments. You have made{" "}
+          <span className="font-bold">{paymentsMade} of 6</span>. If you have an urgent need, tell the Bookkeeper why.
+          They will review your request and may unlock Renewal for this loan.
         </p>
 
         <label htmlFor="renewal-override-reason" className="mt-4 block text-sm font-semibold text-gray-800 dark:text-mdark-text">
