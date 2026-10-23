@@ -12,6 +12,7 @@ import { supabase } from "../../supabaseClient";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton, SkeletonChart, SkeletonDonut } from "../../components/Skeleton";
 import TableStateRow from "../../components/TableStateRow";
+import MonthDayPicker from "../../components/MonthDayPicker";
 import {
   LayoutDashboard,
   Search,
@@ -306,6 +307,8 @@ const Cashier_Dashboard = () => {
   const monthAgoIso = useMemo(() => shiftDays(todayIso, -30), [todayIso]);
 
   const [selectedDate, setSelectedDate] = useState(todayIso);
+  // Month calendar opened by clicking the date (or "Pick") above the chart.
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const isViewingToday = selectedDate === todayIso;
   const selectedDateObj = useMemo(() => {
     const [y, m, d] = selectedDate.split("-").map(Number);
@@ -417,18 +420,49 @@ const Cashier_Dashboard = () => {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <h3 className="text-gray-800 font-bold text-lg leading-tight">Transaction Volume</h3>
-                    <p className="mt-0.5 text-xs text-gray-500">
+                    <button
+                      type="button"
+                      data-calendar-trigger
+                      onClick={() => setCalendarOpen((open) => !open)}
+                      aria-haspopup="dialog"
+                      aria-expanded={calendarOpen}
+                      title="Pick a day"
+                      className="mt-0.5 -ml-1 inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 text-xs text-gray-500 transition-colors hover:bg-green-50 hover:text-green-800"
+                    >
+                      <Calendar size={13} className="text-green-600" aria-hidden="true" />
                       <span className="font-semibold text-gray-700">{selectedWeekday}</span>
-                      <span className="mx-1.5 text-gray-300">·</span>
+                      <span className="text-gray-300">·</span>
                       <span>{selectedDateLabel}</span>
                       {isViewingToday && (
-                        <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-700">Today</span>
+                        <span className="ml-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-700">Today</span>
                       )}
-                    </p>
+                    </button>
                   </div>
 
-                  {/* Day stepper: prev / calendar / next */}
-                  <div className="flex items-center overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                  {/* Date picker: the calendar opens right under this button */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      data-calendar-trigger
+                      onClick={() => setCalendarOpen((open) => !open)}
+                      aria-haspopup="dialog"
+                      aria-expanded={calendarOpen}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+                    >
+                      <Calendar size={14} className="text-gray-500" aria-hidden="true" />
+                      <span>Pick</span>
+                    </button>
+                    <MonthDayPicker
+                      open={calendarOpen}
+                      onClose={() => setCalendarOpen(false)}
+                      value={selectedDate}
+                      onChange={(iso) => {
+                        setSelectedDate(iso);
+                        setCalendarOpen(false);
+                      }}
+                      maxIso={todayIso}
+                      align="right"
+                    />
                   </div>
                 </div>
 
