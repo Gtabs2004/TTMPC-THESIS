@@ -17712,7 +17712,7 @@ async def list_membership_applicants():
             )
         rows = apps_resp.data or []
 
-        eligible_statuses = {"pending", "training", "1st training", "first training", "for revision"}
+        eligible_statuses = {"training", "1st training", "first training"}
         filtered = [
             row for row in rows
             if str(row.get("application_status") or "").strip().lower() in eligible_statuses
