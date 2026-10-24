@@ -130,7 +130,7 @@ const BookkeeperLoanApproval = () => {
         `
         )
         .or(
-          "loan_status.in.(pending,draft,revision_requested),application_status.in.(pending,draft,revision_requested)"
+          "loan_status.in.(pending,draft,revision_requested,revised_submitted),application_status.in.(pending,draft,revision_requested,revised_submitted)"
         )
         .order("application_date", { ascending: true });
 
@@ -149,7 +149,7 @@ const BookkeeperLoanApproval = () => {
           loan_type_code
         `)
         .or(
-          "loan_status.in.(pending,draft,revision_requested),application_status.in.(pending,draft,revision_requested)"
+          "loan_status.in.(pending,draft,revision_requested,revised_submitted),application_status.in.(pending,draft,revision_requested,revised_submitted)"
         )
         .order("application_date", { ascending: true });
 
@@ -171,7 +171,7 @@ const BookkeeperLoanApproval = () => {
             String(loan.loan_status || "").trim().toLowerCase(),
             String(loan.application_status || "").trim().toLowerCase(),
           ]);
-          return ["pending", "draft", "revision_requested"].some((status) => statuses.has(status));
+          return ["pending", "draft", "revision_requested", "revised_submitted"].some((status) => statuses.has(status));
         })
         );
 
@@ -197,6 +197,9 @@ const BookkeeperLoanApproval = () => {
   const getLoanStatusBadge = (status) => {
     if (status === "revision_requested") {
       return "bg-amber-100 text-amber-800";
+    }
+    if (status === "revised_submitted") {
+      return "bg-blue-100 text-blue-800";
     }
     return "bg-slate-100 text-slate-600";
   };
@@ -230,7 +233,7 @@ const BookkeeperLoanApproval = () => {
       String(loan.application_status || "").trim().toLowerCase(),
     ];
     const loanStatus = statuses.find((status) =>
-      ["pending", "draft", "revision_requested"].includes(status)
+      ["pending", "draft", "revision_requested", "revised_submitted"].includes(status)
     ) || statuses.find(Boolean) || "";
     const loanTypeName = loan.loan_types?.name || (isNonMember ? "Non-member Bonus Loan" : "N/A");
     const migsStatus = isNonMember
@@ -255,9 +258,9 @@ const BookkeeperLoanApproval = () => {
   const tabCounts = {
     all: displayLoans.length,
     pending: displayLoans.filter((loan) => ["pending", "draft"].includes(loan.loanStatus)).length,
-    revision: displayLoans.filter((loan) => loan.loanStatus === "revision_requested").length,
+    revision: displayLoans.filter((loan) => ["revision_requested", "revised_submitted"].includes(loan.loanStatus)).length,
   };
-  
+
   const filteredLoans = displayLoans.filter((loan) => {
     if (memberTypeFilter === "migs" && loan.status !== "MIGS") {
       return false;
@@ -270,7 +273,7 @@ const BookkeeperLoanApproval = () => {
       return loan.loanStatus === "pending" || loan.loanStatus === "draft";
     }
     if (activeTab === "revision") {
-      return loan.loanStatus === "revision_requested";
+      return ["revision_requested", "revised_submitted"].includes(loan.loanStatus);
     }
     return true;
   });
