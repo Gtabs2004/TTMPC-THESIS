@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useState, useRef } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import QuickReasons from "../../components/QuickReasons";
 import { QUICK_REASONS } from "../../utils/quickReasons";
@@ -58,6 +58,13 @@ const EMPTY_CO_MAKERS = [
   { membership_number_id: '', name: '', id_no: '', address: '', mobile: '', email: '' },
   { membership_number_id: '', name: '', id_no: '', address: '', mobile: '', email: '' },
 ];
+
+const normalizeCoMakerSearch = (value) => String(value || '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .replace(/[^\p{L}\p{N}]+/gu, ' ')
+  .trim();
 
 const SUPPORTING_DOCS_BUCKET = 'Supporting_Documents';
 // Matches the bucket's own file_size_limit (31457280 bytes).
@@ -139,6 +146,8 @@ const LoanApprovalDetails = () => {
     other: 'Other',
   };
   const [coMakerSearch, setCoMakerSearch] = useState(['', '']);
+  const [coMakerSearchOpenIndex, setCoMakerSearchOpenIndex] = useState(null);
+  const [coMakerActiveOption, setCoMakerActiveOption] = useState([-1, -1]);
   const [coMakerMemberOptions, setCoMakerMemberOptions] = useState([]);
   const [coMakerMemberLoading, setCoMakerMemberLoading] = useState(false);
   const [sendEmail, setSendEmail] = useState(true);
@@ -1124,32 +1133,41 @@ const LoanApprovalDetails = () => {
 
   const updateCoMakerSearch = (index, value) => {
     setCoMakerSearch((prev) => prev.map((item, i) => (i === index ? value : item)));
+    setCoMakerActiveOption((prev) => prev.map((item, i) => (i === index ? -1 : item)));
   };
 
-  const filteredCoMakerOptions = (index) => {
-    const query = String(coMakerSearch[index] || '').trim().toLowerCase();
-    // Exclude the borrower (can't guarantee their own loan) and whoever is
-    // already picked in the OTHER co-maker slot (can't be both co-makers)
-    // (Simulation findings #28).
-    const otherIndex = index === 0 ? 1 : 0;
-    const excluded = new Set(
-      [loanDetails?.borrowerMembershipId, coMakerDetails[otherIndex]?.membership_number_id]
-        .filter(Boolean)
-        .map(String)
-    );
-    const base = coMakerMemberOptions.filter(
-      (option) => !excluded.has(String(option.membership_number_id))
-    );
-    if (!query) return base;
-    return base.filter((option) => {
-      const name = String(option.name || '').toLowerCase();
-      const membership = String(option.membership_number_id || '').toLowerCase();
-      return name.includes(query) || membership.includes(query);
-    });
-  };
+  const coMakerSearchIndex = useMemo(
+    () => coMakerMemberOptions.map((option) => ({
+      ...option,
+      searchText: normalizeCoMakerSearch(`${option.name} ${option.membership_number_id}`),
+    })),
+    [coMakerMemberOptions]
+  );
+
+  const filteredCoMakerOptions = useMemo(
+    () => [0, 1].map((index) => {
+      const queryTokens = normalizeCoMakerSearch(coMakerSearch[index]).split(/\s+/).filter(Boolean);
+      if (!queryTokens.length) return [];
+      // Exclude the borrower and the member already picked in the other slot.
+      const otherIndex = index === 0 ? 1 : 0;
+      const excluded = new Set(
+        [loanDetails?.borrowerMembershipId, coMakerDetails[otherIndex]?.membership_number_id]
+          .filter(Boolean)
+          .map(String)
+      );
+
+      return coMakerSearchIndex.filter((option) => (
+        !excluded.has(String(option.membership_number_id))
+        && queryTokens.every((token) => option.searchText.includes(token))
+      ));
+    }),
+    [coMakerDetails, coMakerSearch, coMakerSearchIndex, loanDetails?.borrowerMembershipId]
+  );
 
   const handleCoMakerMemberSelect = async (index, membershipNumberId) => {
     const selected = coMakerMemberOptions.find((item) => item.membership_number_id === membershipNumberId);
+    setCoMakerSearch((prev) => prev.map((value, i) => (i === index ? '' : value)));
+    setCoMakerSearchOpenIndex(null);
 
     setCoMakerDetails((prev) => prev.map((item, i) => {
       if (i !== index) return item;
@@ -2412,8 +2430,47 @@ const LoanApprovalDetails = () => {
                             type="text"
                             value={coMakerSearch[index] || ''}
                             onChange={(e) => updateCoMakerSearch(index, e.target.value)}
+                            onFocus={() => setCoMakerSearchOpenIndex(index)}
+                            onBlur={() => setCoMakerSearchOpenIndex((current) => current === index ? null : current)}
+                            onKeyDown={(event) => {
+                              if (!isBookkeeperFlow) return;
+                              const options = filteredCoMakerOptions[index];
+                              if (event.key === 'ArrowDown' && options.length) {
+                                event.preventDefault();
+                                setCoMakerSearchOpenIndex(index);
+                                setCoMakerActiveOption((prev) => prev.map((value, i) => (
+                                  i === index ? Math.min(value + 1, Math.min(options.length, 8) - 1) : value
+                                )));
+                              } else if (event.key === 'ArrowUp' && options.length) {
+                                event.preventDefault();
+                                setCoMakerActiveOption((prev) => prev.map((value, i) => (
+                                  i === index ? Math.max(value - 1, 0) : value
+                                )));
+                              } else if (
+                                event.key === 'Enter'
+                                && coMakerSearchOpenIndex === index
+                                && options.length
+                                && coMakerActiveOption[index] >= 0
+                              ) {
+                                event.preventDefault();
+                                const option = options[Math.min(coMakerActiveOption[index], Math.min(options.length, 8) - 1)];
+                                if (option) handleCoMakerMemberSelect(index, option.membership_number_id);
+                              } else if (event.key === 'Escape') {
+                                setCoMakerSearchOpenIndex(null);
+                              }
+                            }}
+                            role="combobox"
+                            aria-autocomplete="list"
+                            aria-expanded={coMakerSearchOpenIndex === index && Boolean(normalizeCoMakerSearch(coMakerSearch[index]))}
+                            aria-controls={`co-maker-options-${index}`}
+                            aria-activedescendant={
+                              coMakerSearchOpenIndex === index && filteredCoMakerOptions[index].length
+                                && coMakerActiveOption[index] >= 0
+                                ? `co-maker-option-${index}-${Math.min(coMakerActiveOption[index], Math.min(filteredCoMakerOptions[index].length, 8) - 1)}`
+                                : undefined
+                            }
                             placeholder="Search by name, surname, or membership number"
-                            disabled={coMakerMemberLoading}
+                            disabled={!isBookkeeperFlow || coMakerMemberLoading}
                             className={`${fieldClass} flex-1`}
                           />
                           <button
@@ -2425,6 +2482,48 @@ const LoanApprovalDetails = () => {
                             Refresh
                           </button>
                         </div>
+                        {isBookkeeperFlow && coMakerSearchOpenIndex === index && normalizeCoMakerSearch(coMakerSearch[index]) && (
+                          <div
+                            id={`co-maker-options-${index}`}
+                            role="listbox"
+                            aria-label={`Co-maker ${index + 1} matching members`}
+                            className="max-h-56 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"
+                          >
+                            {filteredCoMakerOptions[index].length ? (
+                              <>
+                                {filteredCoMakerOptions[index].slice(0, 8).map((option, optionIndex) => (
+                                  <button
+                                    key={option.membership_number_id}
+                                    id={`co-maker-option-${index}-${optionIndex}`}
+                                    type="button"
+                                    role="option"
+                                    aria-selected={coMakerActiveOption[index] === optionIndex}
+                                    onMouseDown={(event) => event.preventDefault()}
+                                    onMouseEnter={() => setCoMakerActiveOption((prev) => prev.map((value, i) => (
+                                      i === index ? optionIndex : value
+                                    )))}
+                                    onClick={() => handleCoMakerMemberSelect(index, option.membership_number_id)}
+                                    className={`block w-full px-3 py-2 text-left text-sm text-gray-800 ${
+                                      coMakerActiveOption[index] === optionIndex
+                                        ? 'bg-green-50 text-green-900'
+                                        : 'hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    <span className="block font-medium">{option.name || 'Unnamed Member'}</span>
+                                    <span className="block text-xs text-gray-500">{option.membership_number_id}</span>
+                                  </button>
+                                ))}
+                                {filteredCoMakerOptions[index].length > 8 && (
+                                  <p className="border-t border-gray-100 px-3 py-2 text-xs text-gray-500">
+                                    Showing 8 of {filteredCoMakerOptions[index].length} matches. Refine your search.
+                                  </p>
+                                )}
+                              </>
+                            ) : (
+                              <p className="px-3 py-2 text-sm text-gray-600">No members match this search.</p>
+                            )}
+                          </div>
+                        )}
                         <select
                           value={row.membership_number_id || ''}
                           onChange={(e) => handleCoMakerMemberSelect(index, e.target.value)}
@@ -2432,12 +2531,22 @@ const LoanApprovalDetails = () => {
                           className={fieldClass}
                         >
                           <option value="">
-                            {coMakerMemberLoading ? 'Loading members...' : 'Select member (from Personal Data Sheet)'}
+                            {coMakerMemberLoading
+                              ? 'Loading members...'
+                              : coMakerSearch[index]?.trim() && filteredCoMakerOptions[index].length === 0
+                                ? 'No members match this search'
+                                : coMakerMemberOptions.length === 0
+                                  ? 'No members available'
+                                  : 'Select member (from Personal Data Sheet)'}
                           </option>
-                          {!coMakerMemberLoading && coMakerMemberOptions.length === 0 ? (
-                            <option value="" disabled>No members available</option>
-                          ) : null}
-                          {filteredCoMakerOptions(index).map((option) => (
+                          {row.membership_number_id && !filteredCoMakerOptions[index].some(
+                            (option) => option.membership_number_id === row.membership_number_id
+                          ) && (
+                            <option value={row.membership_number_id}>
+                              Current selection: {row.name || row.membership_number_id} ({row.membership_number_id})
+                            </option>
+                          )}
+                          {filteredCoMakerOptions[index].map((option) => (
                             <option key={option.membership_number_id} value={option.membership_number_id}>
                               {(option.name || 'Unnamed Member')} ({option.membership_number_id})
                             </option>

@@ -207,7 +207,6 @@ const Savings_Details = () => {
     passbook: interestPassbook,
     interestRate,
     preview: interestPreview,
-    refresh: refreshInterest,
   } = useSavingsInterest(accountNumber);
 
   const [showDepositModal, setShowDepositModal] = useState(false);
@@ -223,9 +222,6 @@ const Savings_Details = () => {
   // get theirs when the Bookkeeper confirms them.
   const [depositReceiptNo, setDepositReceiptNo] = useState("");
   const [ledgerPage, setLedgerPage] = useState(1);
-  const [showInterestModal, setShowInterestModal] = useState(false);
-  const [postInterestBusy, setPostInterestBusy] = useState(false);
-  const [postInterestError, setPostInterestError] = useState(null);
 
   const account = data?.account;
   const member = data?.member;
@@ -274,31 +270,6 @@ const Savings_Details = () => {
     return d.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
   }, [interestPreview]);
 
-
-
-  const handlePostInterest = async () => {
-    if (!accountNumber) return;
-    setPostInterestError(null);
-    setPostInterestBusy(true);
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/savings-interest/post/${encodeURIComponent(accountNumber)}`,
-        { method: "POST", headers: await authHeaders() }
-      );
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result?.success) {
-        throw new Error(result?.detail || "Failed to post quarterly interest.");
-      }
-      setShowInterestModal(false);
-      setFeedbackMessage(`Quarterly interest of ${formatCurrency(result.data?.interest_posted)} posted.`);
-      addNotification("Quarterly interest posted.", "success");
-      await Promise.all([refresh(), refreshInterest()]);
-    } catch (err) {
-      setPostInterestError(err?.message || "Failed to post quarterly interest.");
-    } finally {
-      setPostInterestBusy(false);
-    }
-  };
 
 
   const openDepositModal = () => {
@@ -474,14 +445,6 @@ const Savings_Details = () => {
                       Request Withdrawal
                     </button>
                     )}
-                    <button
-                      onClick={() => setShowInterestModal(true)}
-                      disabled={account.status !== "active"}
-                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <Sparkles size={16} />
-                      Post Quarterly Interest
-                    </button>
                   </div>
                 </div>
 
@@ -734,80 +697,6 @@ const Savings_Details = () => {
                 className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold transition-colors disabled:opacity-50"
               >
                 {withdrawBusy ? "Submitting..." : "Submit Withdrawal"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* POST QUARTERLY INTEREST MODAL */}
-      {showInterestModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-xl font-bold text-gray-900">Post Quarterly Interest</h3>
-                <p className="text-xs text-gray-500 mt-1">
-                  Credits accrued interest for {account?.account_number}
-                </p>
-              </div>
-              <button
-                onClick={() => setShowInterestModal(false)}
-                className="text-gray-400 hover:text-gray-700"
-              >
-                ✕
-              </button>
-            </div>
-
-            {!interestPreview ? (
-              <div className="mb-5 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
-                No quarter-close is due for this account yet.
-              </div>
-            ) : (
-              <div className="space-y-3 mb-5">
-                <div className="flex items-center justify-between rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
-                  <span className="text-sm text-blue-700 font-medium">Target Quarter</span>
-                  <span className="text-sm font-bold text-blue-900">{nextQuarterLabel}</span>
-                </div>
-                <div className="flex items-center justify-between px-1">
-                  <span className="text-sm text-gray-600">Period Interest to Credit</span>
-                  <span className="text-sm font-bold text-emerald-700">
-                    +{formatCurrency(interestPreview.interest_to_credit)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between px-1">
-                  <span className="text-sm text-gray-600">Current Balance</span>
-                  <span className="text-sm font-medium text-gray-900">{formatCurrency(interestPreview.current_balance)}</span>
-                </div>
-                <div className="flex items-center justify-between px-1 border-t border-gray-100 pt-3">
-                  <span className="text-sm font-semibold text-gray-700">Post-Credit Balance</span>
-                  <span className="text-sm font-bold text-gray-900">
-                    {formatCurrency(interestPreview.post_credit_balance)}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {postInterestError && (
-              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 flex items-center gap-2">
-                <AlertCircle size={14} />
-                {postInterestError}
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowInterestModal(false)}
-                className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handlePostInterest}
-                disabled={postInterestBusy || !interestPreview}
-                className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {postInterestBusy ? "Posting..." : "Confirm & Post Interest"}
               </button>
             </div>
           </div>
