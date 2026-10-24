@@ -315,8 +315,7 @@ const formatRole = (r) => {
   return lower.charAt(0).toUpperCase() + lower.slice(1);
 };
 
-// Who did it: name + email for a real account; triggers that run on the
-// backend's service key have no person attached, so say so plainly.
+// Audit activity identifies staff by role, not by login email.
 const ActorCell = ({ row }) => {
   if (!row.actor_user_id && !row.actor_email) {
     return (
@@ -327,12 +326,9 @@ const ActorCell = ({ row }) => {
     );
   }
   return (
-    <>
-      <p className="text-gray-700 font-medium">{row.actor_name || row.actor_email || "Unknown user"}</p>
-      {row.actor_name && row.actor_email ? (
-        <p className="text-xs text-gray-400 mt-0.5">{row.actor_email}</p>
-      ) : null}
-    </>
+    <p className="text-gray-700 font-medium">
+      {row.actor_role ? formatRole(row.actor_role) : "Staff"}
+    </p>
   );
 };
 
@@ -378,7 +374,11 @@ const AuditDetailModal = ({ row, onClose, onViewReceipt }) => {
   const after = row.after || {};
   const changedKeys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
   const contextEntries = Object.entries(row.context || {});
-  const actor = row.actor_name || row.actor_email || (row.actor_user_id ? "Unknown user" : "System");
+  const actor = row.actor_user_id || row.actor_email
+    ? row.actor_role
+      ? formatRole(row.actor_role)
+      : "Staff"
+    : "System";
 
   return (
     <div
@@ -409,9 +409,7 @@ const AuditDetailModal = ({ row, onClose, onViewReceipt }) => {
             </button>
           </div>
           <h3 className="mt-2 text-lg font-semibold leading-snug">{describeAuditActivity(row)}</h3>
-          <p className="mt-1 text-sm text-white/75">
-            {actor} · {formatRole(row.actor_role)}
-          </p>
+          <p className="mt-1 text-sm text-white/75">{actor}</p>
         </div>
 
         {flagged && (
@@ -430,9 +428,6 @@ const AuditDetailModal = ({ row, onClose, onViewReceipt }) => {
             {amount != null ? <AuditField label="Amount">{formatPeso(amount)}</AuditField> : null}
             <AuditField label="Performed by">
               {actor}
-              {row.actor_name && row.actor_email ? (
-                <span className="block text-xs font-normal text-gray-500">{row.actor_email}</span>
-              ) : null}
             </AuditField>
           </dl>
 

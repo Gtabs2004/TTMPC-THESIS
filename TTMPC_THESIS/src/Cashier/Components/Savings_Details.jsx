@@ -199,6 +199,7 @@ const Savings_Details = () => {
   // steps. (The server enforces the same rule.)
   const portalRole = usePortalRole();
   const canTransact = fromPortal === "cashier" && portalRole !== "bookkeeper";
+  const canPostInterest = fromPortal === "bookkeeper" && portalRole === "bookkeeper";
 
   const { data, ledger, status, error, refresh, submitTransaction } =
     useSavingsAccount(accountParam);
@@ -207,6 +208,8 @@ const Savings_Details = () => {
     passbook: interestPassbook,
     interestRate,
     preview: interestPreview,
+    loading: interestLoading,
+    refresh: refreshInterest,
   } = useSavingsInterest(accountNumber);
 
   const [showDepositModal, setShowDepositModal] = useState(false);
@@ -215,8 +218,10 @@ const Savings_Details = () => {
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [depositBusy, setDepositBusy] = useState(false);
   const [withdrawBusy, setWithdrawBusy] = useState(false);
+  const [interestBusy, setInterestBusy] = useState(false);
   const [depositError, setDepositError] = useState(null);
   const [withdrawError, setWithdrawError] = useState(null);
+  const [interestError, setInterestError] = useState(null);
   const [feedbackMessage, setFeedbackMessage] = useState("");
   // Receipt shown once after a deposit (RECEIPT_SYSTEM_PLAN.md §5). Withdrawals
   // get theirs when the Bookkeeper confirms them.
@@ -282,6 +287,44 @@ const Savings_Details = () => {
     setWithdrawAmount("");
     setWithdrawError(null);
     setShowWithdrawModal(true);
+  };
+
+  const handlePostQuarterlyInterest = async () => {
+    const amount = Number(interestPreview?.interest_to_credit || 0);
+    if (!accountNumber || !interestPreview || amount <= 0) return;
+
+    const ok = await confirm({
+      title: "Post Quarterly Interest?",
+      message: `Credit ${formatCurrency(amount)} to savings account ${accountNumber} for the quarter ending ${nextQuarterLabel || interestPreview.period_quarter}? This posts immediately to the savings ledger.`,
+      confirmLabel: "Post Interest",
+      tone: "default",
+    });
+    if (!ok) return;
+
+    setInterestBusy(true);
+    setInterestError(null);
+    setFeedbackMessage("");
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/savings-interest/post/${encodeURIComponent(accountNumber)}`,
+        { method: "POST", headers: await authHeaders() }
+      );
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.detail || "Failed to post quarterly interest.");
+      }
+
+      const postedMessage = `Quarterly interest of ${formatCurrency(amount)} posted successfully.`;
+      setFeedbackMessage(postedMessage);
+      addNotification(postedMessage, "success");
+      await Promise.all([refresh(), refreshInterest()]);
+    } catch (err) {
+      const message = err?.message || "Failed to post quarterly interest.";
+      setInterestError(message);
+      addNotification(message, "error");
+    } finally {
+      setInterestBusy(false);
+    }
   };
 
   const handleDeposit = async () => {
@@ -425,6 +468,21 @@ const Savings_Details = () => {
 
                   {/* ACTION BUTTONS: one primary, two secondary, same size */}
                   <div className="flex flex-wrap gap-2">
+                    {canPostInterest && (
+                      <button
+                        onClick={handlePostQuarterlyInterest}
+                        disabled={
+                          interestBusy ||
+                          interestLoading ||
+                          !interestPreview ||
+                          Number(interestPreview.interest_to_credit) <= 0
+                        }
+                        className="inline-flex h-10 items-center gap-2 rounded-lg bg-green-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Sparkles size={16} />
+                        {interestBusy ? "Posting Interest..." : "Post Quarterly Interest"}
+                      </button>
+                    )}
                     {canTransact && (
                     <button
                       onClick={openDepositModal}
@@ -452,6 +510,12 @@ const Savings_Details = () => {
                   <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 flex items-center gap-2">
                     <CheckCircle2 size={16} />
                     {feedbackMessage}
+                  </div>
+                )}
+                {interestError && (
+                  <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex items-center gap-2">
+                    <AlertCircle size={16} />
+                    {interestError}
                   </div>
                 )}
 

@@ -14,8 +14,6 @@ import {
   ArrowUpDown,
   X,
   AlertCircle,
-  TrendingUp,
-  TrendingDown,
   Inbox,
   Info,
 } from "lucide-react";
@@ -612,75 +610,94 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
               })()}
             </div>
 
-            <div className="p-6">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">
-                What Influenced This Result
-                <InfoTip text="The details of this application that pushed the risk up or down, largest first." />
-              </p>
-              {(selectedLoan.drivers || []).length === 0 ? (
-                <p className="text-sm text-gray-400 italic">
-                  {selectedLoan.error || "No details are available for this applicant."}
-                </p>
-              ) : (
-                <ul className="space-y-4">
-                  {(selectedLoan.drivers || []).slice(0, DRIVERS_SHOWN).map((d) => {
-                    // A null value means the cooperative has no record of this
-                    // feature for the applicant. That is not a zero, and must
-                    // not be rendered as one — the model treats the two
-                    // differently and so should the reviewer.
-                    const recorded = d.value != null;
-                    const bump = recorded ? d.value - d.cohort_median : null;
-                    const bumpPct =
-                      recorded && d.cohort_median !== 0
-                        ? (bump / Math.abs(d.cohort_median)) * 100
-                        : 0;
-                    const arrow = d.direction === "up" ? TrendingUp : d.direction === "down" ? TrendingDown : null;
-                    const color = d.direction === "up" ? "text-red-600" : d.direction === "down" ? "text-emerald-600" : "text-gray-500";
-                    return (
-                      <li key={d.feature} className="flex flex-col gap-1">
-                        <div className="flex justify-between items-baseline">
-                          <div className="flex items-center gap-1.5">
-                            {arrow ? React.createElement(arrow, { size: 14, className: color }) : null}
-                            <span className="font-semibold text-gray-800 text-sm">{featureLabel(d.feature)}</span>
-                          </div>
-                          <span className={`text-xs font-bold ${color}`}>
-                            {d.direction === "up" ? "Raises risk" : d.direction === "down" ? "Lowers risk" : "Little effect"}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                          <span>
-                            Applicant:{" "}
-                            <span className="font-semibold text-gray-700">
-                              {recorded
-                                ? Number(d.value).toLocaleString("en-PH", { maximumFractionDigits: 2 })
-                                : "not recorded"}
-                            </span>
-                          </span>
-                          <span>·</span>
-                          <span>Typical for similar borrowers: <span className="font-semibold text-gray-700">{Number(d.cohort_median).toLocaleString("en-PH", { maximumFractionDigits: 2 })}</span></span>
-                        </div>
-                        <div className="text-[11px] text-gray-400">
-                          {!recorded
-                            ? "no record on file — treated as unknown"
-                            : bump === 0
-                            ? "in line with similar borrowers"
-                            : `${bump > 0 ? "above" : "below"} typical by ${Math.abs(bumpPct).toFixed(0)}%`}
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
+            {(() => {
+              const allDrivers = selectedLoan.drivers || [];
+              if (allDrivers.length === 0) {
+                return (
+                  <div className="p-6">
+                    <p className="text-sm text-gray-400 italic">
+                      {selectedLoan.error || "No attribution available for this applicant."}
+                    </p>
+                  </div>
+                );
+              }
 
-            <div className="p-6 border-t border-gray-100 bg-gray-50">
-              <p className="text-[11px] text-gray-500 leading-relaxed">
-                These are the details that moved this applicant's score.{" "}
-                <span className="text-red-600 font-semibold">Raises risk</span> means the detail made the score higher.{" "}
-                <span className="text-emerald-700 font-semibold">Lowers risk</span> means it made the score lower.
-                They are guides for your review, not a decision.
-              </p>
-            </div>
+              const byFeature = Object.fromEntries(allDrivers.map((driver) => [driver.feature, driver]));
+              const readValue = (feature, kind) => {
+                const driver = byFeature[feature];
+                if (!driver || driver.value == null) return "not recorded";
+                return kind === "peso"
+                  ? formatPeso(driver.value)
+                  : String(Math.round(Number(driver.value) * 100) / 100);
+              };
+              const valuesRead = [
+                ["Loan Amount", readValue("LoanAmount", "peso")],
+                ["Previous Loans", readValue("PriorLoans")],
+                ["Previously Behind", readValue("PriorBehind")],
+                ["Concurrent Loans", readValue("ConcurrentLoans")],
+                ["Share Capital (pts)", readValue("ShareCapital")],
+                ["Grocery (pts)", readValue("Groceries")],
+                ["Savings", readValue("Savings", "peso")],
+                ["Occupation Tier", readValue("OccTier")],
+              ];
+              const shown = allDrivers.slice(0, DRIVERS_SHOWN);
+              const maxAbs = Math.max(...shown.map((driver) => Math.abs(Number(driver.contribution) || 0)), 1e-9);
+
+              return (
+                <div className="p-6 space-y-6">
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">
+                      Values the model read
+                    </p>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                      {valuesRead.map(([label, value]) => (
+                        <div key={label}>
+                          <p className="text-[10px] text-gray-400 uppercase">{label}</p>
+                          <p className="font-semibold text-gray-800">{value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">
+                      Score drivers
+                    </p>
+                    <div className="space-y-2.5">
+                      {shown.map((driver) => {
+                        const contribution = Number(driver.contribution) || 0;
+                        const pct = (Math.abs(contribution) / maxAbs) * 100;
+                        const isUp = driver.direction === "up";
+                        const isNeutral = driver.direction !== "up" && driver.direction !== "down";
+                        const barColor = isNeutral ? "bg-gray-300" : isUp ? "bg-red-400" : "bg-green-500";
+                        const tagColor = isNeutral ? "text-gray-400" : isUp ? "text-red-600" : "text-green-700";
+                        return (
+                          <div key={driver.feature}>
+                            <div className="flex items-center justify-between mb-0.5 gap-2">
+                              <span className="text-xs text-gray-700 font-medium truncate">
+                                {featureLabel(driver.feature)}
+                              </span>
+                              <span className={`text-[10px] font-bold uppercase shrink-0 ${tagColor}`}>
+                                {isNeutral ? "No effect" : isUp ? "Raises" : "Lowers"}
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-100 rounded-full h-1.5">
+                              <div
+                                className={`${barColor} h-1.5 rounded-full`}
+                                style={{ width: `${pct.toFixed(1)}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-3">
+                      Red bars raise this application&apos;s risk score and green bars lower it. A longer bar means a stronger effect.
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

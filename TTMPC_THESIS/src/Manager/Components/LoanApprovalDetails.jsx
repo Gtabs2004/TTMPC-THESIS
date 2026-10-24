@@ -168,11 +168,7 @@ const LoanApprovalDetails = () => {
   const [riskAssessment, setRiskAssessment] = useState(null);
   const [riskLoading, setRiskLoading] = useState(false);
   const [riskError, setRiskError] = useState('');
-  // Model internals (raw feature values, cohort medians, contribution bars)
-  // are collapsed by default. A reviewer approving a loan needs the band and
-  // the action; the numbers behind them are for auditing the model, not for
-  // making the decision.
-  const [showRiskDetail, setShowRiskDetail] = useState(false);
+  const [showRiskDetail, setShowRiskDetail] = useState(true);
   const [revisionResetDone, setRevisionResetDone] = useState(false);
   const [printing, setPrinting] = useState(false);
 
@@ -2105,7 +2101,29 @@ const LoanApprovalDetails = () => {
             const ui = BAND_UI[band] || BAND_UI.AMBER;
             const bandLabel = riskAssessment.risk_label || ui.fallbackLabel;
             const bandAction = riskAssessment.action || ui.fallbackAction;
-            const badRate = riskAssessment.band_bad_rate_per_100;
+            const VERIFY_STEPS = [
+              'Check the latest payslip and net take-home pay',
+              'Confirm the monthly payment fits the Debt Capacity Framework limit (40% of net take-home pay)',
+              'Confirm the existing loan balance and payment history',
+              'Record the verification result as a note on the application',
+              'Forward only after the check is done',
+            ];
+            const BAND_STEPS = {
+              GREEN: [
+                'Confirm the payslip is on file',
+                'Ensure the loan amount is within the debt ceiling (5x share capital for MIGS, 3x for Non-MIGS)',
+                'Make sure there is no open loan with a past-due balance',
+              ],
+              AMBER: VERIFY_STEPS,
+              RED: [
+                ...VERIFY_STEPS.slice(0, 4),
+                "Look at this member's top risk factors below and address them: prior late payments, renewal history, several open loans",
+                'Ask the Manager or BOD to decide, with the notes attached',
+                'Consider conditions: a lower amount within the debt ceiling, a longer term so the monthly payment fits, a co-maker if the cooperative requires one, or payroll deduction if the member is a salaried teacher',
+                'After approval, put the member on early follow-up',
+              ],
+            };
+            const steps = BAND_STEPS[band] || BAND_STEPS.AMBER;
 
             // ----------------------------------------------------------------
             // Translate the model's drivers into things a reviewer can act on.
@@ -2177,8 +2195,8 @@ const LoanApprovalDetails = () => {
               .sort((a, b) => b.weight - a.weight)
               .slice(0, 5);
 
-            const concerns = findings.filter((f) => f.tone === 'concern');
-            const positives = findings.filter((f) => f.tone !== 'concern');
+            const concerns = findings.filter((f) => f.tone !== 'good');
+            const positives = findings.filter((f) => f.tone === 'good');
 
             const missingSnapshot = Number(features.HasSnapshot) === 0;
 
@@ -2211,8 +2229,7 @@ const LoanApprovalDetails = () => {
 
             return (
               <div className="space-y-4">
-                {/* The decision: band, what to do, and how often this band
-                    actually goes wrong. Everything a reviewer needs to act. */}
+                {/* The decision: band and the action a reviewer should take. */}
                 <div className={`border rounded-xl overflow-hidden ${ui.panel}`}>
                   <div className="flex flex-col sm:flex-row">
                     <div className="flex items-center gap-3 px-5 py-4 sm:w-64 sm:shrink-0">
@@ -2225,12 +2242,14 @@ const LoanApprovalDetails = () => {
                     <div className="flex-1 border-t sm:border-t-0 sm:border-l border-black/5 bg-white/60 px-5 py-4">
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">What to do</p>
                       <p className={`text-base font-bold ${ui.text}`}>{bandAction}</p>
-                      {badRate != null && (
-                        <p className="text-xs text-gray-600 mt-1.5">
-                          In the past, about <span className="font-semibold text-gray-800">{badRate} out of 100</span> loans
-                          scored like this one had repayment problems.
-                        </p>
-                      )}
+                      <ul className="mt-2 space-y-1.5">
+                        {steps.map((step) => (
+                          <li key={step} className="flex items-start gap-2 text-sm text-gray-700">
+                            <span className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${ui.accent}`} />
+                            {step}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   </div>
                 </div>
@@ -2250,7 +2269,7 @@ const LoanApprovalDetails = () => {
                         <ul className="space-y-2">
                           {concerns.map((f) => (
                             <li key={f.text} className="flex items-start gap-2 text-sm text-gray-700">
-                              <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                              <span className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${f.tone === 'concern' ? 'bg-red-500' : 'bg-gray-400'}`} />
                               {f.text}
                             </li>
                           ))}
@@ -2290,17 +2309,14 @@ const LoanApprovalDetails = () => {
                   </div>
                 )}
 
-                {/* Handoff §4 and §7: the model routes, it never rejects, and
-                    it misses about a third of trouble. Both facts belong next
-                    to the recommendation, not buried in a tooltip. */}
+                {/* The model routes applications for review; it does not decide approval. */}
                 <p className="text-xs text-gray-500 italic">
                   {riskAssessment.never_rejects
                     || 'This score routes the application for review. It is not grounds for denial - every member retains the right to apply.'}
                   {' '}It is a guide for your judgement, not a replacement for it.
                 </p>
 
-                {/* Model internals, collapsed. For auditing the model or
-                    answering "why this score" - not for the approval itself. */}
+                {/* Technical detail is available for reviewers who need to audit the assessment. */}
                 <div className="border-t border-gray-200 pt-3">
                   <button
                     type="button"

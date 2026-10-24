@@ -12569,7 +12569,7 @@ async def preview_savings_interest(
     current_user: dict = _Depends(_get_current_user),
 ):
     """Computes (without posting) the interest due for the next unposted
-    quarter-close on this account. Used by the Cashier's 'Post Quarterly
+    quarter-close on this account. Used by the Bookkeeper's 'Post Quarterly
     Interest' confirmation modal, and by a member's own Statement of Account.
     Cashier and Bookkeeper can view any account (read-only) — only the
     Bookkeeper can actually post (see below); a member may view only their
@@ -12604,8 +12604,8 @@ async def post_savings_interest(
 ):
     """Posts the next unposted quarter-close's accrued interest as a
     savings_ledger credit (source='savings_interest') and records the batch.
-    Bookkeeper-only (Cashier UI calls this via the Bookkeeper-reviewed flow —
-    same actor restriction as every other savings posting action)."""
+    Bookkeeper-only, matching the actor restriction on every savings posting
+    action."""
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
     _require_bookkeeper(current_user)
