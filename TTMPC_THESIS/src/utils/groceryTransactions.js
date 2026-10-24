@@ -41,6 +41,20 @@ export async function fetchGroceryTransactions() {
   return rows;
 }
 
+export async function fetchMemberLookup() {
+  const { data, error } = await supabase
+    .from("member")
+    .select("id, membership_id, first_name, last_name");
+  if (error) throw error;
+
+  const lookup = {};
+  (data || []).forEach((m) => {
+    if (m.id) lookup[m.id] = m;
+    if (m.membership_id) lookup[m.membership_id] = m;
+  });
+  return lookup;
+}
+
 const localDateKey = (value) => {
   if (!value) return "";
   const date = new Date(value);
@@ -51,12 +65,17 @@ const localDateKey = (value) => {
   return `${year}-${month}-${day}`;
 };
 
-export function toGroceryRow(transaction) {
+export function toGroceryRow(transaction, memberLookup = {}) {
   const date = transaction.TransactionDate || "";
   const parsedDate = date ? new Date(date) : null;
+  const member = memberLookup[transaction.pos_member_ref];
+  const memberName = member
+    ? `${member.first_name || ""} ${member.last_name || ""}`.trim()
+    : "";
   return {
     id: transaction.GroceryID || "",
     memberId: transaction.pos_member_ref || "—",
+    memberName: memberName || "Unknown member",
     posEventId: transaction.event_id || "—",
     transactionDate: date,
     dateKey: localDateKey(date),
@@ -80,7 +99,7 @@ export function filterGroceryRows(rows, { activeTab, search, month }) {
     if (month && (!row.dateKey || row.dateKey.slice(0, 7) !== month)) return false;
     if (!query) return true;
 
-    return [row.id, row.memberId, row.posEventId]
+    return [row.id, row.memberId, row.memberName, row.posEventId]
       .some((value) => normalizeSearch(value).includes(query));
   });
 }
@@ -95,6 +114,7 @@ export function downloadGroceryCsv(rows) {
   const headers = [
     "Grocery ID",
     "Member ID",
+    "Member Name",
     "POS Event ID",
     "Transaction Date",
     "Amount",
@@ -106,6 +126,7 @@ export function downloadGroceryCsv(rows) {
     ...rows.map((row) => [
       row.id,
       row.memberId,
+      row.memberName,
       row.posEventId,
       row.transactionDate,
       row.amount,

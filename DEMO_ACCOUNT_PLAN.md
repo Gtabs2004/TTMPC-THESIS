@@ -68,22 +68,30 @@ PDS data, and the figures already worked out in that doc's "Loans and computed
 figures" table stay valid — only the login email changes from the
 `ttmpc.demo+mNN@gmail.com` placeholder to a real inbox).
 
-| Member | Name (per Complete doc) | Email (assigned) | Consolidated scenario | Stacked loan (if any) |
-|---|---|---|---|---|
-| M1 | Ana L. Dela Cruz | `romelyn.delosreyes@wvsu.edu.ph` | New, <₱500k, medium risk | — |
-| M2 | Ramon S. Villanueva | `dksxlynx112@gmail.com` | New, >₱500k, high risk, BOD route | + active Emergency (concurrent, for `ConcurrentLoans` risk feature) |
-| M5 | Grace D. Tolentino | `kirigayalynx@gmail.com` | Renewal, 8/6 payments met | — |
-| M6 | Mark J. Salazar | `lynxridao@gmail.com` | Renewal blocked (3/6 payments) + override request pending | — |
-| M8 | Dennis F. Paredes | `gardecelso@gmail.com` | Revision requested by Manager | — |
-| M12 | Noel V. Catalan | `mae.tabiolo@deped.gov.ph` | Payment = amortization (no deficiency, no credit) | — |
-| M13 | Shiela A. Lopez | `dondonquixote7@gmail.com` | Payment < amortization (deficiency carried) | — |
-| M14 | Ricky D. Gallo | `gtabs2004@gmail.com` | Payment > amortization (credit applied) | — |
-| M18 | Edwin R. Bermejo | `serevee7@gmail.com` | 5 months unpaid, 2% penalty | — |
-| M3 | Liza M. Gonzaga | `geroantoni.tabiolo@wvsu.edu.ph` | — (no Consolidated) | Emergency new, low risk |
-| M4 | Joel B. Castillo | `jibozai2004@gmail.com` | — (no Consolidated) | Bonus new |
+**Approved 2026-10-24 — all 11 are now real members.** Table below updated
+with actual `membership_id` values from TEST (replaces the M1–M11 placeholder
+labels used while they were still applications).
 
-*(Assigned from groups 1 and 2 of the emails you supplied, in order. Swap any
-of these freely — they're interchangeable as long as each is used once.)*
+| Slot (was) | Official ID | Name | Email (assigned) | Consolidated scenario | Stacked loan (if any) |
+|---|---|---|---|---|---|
+| M1 | **TTMPC-301** | Ana L. Dela Cruz | `romelyn.delosreyes@wvsu.edu.ph` | New, <₱500k, medium risk | — |
+| M2 | **TTMPC-302** | Ramon S. Villanueva | `dksxlynx112@gmail.com` | New, >₱500k, high risk, BOD route | + active Emergency (concurrent, for `ConcurrentLoans` risk feature) |
+| M5 | **TTMPC-300** | Grace D. Tolentino | `kirigayalynx@gmail.com` | Renewal, 8/6 payments met | — |
+| M6 | **TTMPC-303** | Mark J. Salazar | `lynxridao@gmail.com` | Renewal blocked (3/6 payments) + override request pending | — |
+| M8 | **TTMPC-304** | Dennis F. Paredes | `gardecelso@gmail.com` | Revision requested by Manager | — |
+| M12 | **TTMPC-305** | Noel V. Catalan | `mae.tabiolo@deped.gov.ph` | Payment = amortization (no deficiency, no credit) | — |
+| M13 | **TTMPC-298** | Shiela A. Lopez | `dondonquixote7@gmail.com` | Payment < amortization (deficiency carried) | — |
+| M14 | **TTMPC-306** | Ricky D. Gallo | `gtabs2004@gmail.com` | Payment > amortization (credit applied) | — |
+| M18 | **TTMPC-307** | Edwin R. Bermejo | `serevee7@gmail.com` | 5 months unpaid, 2% penalty | — |
+| M3 | **TTMPC-297** | Liza M. Gonzaga | `geroantoni.tabiolo@wvsu.edu.ph` | — (no Consolidated) | Emergency new, low risk |
+| M4 | **TTMPC-299** | Joel B. Castillo | `jibozai2004@gmail.com` | — (no Consolidated) | Bonus new |
+
+Note: membership IDs were assigned in approval order, not application order
+— TTMPC-297/298/299 fell between the others (likely another applicant or
+historical member was approved between ours). **Use the Official ID column,
+not the old M-slot number, for every loan/CBU seed script from here on** —
+loan control numbers, CBU deposit references, and any BOD resolution text
+should key off `TTMPC-301` etc., never `M1`.
 
 This fills all 9 Consolidated-loan scenarios from the Complete doc onto 9 accounts,
 one each, since a member can hold only one active loan per *type* (not one loan

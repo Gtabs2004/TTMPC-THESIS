@@ -1,0 +1,343 @@
+-- Loan/CBU seed for the 11 Tier 1 members, now real MAIN members (approved 2026-10-24).
+-- Target: MAIN (gcnolzfwmdalltfilmea) -- these members were approved there, not TEST.
+-- Pattern follows legacy_loans_bulk_insert.sql's own convention:
+--   SET LOCAL session_replication_role = 'replica' bypasses ALL triggers for this
+--   transaction only (receipts, CBU sync, audit, vault, realtime) and auto-restores
+--   at COMMIT -- simpler than per-table ALTER TABLE ... DISABLE TRIGGER USER.
+-- loan_type_id: 1 = Consolidated, 2 = Bonus, 3 = Emergency (from loan_types table).
+-- cbu_deposit_id follows the CBUD_### convention from set_cbu_deposit_id() --
+--   supplied explicitly below since the trigger that assigns it is also bypassed.
+--
+-- Run ONCE. Re-running will duplicate rows (no ON CONFLICT guard on these tables
+-- the way legacy_loans_bulk_insert.sql has for control_number -- add one if re-running
+-- is a real risk here).
+--
+-- member_uuid / membership_id pairs (confirmed live in MAIN 2026-10-24):
+--   TTMPC-301 Ana L. Dela Cruz       7febd8cc-f62f-427b-8ec3-c2f93c698a39
+--   TTMPC-302 Ramon S. Villanueva    c6372942-1d99-4733-8884-5c95c3c7ee99
+--   TTMPC-297 Liza M. Gonzaga        4580955d-ceda-4d80-bbb2-dd51a852ea4a
+--   TTMPC-299 Joel B. Castillo       207b314e-ee7c-4cc2-9c72-25d59742a90e
+--   TTMPC-300 Grace D. Tolentino     e095cc91-82ca-4963-8677-706ba16a1338
+--   TTMPC-303 Mark J. Salazar        f6b22908-5ac8-4e50-9eff-f1e00b400a53
+--   TTMPC-304 Dennis F. Paredes      2c7d1119-d5fa-4414-bf3f-e23eca1930b1
+--   TTMPC-305 Noel V. Catalan        a753cade-b64c-4bb8-ae0c-c35a0fa5c1f7
+--   TTMPC-298 Shiela A. Lopez        b9bc69a4-83af-4f9d-b690-8395e8aaa5c2
+--   TTMPC-306 Ricky D. Gallo         c50f3fd8-9a29-407b-bc7c-d3192a1f176b
+--   TTMPC-307 Edwin R. Bermejo       2952fa4f-03da-4e97-a135-54e3277425ac
+
+BEGIN;
+SET LOCAL session_replication_role = 'replica';
+
+-- =====================================================================
+-- TTMPC-301 Ana L. Dela Cruz -- New Consolidated, <P500k, medium risk
+-- =====================================================================
+INSERT INTO public.loans (
+  control_number, member_id, loan_type_id, loan_amount, principal_amount,
+  interest_rate, term, loan_status, application_status, application_type,
+  application_date, monthly_amortization, created_at, updated_at
+) VALUES (
+  'CL-20261024-9301', '7febd8cc-f62f-427b-8ec3-c2f93c698a39', 1,
+  300000.00, 300000.00, 0.83, 36, 'pending', 'pending', 'new',
+  now(), 10823.33, now(), now()
+);
+
+-- =====================================================================
+-- TTMPC-302 Ramon S. Villanueva -- New Consolidated, >P500k, high risk, BOD route
+--   + stacked active Emergency (concurrent, for ConcurrentLoans risk feature)
+-- =====================================================================
+INSERT INTO public.loans (
+  control_number, member_id, loan_type_id, loan_amount, principal_amount,
+  interest_rate, term, loan_status, application_status, application_type,
+  application_date, monthly_amortization, created_at, updated_at
+) VALUES (
+  'CL-20261024-9302', 'c6372942-1d99-4733-8884-5c95c3c7ee99', 1,
+  600000.00, 600000.00, 0.83, 60, 'pending', 'pending', 'new',
+  now(), 14980.00, now(), now()
+),
+(
+  'EL-20260815-9302', 'c6372942-1d99-4733-8884-5c95c3c7ee99', 3,
+  20000.00, 20000.00, 2.00, 12, 'released', 'released', 'new',
+  '2026-08-15'::timestamptz, 1933.33, '2026-08-15'::timestamptz, '2026-08-15'::timestamptz
+);
+
+-- =====================================================================
+-- TTMPC-300 Grace D. Tolentino -- Consolidated renewal, 8/6 payments met
+--   Original loan released 2025-10-01, 8 payments already made (through Jun 2026)
+-- =====================================================================
+INSERT INTO public.loans (
+  control_number, member_id, loan_type_id, loan_amount, principal_amount,
+  interest_rate, term, loan_status, application_status, application_type,
+  application_date, disbursal_date, monthly_amortization, created_at, updated_at
+) VALUES (
+  'CL-20251001-9300', 'e095cc91-82ca-4963-8677-706ba16a1338', 1,
+  200000.00, 200000.00, 0.83, 24, 'partially paid', 'released', 'new',
+  '2025-10-01'::timestamptz, '2025-10-08'::timestamptz, 10020.00,
+  '2025-10-01'::timestamptz, '2025-10-01'::timestamptz
+);
+
+INSERT INTO public.loan_schedules (
+  loan_id, installment_no, due_date, expected_amount, principal_component,
+  interest_component, schedule_status, expected_principal, expected_interest,
+  remaining_principal
+)
+SELECT
+  'CL-20251001-9300', gs, (date '2025-11-25' + ((gs-1) * interval '1 month'))::date,
+  10020.00, 8333.33, 1660.00,
+  CASE WHEN gs <= 8 THEN 'Paid' ELSE 'Unpaid' END,
+  8333.33, 1660.00,
+  200000.00 - (8333.33 * gs)
+FROM generate_series(1, 9) AS gs;
+-- Only through installment 9 (8 paid + 1 active "next due") --
+-- idx_loan_schedules_one_active_due_per_loan allows just one
+-- unpaid/pending/overdue row per loan at a time; later installments
+-- are generated by the app itself as each one resolves.
+
+-- =====================================================================
+-- TTMPC-303 Mark J. Salazar -- Renewal blocked (3/6 payments) + override pending
+--   Original loan released 2026-07-10, only 3 payments made
+-- =====================================================================
+INSERT INTO public.loans (
+  control_number, member_id, loan_type_id, loan_amount, principal_amount,
+  interest_rate, term, loan_status, application_status, application_type,
+  application_date, disbursal_date, monthly_amortization, created_at, updated_at
+) VALUES (
+  'CL-20260710-9303', 'f6b22908-5ac8-4e50-9eff-f1e00b400a53', 1,
+  100000.00, 100000.00, 0.83, 24, 'partially paid', 'released', 'new',
+  '2026-07-10'::timestamptz, '2026-07-17'::timestamptz, 4996.67,
+  '2026-07-10'::timestamptz, '2026-07-10'::timestamptz
+);
+
+INSERT INTO public.loan_schedules (
+  loan_id, installment_no, due_date, expected_amount, principal_component,
+  interest_component, schedule_status, expected_principal, expected_interest,
+  remaining_principal
+)
+SELECT
+  'CL-20260710-9303', gs, (date '2026-08-25' + ((gs-1) * interval '1 month'))::date,
+  4996.67, 4166.67, 830.00,
+  CASE WHEN gs <= 3 THEN 'Paid' ELSE 'Unpaid' END,
+  4166.67, 830.00,
+  100000.00 - (4166.67 * gs)
+FROM generate_series(1, 4) AS gs;
+
+INSERT INTO public.loan_renewal_override_requests (
+  member_id, membership_id, member_name, loan_type, loan_id,
+  payments_made, required_payments, reason, status, override_kind, created_at, updated_at
+) VALUES (
+  'f6b22908-5ac8-4e50-9eff-f1e00b400a53', 'TTMPC-303', 'Mark J. Salazar',
+  'consolidated', 'CL-20260710-9303', 3, 6,
+  'Typhoon damage to house roof, urgent repair needed before the rainy season continues',
+  'pending', 'six_month', now(), now()
+);
+
+-- =====================================================================
+-- TTMPC-304 Dennis F. Paredes -- Consolidated, revision requested by Manager
+-- =====================================================================
+INSERT INTO public.loans (
+  control_number, member_id, loan_type_id, loan_amount, principal_amount,
+  interest_rate, term, loan_status, application_status, application_type,
+  application_date, monthly_amortization, bookkeeper_internal_remarks, created_at, updated_at
+) VALUES (
+  'CL-20261024-9304', '2c7d1119-d5fa-4414-bf3f-e23eca1930b1', 1,
+  150000.00, 150000.00, 0.83, 24, 'revision_requested', 'revision_requested', 'new',
+  now(), 7495.00, 'Payslip unreadable -- attach latest Sep-Oct payslip', now(), now()
+);
+
+-- =====================================================================
+-- TTMPC-305 Noel V. Catalan -- Consolidated, payment = amortization
+--   Released 2026-07-10, 1 payment made exactly matching the installment
+-- =====================================================================
+INSERT INTO public.loans (
+  control_number, member_id, loan_type_id, loan_amount, principal_amount,
+  interest_rate, term, loan_status, application_status, application_type,
+  application_date, disbursal_date, monthly_amortization, created_at, updated_at
+) VALUES (
+  'CL-20260710-9305', 'a753cade-b64c-4bb8-ae0c-c35a0fa5c1f7', 1,
+  120000.00, 120000.00, 0.83, 24, 'partially paid', 'released', 'new',
+  '2026-07-10'::timestamptz, '2026-07-17'::timestamptz, 5996.00,
+  '2026-07-10'::timestamptz, '2026-07-10'::timestamptz
+);
+
+INSERT INTO public.loan_schedules (
+  loan_id, installment_no, due_date, expected_amount, principal_component,
+  interest_component, schedule_status, expected_principal, expected_interest,
+  remaining_principal
+)
+SELECT
+  'CL-20260710-9305', gs, (date '2026-08-25' + ((gs-1) * interval '1 month'))::date,
+  5996.00, 5000.00, 996.00,
+  CASE WHEN gs = 1 THEN 'Paid' ELSE 'Unpaid' END,
+  5000.00, 996.00,
+  120000.00 - (5000.00 * gs)
+FROM generate_series(1, 2) AS gs;
+
+INSERT INTO public.loan_payments (
+  loan_id, schedule_id, amount_paid, payment_date, confirmation_status,
+  entered_by_role, applied_to_current
+)
+SELECT
+  'CL-20260710-9305', ls.id, 5996.00, '2026-08-25'::timestamptz, 'confirmed',
+  'cashier', 5996.00
+FROM public.loan_schedules ls
+WHERE ls.loan_id = 'CL-20260710-9305' AND ls.installment_no = 1;
+
+-- =====================================================================
+-- TTMPC-298 Shiela A. Lopez -- Consolidated, payment < amortization (deficiency)
+--   Released 2026-07-10, 1 payment made short of the installment
+-- =====================================================================
+INSERT INTO public.loans (
+  control_number, member_id, loan_type_id, loan_amount, principal_amount,
+  interest_rate, term, loan_status, application_status, application_type,
+  application_date, disbursal_date, monthly_amortization, created_at, updated_at
+) VALUES (
+  'CL-20260710-9298', 'b9bc69a4-83af-4f9d-b690-8395e8aaa5c2', 1,
+  120000.00, 120000.00, 0.83, 24, 'partially paid', 'released', 'new',
+  '2026-07-10'::timestamptz, '2026-07-17'::timestamptz, 5996.00,
+  '2026-07-10'::timestamptz, '2026-07-10'::timestamptz
+);
+
+INSERT INTO public.loan_schedules (
+  loan_id, installment_no, due_date, expected_amount, principal_component,
+  interest_component, schedule_status, expected_principal, expected_interest,
+  remaining_principal, carried_arrears
+)
+SELECT
+  'CL-20260710-9298', gs, (date '2026-08-25' + ((gs-1) * interval '1 month'))::date,
+  5996.00, 5000.00, 996.00,
+  'partially_paid',
+  5000.00, 996.00,
+  120000.00 - (5000.00 * gs),
+  1996.00
+FROM generate_series(1, 1) AS gs;
+-- Installment 1 only: partially_paid is outside the one-active-row
+-- constraint, and the deficiency stays attached here rather than
+-- opening a separate "next due" row.
+
+INSERT INTO public.loan_payments (
+  loan_id, schedule_id, amount_paid, payment_date, confirmation_status,
+  entered_by_role, applied_to_current, deficiency
+)
+SELECT
+  'CL-20260710-9298', ls.id, 4000.00, '2026-08-25'::timestamptz, 'confirmed',
+  'cashier', 4000.00, 1996.00
+FROM public.loan_schedules ls
+WHERE ls.loan_id = 'CL-20260710-9298' AND ls.installment_no = 1;
+
+-- =====================================================================
+-- TTMPC-306 Ricky D. Gallo -- Consolidated, payment > amortization (credit)
+--   Released 2026-07-10, 1 payment made exceeding the installment
+-- =====================================================================
+INSERT INTO public.loans (
+  control_number, member_id, loan_type_id, loan_amount, principal_amount,
+  interest_rate, term, loan_status, application_status, application_type,
+  application_date, disbursal_date, monthly_amortization, created_at, updated_at
+) VALUES (
+  'CL-20260710-9306', 'c50f3fd8-9a29-407b-bc7c-d3192a1f176b', 1,
+  120000.00, 120000.00, 0.83, 24, 'partially paid', 'released', 'new',
+  '2026-07-10'::timestamptz, '2026-07-17'::timestamptz, 5996.00,
+  '2026-07-10'::timestamptz, '2026-07-10'::timestamptz
+);
+
+INSERT INTO public.loan_schedules (
+  loan_id, installment_no, due_date, expected_amount, principal_component,
+  interest_component, schedule_status, expected_principal, expected_interest,
+  remaining_principal, applied_credit
+)
+SELECT
+  'CL-20260710-9306', gs, (date '2026-08-25' + ((gs-1) * interval '1 month'))::date,
+  5996.00, 5000.00, 996.00,
+  CASE WHEN gs = 1 THEN 'Paid' ELSE 'Unpaid' END,
+  5000.00, 996.00,
+  120000.00 - (5000.00 * gs),
+  CASE WHEN gs = 2 THEN 2004.00 ELSE 0 END
+FROM generate_series(1, 2) AS gs;
+
+INSERT INTO public.loan_payments (
+  loan_id, schedule_id, amount_paid, payment_date, confirmation_status,
+  entered_by_role, applied_to_current, applied_to_credit
+)
+SELECT
+  'CL-20260710-9306', ls.id, 8000.00, '2026-08-25'::timestamptz, 'confirmed',
+  'cashier', 5996.00, 2004.00
+FROM public.loan_schedules ls
+WHERE ls.loan_id = 'CL-20260710-9306' AND ls.installment_no = 1;
+
+-- =====================================================================
+-- TTMPC-307 Edwin R. Bermejo -- Consolidated, 5 months unpaid, 2% penalty
+--   Released 2026-04-10, first due 2026-05-25, nothing paid since (per
+--   project_penalty_accrual_rule.md: first penalty on 3rd missed due date)
+-- =====================================================================
+INSERT INTO public.loans (
+  control_number, member_id, loan_type_id, loan_amount, principal_amount,
+  interest_rate, term, loan_status, application_status, application_type,
+  application_date, disbursal_date, monthly_amortization, created_at, updated_at
+) VALUES (
+  'CL-20260410-9307', '2952fa4f-03da-4e97-a135-54e3277425ac', 1,
+  100000.00, 100000.00, 0.83, 24, 'partially paid', 'released', 'new',
+  '2026-04-10'::timestamptz, '2026-04-17'::timestamptz, 4996.67,
+  '2026-04-10'::timestamptz, '2026-04-10'::timestamptz
+);
+
+-- Per compute_loan_penalty()/main.py (comment near line 1673): a missed
+-- installment is not stored as its own schedule row -- only one "next due"
+-- row exists at a time, and its expected_amount/carried_arrears absorb
+-- everything owed from prior missed months. "5 months unpaid" means
+-- installment 1 (the oldest unresolved due date) carries the other 4
+-- months' worth of arrears plus the accrued penalty, not 5 separate rows.
+INSERT INTO public.loan_schedules (
+  loan_id, installment_no, due_date, expected_amount, principal_component,
+  interest_component, schedule_status, expected_principal, expected_interest,
+  remaining_principal, penalty, carried_arrears
+)
+VALUES (
+  'CL-20260410-9307', 1, date '2026-05-25',
+  4996.67, 4166.67, 830.00,
+  'overdue',
+  4166.67, 830.00,
+  100000.00 - 4166.67,
+  4796.80,
+  4996.67 * 4  -- the other 4 missed installments' worth, folded into arrears
+);
+
+-- =====================================================================
+-- TTMPC-297 Liza M. Gonzaga -- Emergency, low risk
+-- =====================================================================
+INSERT INTO public.loans (
+  control_number, member_id, loan_type_id, loan_amount, principal_amount,
+  interest_rate, term, loan_status, application_status, application_type,
+  application_date, monthly_amortization, emergency_reason, created_at, updated_at
+) VALUES (
+  'EL-20261024-9297', '4580955d-ceda-4d80-bbb2-dd51a852ea4a', 3,
+  20000.00, 20000.00, 2.00, 12, 'pending', 'pending', 'new',
+  now(), 2033.33, 'Medical expenses', now(), now()
+);
+
+-- =====================================================================
+-- TTMPC-299 Joel B. Castillo -- Bonus, low risk
+--   NOTE: bonus_loan_window_trigger.sql (2026-10-23) blocks the
+--   'recommended for approval' transition only during May/November --
+--   plain 'pending' insert is unaffected. See DEMO_ACCOUNT_PLAN.md item 4.
+-- =====================================================================
+INSERT INTO public.loans (
+  control_number, member_id, loan_type_id, loan_amount, principal_amount,
+  interest_rate, term, loan_status, application_status, application_type,
+  application_date, monthly_amortization, bonus_amount_numeric, created_at, updated_at
+) VALUES (
+  'BL-20261024000000-9299', '207b314e-ee7c-4cc2-9c72-25d59742a90e', 2,
+  30000.00, 30000.00, 2.00, 5, 'pending', 'pending', 'new',
+  now(), 6600.00, 30000.00, now(), now()
+);
+
+-- =====================================================================
+-- CBU rows for the three members whose scenario needed a specific CBU
+-- balance (M6/TTMPC-303 renewal-blocked needs a capital base; others
+-- can rely on their initial paid-up capital already recorded at approval)
+-- =====================================================================
+INSERT INTO public.capital_build_up (
+  member_id, transaction_date, starting_share_capital, capital_added,
+  deposit_account, ending_share_capital, cbu_deposit_id
+) VALUES
+  ('f6b22908-5ac8-4e50-9eff-f1e00b400a53', '2026-07-05'::timestamptz, 10000.00, 23000.00, 'cash', 33000.00, 'CBUD_901'),
+  ('c6372942-1d99-4733-8884-5c95c3c7ee99', '2026-06-01'::timestamptz, 10000.00, 115000.00, 'cash', 125000.00, 'CBUD_902');
+
+COMMIT;

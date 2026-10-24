@@ -4090,8 +4090,14 @@ def get_cashier_cbu_members():
         def _cbu_sort_key(row: dict) -> tuple:
             raw = str(row.get("cbu_deposit_id") or "")
             digits = "".join(ch for ch in raw if ch.isdigit())
+            # Compare the date portion only. Most rows are date-only, but a few
+            # (e.g. the initial-paid-up-capital import) carry a real
+            # time-of-day, which otherwise sorts that row after a same-day
+            # deposit with a much higher (truly later) sequence number and
+            # makes the displayed balance regress. See the matching note on
+            # _cbu_row_order below.
             return (
-                str(row.get("transaction_date") or ""),
+                str(row.get("transaction_date") or "")[:10],
                 int(digits) if digits else -1,
                 str(row.get("id") or ""),
             )
@@ -4455,8 +4461,11 @@ def create_cashier_cbu_deposit(
         def _cbu_row_order(row: dict) -> tuple:
             raw = str(row.get("cbu_deposit_id") or "")
             digits = "".join(ch for ch in raw if ch.isdigit())
+            # Date portion only -- see the matching note on _cbu_sort_key above.
+            # A row with a real time-of-day (e.g. an import row) must not
+            # outrank a same-day row with a higher sequence number.
             return (
-                str(row.get("transaction_date") or ""),
+                str(row.get("transaction_date") or "")[:10],
                 int(digits) if digits else -1,
                 str(row.get("id") or ""),
             )

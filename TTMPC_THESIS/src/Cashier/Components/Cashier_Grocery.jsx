@@ -11,6 +11,7 @@ import Pagination from "../../components/Pagination";
 import {
   downloadGroceryCsv,
   fetchGroceryTransactions,
+  fetchMemberLookup,
   filterGroceryRows,
   toGroceryRow,
 } from "../../utils/groceryTransactions";
@@ -42,6 +43,7 @@ const PAGE_SIZE = 10;
 const Cashier_Grocery = () => {
   const [activeTab, setActiveTab] = useState('All');
   const [transactions, setTransactions] = useState([]);
+  const [memberLookup, setMemberLookup] = useState({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -58,9 +60,13 @@ const Cashier_Grocery = () => {
     const load = async () => {
       if (!silent) setLoading(true);
       try {
-        const data = await fetchGroceryTransactions();
+        const [data, lookup] = await Promise.all([
+          fetchGroceryTransactions(),
+          fetchMemberLookup(),
+        ]);
         if (cancelled) return;
         setTransactions(data);
+        setMemberLookup(lookup);
         setLoadError("");
       } catch (error) {
         if (cancelled) return;
@@ -74,7 +80,10 @@ const Cashier_Grocery = () => {
     return () => { cancelled = true; };
   }, [rtVersion]);
 
-  const rows = useMemo(() => transactions.map(toGroceryRow), [transactions]);
+  const rows = useMemo(
+    () => transactions.map((tx) => toGroceryRow(tx, memberLookup)),
+    [transactions, memberLookup]
+  );
   const filteredRows = useMemo(
     () => filterGroceryRows(rows, { activeTab, search: searchQuery, month }),
     [rows, activeTab, searchQuery, month]
@@ -208,7 +217,7 @@ const Cashier_Grocery = () => {
                 <thead>
                   <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Grocery ID</th>
-                    <th className="p-5 font-bold">Member ID</th>
+                    <th className="p-5 font-bold">Member</th>
                     <th className="p-5 font-bold">POS Event ID</th>
                     <th className="p-5 font-bold">Transaction Date</th>
                     <th className="p-5 font-bold text-right">Amount</th>
@@ -226,7 +235,10 @@ const Cashier_Grocery = () => {
                   ) : paginatedRows.map((tx) => (
                     <tr key={tx.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                       <td className="p-5 font-medium text-gray-700">{tx.id}</td>
-                      <td className="p-5 font-medium text-gray-700">{tx.memberId}</td>
+                      <td className="p-5">
+                        <div className="font-medium text-gray-900">{tx.memberName}</div>
+                        <div className="text-xs text-gray-500">{tx.memberId}</div>
+                      </td>
                       <td className="p-5 text-gray-500">{tx.posEventId}</td>
                       <td className="p-5 text-gray-500">{tx.dateLabel}</td>
                       <td className="p-5 font-medium text-gray-900">₱{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
