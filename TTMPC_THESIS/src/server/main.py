@@ -14006,6 +14006,13 @@ async def declare_migs_outside_loan(member_key: str, payload: MigsOutsideLoanReq
 # Endpoints for GA roster retrieval and saving attendance records per year.
 # ============================================================================
 
+
+def _general_assembly_date_for_year(year: int) -> date:
+    march_first = date(year, 3, 1)
+    first_saturday = 1 + ((5 - march_first.weekday()) % 7)
+    return date(year, 3, first_saturday + 14)
+
+
 @app.get("/api/secretary/general-assembly/{year}")
 async def get_ga_attendance_roster(year: int):
     """Return every coop member with their GA attendance status for the year.
@@ -14064,7 +14071,6 @@ async def get_ga_attendance_roster(year: int):
 
         # Load existing GA rows for the year.
         ga_by_member: dict[str, dict] = {}
-        ga_meeting_date_used: str | None = None
         try:
             ga_rows: list[dict] = []
             ga_offset = 0
@@ -14086,8 +14092,6 @@ async def get_ga_attendance_roster(year: int):
                 mid = row.get("member_id")
                 if mid and mid not in ga_by_member:
                     ga_by_member[mid] = row
-                    if row.get("meeting_date") and not ga_meeting_date_used:
-                        ga_meeting_date_used = str(row["meeting_date"])
         except Exception as exc:  # noqa: BLE001
             print(f"[GA] roster lookup failed: {exc}")
 
@@ -14116,7 +14120,7 @@ async def get_ga_attendance_roster(year: int):
         return {
             "success": True,
             "year": year_int,
-            "default_meeting_date": ga_meeting_date_used or f"{year_int}-03-01",
+            "default_meeting_date": _general_assembly_date_for_year(year_int).isoformat(),
             "data": rows,
             "count": len(rows),
         }
@@ -14150,9 +14154,15 @@ async def save_ga_attendance(payload: dict = Body(...)):
     if not meeting_date:
         raise HTTPException(status_code=400, detail="meeting_date is required.")
     try:
-        datetime.strptime(meeting_date, "%Y-%m-%d")
+        parsed_meeting_date = datetime.strptime(meeting_date, "%Y-%m-%d").date()
     except ValueError:
         raise HTTPException(status_code=400, detail="meeting_date must be YYYY-MM-DD.")
+    expected_meeting_date = _general_assembly_date_for_year(parsed_meeting_date.year)
+    if parsed_meeting_date != expected_meeting_date:
+        raise HTTPException(
+            status_code=400,
+            detail=f"General Assembly must be held on {expected_meeting_date.isoformat()} (the third Saturday of March).",
+        )
 
     entries = payload.get("entries") or []
     if not isinstance(entries, list) or not entries:

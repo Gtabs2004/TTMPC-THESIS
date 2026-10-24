@@ -1,9 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRealtimeRefetch } from "../hooks/useRealtimeRefetch";
 import { RT } from "../lib/realtimeSync";
 import StaffSidebar from "../components/StaffSidebar";
 import { secretaryNav } from "../components/StaffSidebar/configs/secretary";
-import { NavLink, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
   Archive,
@@ -21,35 +20,58 @@ import {
   AlertTriangle,
   History,
   Check,
+  Download,
 } from "lucide-react";
 
 import { UserAuth } from "../contex/AuthContext";
 import { useNotification } from "../contex/NotificationContext";
 import StaffTopbar from "../components/StaffTopbar";
+import { StatCard, StatCardRow } from "../components/StatCard";
 import { TableToolbar } from "../components/TableToolbar";
 import Pagination from "../components/Pagination";
 import ConfirmDialog from "../components/ConfirmDialog";
-import logo from "../assets/img/ttmpc logo.png";
 import NotificationBell from "../components/NotificationBell";
 import TableStateRow from "../components/TableStateRow";
+import { exportGeneralAssemblyReport } from "../utils/generalAssemblyExport";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const PAGE_SIZE = 10;
 const SCORING_YEAR = 2026;
+const getGeneralAssemblyDate = (year) => {
+  const firstMarchDay = new Date(year, 2, 1);
+  const firstSaturday = 1 + ((6 - firstMarchDay.getDay() + 7) % 7);
+  return `${year}-03-${String(firstSaturday + 14).padStart(2, "0")}`;
+};
+const formatRecordedAt = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : date.toLocaleString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+};
 
 const Secretary_General_Assembly = () => {
   const { session } = UserAuth();
-  const navigate = useNavigate();
   const { addNotification } = useNotification();
 
   const [rows, setRows] = useState([]);
   const [edits, setEdits] = useState({}); // { membership_id: { status, remarks } }
-  const [meetingDate, setMeetingDate] = useState(`${SCORING_YEAR}-03-01`);
+  const [meetingDate] = useState(() => getGeneralAssemblyDate(SCORING_YEAR));
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportScope, setExportScope] = useState("full-list");
+  const [exportingFormat, setExportingFormat] = useState("");
+  const exportMenuRef = useRef(null);
   
   // New state for bulk selection
   const [selectedMembers, setSelectedMembers] = useState(new Set());
@@ -71,9 +93,6 @@ const Secretary_General_Assembly = () => {
       }
       setRows(Array.isArray(result.data) ? result.data : []);
       setEdits({});
-      if (result.default_meeting_date) {
-        setMeetingDate(result.default_meeting_date);
-      }
     } catch (err) {
       if (silent) return;
       addNotification(err?.message || "Unable to load roster.", "error");
@@ -88,10 +107,30 @@ const Secretary_General_Assembly = () => {
     fetchRoster();
   }, [fetchRoster]);
 
-  const effectiveStatus = (row) =>
-    edits[row.id]?.status !== undefined ? edits[row.id].status : row.status;
-  const effectiveRemarks = (row) =>
-    edits[row.id]?.remarks !== undefined ? edits[row.id].remarks : row.remarks;
+  useEffect(() => {
+    if (!exportOpen) return undefined;
+    const closeOnOutsideClick = (event) => {
+      if (!exportMenuRef.current?.contains(event.target)) setExportOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setExportOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [exportOpen]);
+
+  const effectiveStatus = useCallback(
+    (row) => edits[row.id]?.status !== undefined ? edits[row.id].status : row.status,
+    [edits]
+  );
+  const effectiveRemarks = useCallback(
+    (row) => edits[row.id]?.remarks !== undefined ? edits[row.id].remarks : row.remarks,
+    [edits]
+  );
 
   const filtered = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -107,7 +146,7 @@ const Secretary_General_Assembly = () => {
           String(r.membership_id || "").toLowerCase().includes(term)
         );
       });
-  }, [rows, searchTerm, statusFilter, edits]);
+  }, [rows, searchTerm, statusFilter, effectiveStatus]);
 
   const totals = useMemo(() => {
     let present = 0;
@@ -117,7 +156,7 @@ const Secretary_General_Assembly = () => {
       else absent += 1;
     });
     return { present, absent, total: rows.length };
-  }, [rows, edits]);
+  }, [rows, effectiveStatus]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = useMemo(() => {
@@ -279,9 +318,57 @@ const Secretary_General_Assembly = () => {
 
 
   const dirtyCount = Object.keys(edits).length;
+  const exportAllRows = useMemo(
+    () => rows.map((row) => ({
+      ...row,
+      status: edits[row.id]?.status !== undefined ? edits[row.id].status : row.status,
+      remarks: edits[row.id]?.remarks !== undefined ? edits[row.id].remarks : row.remarks,
+    })),
+    [rows, edits]
+  );
+  const exportScopeRows = useMemo(() => {
+    if (exportScope === "present") return exportAllRows.filter((row) => row.status === "Present");
+    if (exportScope === "absent") return exportAllRows.filter((row) => row.status !== "Present");
+    return exportAllRows;
+  }, [exportAllRows, exportScope]);
+  const exportScopes = [
+    { value: "full-list", label: "Full List", count: rows.length },
+    {
+      value: "present",
+      label: "Present Only",
+      count: rows.filter((row) => effectiveStatus(row) === "Present").length,
+    },
+    {
+      value: "absent",
+      label: "Absent Only",
+      count: rows.filter((row) => effectiveStatus(row) !== "Present").length,
+    },
+  ];
+  const handleExport = async (format) => {
+    setExportingFormat(format);
+    try {
+      await exportGeneralAssemblyReport({
+        rows: exportScopeRows,
+        allRows: exportAllRows,
+        meetingDate,
+        scope: exportScope,
+        format,
+      });
+      setExportOpen(false);
+      addNotification(
+        `Exported ${exportScopeRows.length} attendance records as ${format.toUpperCase()}.`,
+        "success"
+      );
+    } catch (error) {
+      console.error("General Assembly report export failed", error);
+      addNotification(error?.message || "Unable to export the attendance report.", "error");
+    } finally {
+      setExportingFormat("");
+    }
+  };
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-slate-50">
          {/* SIDEBAR */}
          <StaffSidebar portal="Secretary" items={secretaryNav} />
    
@@ -289,50 +376,58 @@ const Secretary_General_Assembly = () => {
          <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
         <StaffTopbar portal="Secretary" notifications={<NotificationBell viewAllPath="/Secretary_Records" />} />
 
-        <main className="animate-page-in p-6 overflow-auto">
-          {/* Title */}
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">General Assembly Attendance</h1>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Record member attendance for the {SCORING_YEAR} General Assembly. Used as MIGS scoring input.
-              </p>
+        <main className="animate-page-in flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
+          <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div>
+                <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 sm:text-3xl">
+                  General Assembly Attendance
+                </h1>
+                <p className="mt-1 max-w-2xl text-sm text-gray-600">
+                  Record member attendance for the {SCORING_YEAR} General Assembly. Attendance is used as MIGS scoring input.
+                </p>
+              </div>
             </div>
-            <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-600 font-medium">
-              {totals.total} members • {totals.present} present
+            <div className="inline-flex w-fit items-center gap-2 rounded-lg border border-green-200 bg-white px-3 py-2 text-xs font-semibold text-green-900 shadow-sm">
+              <CalendarDays className="h-4 w-4 text-green-700" aria-hidden="true" />
+              {SCORING_YEAR} Annual Meeting
             </div>
-          </div>
+          </header>
 
-          {/* Summary */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium text-gray-500">Total Members</p>
-                <Users className="w-4 h-4 text-gray-500" />
-              </div>
-              <p className="text-xl font-bold text-gray-900 mt-1.5">{totals.total}</p>
-            </div>
-            <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium text-gray-500">Marked Present</p>
-                <CheckCircle2 className="w-4 h-4 text-green-600" />
-              </div>
-              <p className="text-xl font-bold text-green-700 mt-1.5">{totals.present}</p>
-            </div>
-            <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium text-gray-500">Marked Absent</p>
-                <AlertCircle className="w-4 h-4 text-amber-600" />
-              </div>
-              <p className="text-xl font-bold text-gray-900 mt-1.5">{totals.absent}</p>
-            </div>
-          </div>
+          <StatCardRow cols={3}>
+            <StatCard
+              label="Total Members"
+              value={totals.total}
+              icon={Users}
+              iconColor="text-gray-600"
+              subtext="Full member roster"
+            />
+            <StatCard
+              label="Present"
+              value={totals.present}
+              icon={CheckCircle2}
+              iconColor="text-green-700"
+              subtext="Marked present"
+            />
+            <StatCard
+              label="Absent"
+              value={totals.absent}
+              icon={AlertCircle}
+              iconColor="text-amber-700"
+              subtext="Marked absent"
+            />
+          </StatCardRow>
 
           {/* Table (toolbar shares this card) */}
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-visible rounded-xl border border-gray-200 bg-white shadow-sm">
             <TableToolbar
-              subtitle={`Showing ${paginated.length} of ${filtered.length} members`}
-              tabs={["All", "Present", "Absent"].map((opt) => ({ value: opt, label: opt }))}
+              title="Member attendance"
+              subtitle={`Showing ${paginated.length} of ${filtered.length} filtered members${dirtyCount ? ` · ${dirtyCount} unsaved change${dirtyCount === 1 ? "" : "s"}` : ""}`}
+              tabs={[
+                { value: "All", label: "All", count: totals.total },
+                { value: "Present", label: "Present", count: totals.present },
+                { value: "Absent", label: "Absent", count: totals.absent },
+              ]}
               activeTab={statusFilter}
               onTabChange={setStatusFilter}
             >
@@ -340,38 +435,39 @@ const Secretary_General_Assembly = () => {
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                 <input
                   type="text"
+                  aria-label="Search members by name or membership ID"
                   placeholder="Search by name or membership ID"
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
-                  className="w-full bg-white h-8 rounded-lg border border-gray-200 pl-8 pr-3 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
+                  className="h-9 w-full rounded-lg border border-gray-300 bg-gray-50 pl-8 pr-3 text-xs font-medium text-gray-900 placeholder:text-gray-500 focus:border-green-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-green-700/30"
                 />
               </div>
 
-              <label className="flex items-center gap-2 text-[11px] font-semibold text-gray-700">
+              <div
+                className="flex shrink-0 items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs font-semibold text-green-900"
+                aria-label={`General Assembly date: ${new Date(`${meetingDate}T12:00:00`).toLocaleDateString("en-US", {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                })}`}
+              >
                 <CalendarDays size={14} className="text-gray-500" />
-                GA Date
-                <input
-                  type="date"
-                  value={meetingDate}
-                  onChange={(event) => {
-                    setMeetingDate(event.target.value);
-                    // Reset all edits and selections — GA is once per fiscal year,
-                    // so a new date starts a fresh session.
-                    setEdits({});
-                    setSelectedMembers(new Set());
-                  }}
-                  min={`${SCORING_YEAR}-01-01`}
-                  max={`${SCORING_YEAR}-12-31`}
-                  className="h-8 rounded-lg border border-gray-200 bg-white px-2 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
-                />
-              </label>
+                <span>GA Date</span>
+                <span>
+                  {new Date(`${meetingDate}T12:00:00`).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </span>
+              </div>
 
               {selectedMembers.size > 0 && (
                 <div className="inline-flex items-center gap-1.5">
                   <select
                     value={bulkStatus}
                     onChange={(event) => setBulkStatus(event.target.value)}
-                    className="h-8 rounded-lg border border-gray-200 bg-white px-2 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
+                    className="h-9 rounded-lg border border-gray-300 bg-gray-50 px-2 text-xs font-semibold text-gray-900 focus:border-green-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-green-700/30"
                   >
                     <option value="Present">Present</option>
                     <option value="Absent">Absent</option>
@@ -379,7 +475,7 @@ const Secretary_General_Assembly = () => {
                   <button
                     onClick={handleMarkSelectedAsPresent}
                     disabled={saving}
-                    className={`h-8 px-3 rounded-lg text-white text-[11px] font-semibold inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    className={`h-9 px-3 rounded-lg text-white text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 ${
                       bulkStatus === "Present"
                         ? "bg-green-600 hover:bg-green-700"
                         : "bg-amber-600 hover:bg-amber-700"
@@ -396,18 +492,90 @@ const Secretary_General_Assembly = () => {
               <button
                 onClick={handleSave}
                 disabled={saving || dirtyCount === 0}
-                className="h-8 px-3 rounded-lg bg-green-600 hover:bg-green-700 text-white text-[11px] font-semibold inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="h-9 px-3 rounded-lg bg-green-700 hover:bg-green-800 text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-green-700/40 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Save size={13} />
                 {saving ? "Saving..." : `Save${dirtyCount ? ` (${dirtyCount})` : ""}`}
               </button>
+
+              <div className="relative" ref={exportMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setExportOpen((open) => !open)}
+                  aria-haspopup="dialog"
+                  aria-expanded={exportOpen}
+                  className="h-9 px-3 rounded-lg border border-gray-300 bg-white text-gray-700 text-xs font-semibold inline-flex items-center gap-1.5 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-700/30 focus:ring-offset-1"
+                >
+                  <Download size={13} />
+                  Export Report
+                </button>
+                {exportOpen && (
+                  <div
+                    role="dialog"
+                    aria-label="Export General Assembly attendance report"
+                    className="absolute right-0 top-full z-30 mt-2 w-72 rounded-xl border border-gray-200 bg-white p-3 shadow-xl"
+                  >
+                    <p className="px-1 pb-2 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                      Choose report scope
+                    </p>
+                    <div className="space-y-1">
+                      {exportScopes.map((scope) => (
+                        <button
+                          key={scope.value}
+                          type="button"
+                          onClick={() => setExportScope(scope.value)}
+                          aria-pressed={exportScope === scope.value}
+                          className={`w-full rounded-lg px-2.5 py-2 text-left text-xs font-semibold transition-colors ${
+                            exportScope === scope.value
+                              ? "bg-green-50 text-green-800"
+                              : "text-gray-700 hover:bg-gray-50"
+                          }`}
+                        >
+                          <span>{scope.label}</span>
+                          <span className="float-right tabular-nums text-gray-500">{scope.count}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-3 border-t border-gray-100 pt-3">
+                      <p className="px-1 pb-2 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                        Export format
+                      </p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { value: "csv", label: "CSV" },
+                          { value: "xlsx", label: "Excel (.xlsx)" },
+                          { value: "pdf", label: "PDF" },
+                        ].map((format) => (
+                          <button
+                            key={format.value}
+                            type="button"
+                            onClick={() => handleExport(format.value)}
+                            disabled={Boolean(exportingFormat) || loading}
+                            className="h-8 rounded-lg border border-gray-200 bg-white text-[11px] font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-wait disabled:opacity-50"
+                          >
+                            {exportingFormat === format.value ? "Exporting..." : format.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </TableToolbar>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full min-w-[1080px] table-fixed text-left border-collapse">
+                <colgroup>
+                  <col className="w-[4%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[22%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[28%]" />
+                  <col className="w-[18%]" />
+                </colgroup>
                 <thead>
                   <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
-                    <th className="p-5 font-bold text-center w-10">
+                    <th scope="col" className="px-3 py-3 font-bold text-center">
                       {(() => {
                         const selectableIds = filtered.map((r) => r.id);
                         const allSelected =
@@ -418,17 +586,18 @@ const Secretary_General_Assembly = () => {
                             type="checkbox"
                             checked={allSelected}
                             onChange={handleSelectAll}
-                            className="w-4 h-4 cursor-pointer"
+                            aria-label="Select all filtered members"
+                            className="h-4 w-4 cursor-pointer accent-green-700"
                             title="Select all filtered members (across all pages)"
                           />
                         );
                       })()}
                     </th>
-                    <th className="p-5 font-bold">Member ID</th>
-                    <th className="p-5 font-bold">Member Name</th>
-                    <th className="p-5 font-bold">Attendance</th>
-                    <th className="p-5 font-bold">Remarks</th>
-                    <th className="p-5 font-bold">Last Recorded</th>
+                    <th scope="col" className="px-4 py-3 font-bold">Member ID</th>
+                    <th scope="col" className="px-4 py-3 font-bold">Member Name</th>
+                    <th scope="col" className="px-4 py-3 font-bold">Attendance</th>
+                    <th scope="col" className="px-4 py-3 font-bold">Remarks</th>
+                    <th scope="col" className="px-4 py-3 font-bold">Last Recorded</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -440,61 +609,76 @@ const Secretary_General_Assembly = () => {
                     paginated.map((row) => {
                       const status = effectiveStatus(row);
                       const isDirty = edits[row.id] !== undefined;
-                      const isAlreadyPresent = row.status === "Present";
                       const isSelected = selectedMembers.has(row.id);
                       return (
                         <tr
                           key={row.id}
-                          className={`border-b border-gray-100 hover:bg-gray-50/50 transition-colors ${isDirty ? "bg-amber-50/40" : ""} ${isSelected ? "bg-blue-50" : ""}`}
+                          className={`border-b border-gray-100 transition-colors hover:bg-gray-50/70 ${
+                            isSelected ? "bg-green-50/70" : isDirty ? "bg-amber-50/50" : ""
+                          }`}
                         >
-                          <td className="p-5 text-center">
+                          <td className="px-3 py-3 text-center">
                             <input
                               type="checkbox"
                               checked={isSelected}
                               onChange={() => handleSelectMember(row.id)}
-                              className="w-4 h-4 cursor-pointer"
+                              aria-label={`Select ${row.full_name || "member"}`}
+                              className="h-4 w-4 cursor-pointer accent-green-700"
                               title="Select member"
                             />
                           </td>
-                          <td className="p-5 text-sm font-mono text-gray-700">
-                            {row.membership_id || "—"}
+                          <td className="px-4 py-3 text-xs font-mono font-medium text-gray-600">
+                            <span className="block truncate" title={row.membership_id || "—"}>
+                              {row.membership_id || "—"}
+                            </span>
                           </td>
-                          <td className="p-5 text-sm text-gray-900 font-medium">{row.full_name}</td>
-                          <td className="p-5 text-sm">
+                          <td className="px-4 py-3">
+                            <div className="flex min-w-0 items-center">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-gray-900" title={row.full_name}>
+                                  {row.full_name || "Unknown Member"}
+                                </p>
+                                {isDirty && (
+                                  <span className="mt-0.5 inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-amber-200">
+                                    Unsaved
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
                             <select
                               value={status}
+                              aria-label={`Attendance status for ${row.full_name || "member"}`}
                               onChange={(event) =>
                                 setRowField(row.id, "status", event.target.value)
                               }
-                              className={`text-[11px] font-semibold rounded-md border px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-500 ${
+                              className={`h-9 w-full min-w-[112px] rounded-lg border px-2.5 text-xs font-semibold focus:border-green-700 focus:outline-none focus:ring-2 focus:ring-green-700/30 ${
                                 status === "Present"
-                                  ? "bg-green-50 text-green-800 border-green-300"
-                                  : "bg-amber-50 text-amber-800 border-amber-300"
+                                  ? "border-green-200 bg-green-50 text-green-900"
+                                  : "border-amber-200 bg-amber-50 text-amber-900"
                               }`}
                             >
                               <option value="Absent">Absent</option>
                               <option value="Present">Present</option>
                             </select>
                           </td>
-                          <td className="p-5 text-sm">
+                          <td className="px-4 py-3">
                             <input
                               type="text"
                               value={effectiveRemarks(row) || ""}
+                              aria-label={`Remarks for ${row.full_name || "member"}`}
                               onChange={(event) =>
                                 setRowField(row.id, "remarks", event.target.value)
                               }
                               placeholder="Optional remarks"
-                              className="w-full bg-gray-50 border border-gray-200 rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
+                              className="h-9 w-full rounded-lg border border-gray-300 bg-gray-50 px-3 text-xs text-gray-900 placeholder:text-gray-500 focus:border-green-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-green-700/30"
                             />
                           </td>
-                          <td className="p-5 text-sm text-gray-500 text-[11px]">
-                            {row.recorded_at
-                              ? new Date(row.recorded_at).toLocaleDateString("en-US", {
-                                  year: "numeric",
-                                  month: "short",
-                                  day: "2-digit",
-                                })
-                              : "—"}
+                          <td className="px-4 py-3 text-xs text-gray-600">
+                            {formatRecordedAt(row.recorded_at) || (
+                              <span className="text-gray-400">Not recorded</span>
+                            )}
                           </td>
                         </tr>
                       );
