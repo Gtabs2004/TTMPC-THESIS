@@ -151,7 +151,7 @@ export default function PosSimulator() {
               const ok = result.httpStatus >= 200 && result.httpStatus < 300;
               return ok ? (
                 <div className="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-                  <span className="text-xl leading-none">âœ“</span>
+                  <span className="text-xl leading-none">✓</span>
                   <div>
                     <p className="font-semibold">Grocery transaction successful</p>
                     <p className="text-xs text-green-700 mt-0.5">
@@ -161,7 +161,7 @@ export default function PosSimulator() {
                 </div>
               ) : (
                 <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-                  <span className="text-xl leading-none">âœ—</span>
+                  <span className="text-xl leading-none">✗</span>
                   <div>
                     <p className="font-semibold">Transaction failed</p>
                     <p className="text-xs text-red-700 mt-0.5">

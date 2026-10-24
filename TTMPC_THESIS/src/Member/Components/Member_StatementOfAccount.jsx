@@ -475,7 +475,7 @@ const Member_StatementOfAccount = () => {
       } catch (err) {
         if (isMounted) setSavingsError(err.message || "Unable to load savings statement.");
       } finally {
-        if (isMounted) setLoadingSavings(false);
+        setLoadingSavings(false);
       }
     };
 
