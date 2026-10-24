@@ -6443,7 +6443,6 @@ def resubmit_member_loan_revision(
             supabase.table(table)
             .update(update_payload)
             .eq("control_number", control_number)
-            .select("control_number, loan_status, application_status")
             .execute()
         )
     except Exception as exc:

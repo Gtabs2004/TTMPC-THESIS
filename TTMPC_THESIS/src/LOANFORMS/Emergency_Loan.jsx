@@ -832,9 +832,9 @@ function Emergency_Loan() {
       />
 
       {isRevisionEdit && (
-        <div className="mx-3 mt-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 sm:mx-4">
-          <p className="font-bold">Revision requested by the Manager</p>
-          <p className="mt-1">
+        <div role="alert" className="mx-3 mt-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:mx-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-amber-800">Manager's requested changes</p>
+          <p className="mt-1 whitespace-pre-wrap font-semibold">
             {revisionRemarks || 'Please review your application and resubmit after making the needed changes.'}
           </p>
         </div>

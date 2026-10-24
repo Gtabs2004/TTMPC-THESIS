@@ -35,6 +35,13 @@ const formatDate = (value) =>
 
 const formatPct = (p) => (p == null ? "—" : `${(Number(p) * 100).toFixed(1)}%`);
 
+const getModelThreshold = (modelInfo, key) => {
+  const value = modelInfo?.thresholds?.[key];
+  if (value == null || !Number.isFinite(Number(value))) return null;
+  const threshold = Number(value);
+  return threshold >= 0 && threshold <= 1 ? threshold : null;
+};
+
 // Presentation for each of the model's traffic-light bands.
 //
 // The band itself is decided by the backend, which reads its cut-offs from the
@@ -145,11 +152,13 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
       // separately so it stays correct across retrainings without a redeploy.
       try {
         const infoRes = await fetch(`${API_BASE_URL}/api/risk/model-info`);
-        if (infoRes.ok) {
-          const infoJson = await infoRes.json();
-          setModelInfo(infoJson?.data || null);
+        const infoJson = await infoRes.json();
+        if (!infoRes.ok || !infoJson?.success || !infoJson?.data) {
+          throw new Error(infoJson?.detail || "Failed to load credit risk model thresholds.");
         }
-      } catch {
+        setModelInfo(infoJson.data);
+      } catch (err) {
+        console.error("credit risk model info load failed", err);
         setModelInfo(null);
       }
       if (!silent) setLoadError("");
@@ -229,6 +238,10 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
     setRefreshing(true);
     fetchQueue({ refresh: true });
   };
+
+  const greenAmberThreshold = getModelThreshold(modelInfo, "green_amber");
+  const amberRedThreshold = getModelThreshold(modelInfo, "amber_red");
+  const thresholdUnavailableLabel = loading ? "Loading threshold..." : "Threshold unavailable";
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -319,9 +332,32 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
           {/* Summary bands */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {[
-              { key: "high", label: "High Risk", subtitle: "≥ 60%", accent: "text-red-600", bg: "bg-red-50", ring: "border-red-200" },
-              { key: "watch", label: "Medium Risk", subtitle: "30% - 60%", accent: "text-amber-600", bg: "bg-amber-50", ring: "border-amber-200" },
-              { key: "low", label: "Low Risk", subtitle: "< 30%", accent: "text-emerald-600", bg: "bg-emerald-50", ring: "border-emerald-200" },
+              {
+                key: "high",
+                label: "High Risk",
+                subtitle: amberRedThreshold == null ? thresholdUnavailableLabel : `≥ ${formatPct(amberRedThreshold)}`,
+                accent: "text-red-600",
+                bg: "bg-red-50",
+                ring: "border-red-200",
+              },
+              {
+                key: "watch",
+                label: "Medium Risk",
+                subtitle: greenAmberThreshold == null || amberRedThreshold == null || greenAmberThreshold >= amberRedThreshold
+                  ? thresholdUnavailableLabel
+                  : `≥ ${formatPct(greenAmberThreshold)} and < ${formatPct(amberRedThreshold)}`,
+                accent: "text-amber-600",
+                bg: "bg-amber-50",
+                ring: "border-amber-200",
+              },
+              {
+                key: "low",
+                label: "Low Risk",
+                subtitle: greenAmberThreshold == null ? thresholdUnavailableLabel : `< ${formatPct(greenAmberThreshold)}`,
+                accent: "text-emerald-600",
+                bg: "bg-emerald-50",
+                ring: "border-emerald-200",
+              },
               { key: "unknown", label: "Unscored", subtitle: "Not yet assessed", accent: "text-gray-600", bg: "bg-gray-50", ring: "border-gray-200" },
             ].map((b) => (
               <button
