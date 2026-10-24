@@ -21556,13 +21556,27 @@ async def get_bookkeeper_reports():
     loan_type_distribution = list(type_map.values())
 
     # ── 2. Payments ─────────────────────────────────────────────────────────
+    # Supabase/PostgREST caps a single .execute() at 1000 rows regardless of
+    # filters — with 1600+ payments this was silently dropping rows (incl.
+    # the only pending_bookkeeper one) past the cutoff, so pagination is
+    # required even though this query has no filter to narrow it.
     try:
-        payments_resp = (
-            supabase.table("loan_payments")
-            .select("id,loan_id,amount_paid,penalties,payment_date,confirmation_status")
-            .execute()
-        )
-        all_payments = payments_resp.data or []
+        all_payments: list[dict] = []
+        page = 1000
+        offset = 0
+        while True:
+            batch = (
+                supabase.table("loan_payments")
+                .select("id,loan_id,amount_paid,penalties,payment_date,confirmation_status")
+                .range(offset, offset + page - 1)
+                .execute()
+            ).data or []
+            if not batch:
+                break
+            all_payments.extend(batch)
+            if len(batch) < page:
+                break
+            offset += page
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to load payments: {exc}")
 
