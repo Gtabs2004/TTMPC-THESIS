@@ -164,7 +164,10 @@ const Secretary_General_Assembly = () => {
     return filtered.slice(start, start + PAGE_SIZE);
   }, [filtered, page]);
 
-  useEffect(() => setPage(1), [searchTerm, statusFilter]);
+  useEffect(() => {
+    setPage(1);
+    setSelectedMembers(new Set());
+  }, [searchTerm, statusFilter]);
 
   const setRowField = (memberId, field, value) => {
     setEdits((prev) => ({
@@ -257,6 +260,13 @@ const Secretary_General_Assembly = () => {
       addNotification("Please select at least one member.", "info");
       return;
     }
+    if (Object.keys(edits).length > 0) {
+      addNotification(
+        "Save or revert your unsaved attendance edits before using bulk marking.",
+        "warning"
+      );
+      return;
+    }
     if (!meetingDate) {
       addNotification("Pick a meeting date first.", "error");
       return;
@@ -268,6 +278,13 @@ const Secretary_General_Assembly = () => {
   const handleConfirmBulkMark = async () => {
     if (selectedMembers.size === 0) {
       addNotification("No members selected.", "info");
+      return;
+    }
+    if (Object.keys(edits).length > 0) {
+      addNotification(
+        "Save or revert your unsaved attendance edits before using bulk marking.",
+        "warning"
+      );
       return;
     }
 
@@ -467,6 +484,7 @@ const Secretary_General_Assembly = () => {
                   <select
                     value={bulkStatus}
                     onChange={(event) => setBulkStatus(event.target.value)}
+                    aria-label="Attendance status to apply to selected members"
                     className="h-9 rounded-lg border border-gray-300 bg-gray-50 px-2 text-xs font-semibold text-gray-900 focus:border-green-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-green-700/30"
                   >
                     <option value="Present">Present</option>
@@ -474,7 +492,13 @@ const Secretary_General_Assembly = () => {
                   </select>
                   <button
                     onClick={handleMarkSelectedAsPresent}
-                    disabled={saving}
+                    disabled={saving || dirtyCount > 0}
+                    aria-describedby={dirtyCount > 0 ? "bulk-edit-warning" : undefined}
+                    title={
+                      dirtyCount > 0
+                        ? "Save or revert unsaved row edits before bulk marking."
+                        : undefined
+                    }
                     className={`h-9 px-3 rounded-lg text-white text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 ${
                       bulkStatus === "Present"
                         ? "bg-green-600 hover:bg-green-700"
@@ -563,6 +587,31 @@ const Secretary_General_Assembly = () => {
               </div>
             </TableToolbar>
 
+            {selectedMembers.size > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-6 py-2.5 text-xs">
+                <div>
+                  <p aria-live="polite" className="font-semibold text-gray-700">
+                    {selectedMembers.size} selected. Selection can span pages, but is limited to the current search and status filter.
+                  </p>
+                  <p className="mt-0.5 text-gray-500">
+                    Selection clears when the search or status filter changes.
+                  </p>
+                  {dirtyCount > 0 && (
+                    <p id="bulk-edit-warning" role="status" className="mt-1 font-semibold text-amber-800">
+                      Save or revert {dirtyCount} unsaved row edit{dirtyCount === 1 ? "" : "s"} before bulk marking.
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedMembers(new Set())}
+                  className="rounded-md px-2 py-1 font-semibold text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-700/30"
+                >
+                  Clear selection
+                </button>
+              </div>
+            )}
+
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1080px] table-fixed text-left border-collapse">
                 <colgroup>
@@ -586,9 +635,9 @@ const Secretary_General_Assembly = () => {
                             type="checkbox"
                             checked={allSelected}
                             onChange={handleSelectAll}
-                            aria-label="Select all filtered members"
+                            aria-label={`Select all ${filtered.length} members matching the current filters across every page`}
                             className="h-4 w-4 cursor-pointer accent-green-700"
-                            title="Select all filtered members (across all pages)"
+                            title={`Select all ${filtered.length} filtered members across every page`}
                           />
                         );
                       })()}
@@ -701,6 +750,7 @@ const Secretary_General_Assembly = () => {
             loadingLabel="Confirming..."
             tone={bulkStatus === "Present" ? "default" : "warning"}
             loading={saving}
+            disableConfirm={dirtyCount > 0 || selectedMembers.size === 0}
             onCancel={() => {
               setShowConfirmModal(false);
               setConfirmationMode(null);
@@ -708,46 +758,36 @@ const Secretary_General_Assembly = () => {
             onConfirm={handleConfirmBulkMark}
           >
             <p className="text-sm text-gray-700 mb-4">
-              Are you sure you want to mark{" "}
+              Mark{" "}
               <strong className={bulkStatus === "Present" ? "text-green-700" : "text-amber-700"}>
                 {selectedMembers.size} member{selectedMembers.size === 1 ? "" : "s"}
               </strong>{" "}
-              as {bulkStatus}?
+              as {bulkStatus}? Review the complete list below. No other members will be changed.
             </p>
 
-            {/* Selected Members List */}
             <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Selected Members:</p>
-              <div className="space-y-2">
-                {(() => {
-                  const memberIds = Array.from(selectedMembers);
-                  const memberRows = memberIds
-                    .map((id) => rows.find((r) => r.id === id))
-                    .filter(Boolean);
-
-                  const previewCount = 3;
-                  const displayMembers = memberRows.slice(0, previewCount);
-                  const remainingCount = memberRows.length - previewCount;
-
-                  return (
-                    <>
-                      {displayMembers.map((member) => (
-                        <div key={member.id} className="flex items-start gap-2 text-sm text-gray-700">
-                          <Check size={16} className="text-green-600 mt-0.5 flex-shrink-0" />
-                          <div>
-                            <div className="font-medium">{member.full_name}</div>
-                            <div className="text-xs text-gray-500">ID: {member.membership_id}</div>
-                          </div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
+                All selected members ({selectedMembers.size})
+              </p>
+              <div
+                role="region"
+                aria-label="Complete list of selected members"
+                tabIndex={0}
+                className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 focus:outline-none focus:ring-2 focus:ring-green-700/30"
+              >
+                <ul className="space-y-2">
+                  {rows
+                    .filter((row) => selectedMembers.has(row.id))
+                    .map((member) => (
+                      <li key={member.id} className="flex items-start gap-2 text-sm text-gray-700">
+                        <Check size={16} className="mt-0.5 flex-shrink-0 text-green-600" aria-hidden="true" />
+                        <div>
+                          <div className="font-medium">{member.full_name}</div>
+                          <div className="text-xs text-gray-500">ID: {member.membership_id}</div>
                         </div>
-                      ))}
-                      {remainingCount > 0 && (
-                        <div className="flex items-center gap-2 text-sm text-gray-600 font-medium pt-2 border-t border-gray-200">
-                          <span>+ {remainingCount} more member{remainingCount === 1 ? "" : "s"}</span>
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
+                      </li>
+                    ))}
+                </ul>
               </div>
             </div>
           </ConfirmDialog>
