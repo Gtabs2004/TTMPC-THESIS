@@ -280,7 +280,7 @@ const Member_Details = () => {
             <p className="font-medium text-gray-800">{asText(record?.first_name)}</p>
           </div>
           <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Middle Name</p>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Middle Name/Initial</p>
             <p className="font-medium text-gray-800">{asText(record?.middle_name)}</p>
           </div>
           <div>
