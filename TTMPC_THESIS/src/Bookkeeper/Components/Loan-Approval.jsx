@@ -350,19 +350,32 @@ const BookkeeperLoanApproval = () => {
                 <option value="non-migs">Non-MIGS</option>
               </select>
             </TableToolbar>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+            {/* Fixed column widths (table-fixed): long values truncate with a
+                tooltip instead of pushing the table into a horizontal scroll. */}
+            <div>
+              <table className="w-full table-fixed text-left border-collapse">
+                <colgroup>
+                  <col className="w-[14%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[10%]" />
+                </colgroup>
                 <thead>
                   <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
-                    <th className="p-5 font-bold">Loan ID</th>
-                    <th className="p-5 font-bold">Member Name</th>
-                    <th className="p-5 font-bold">Loan Type</th>
-                    <th className="p-5 font-bold">Amount</th>
-                    <th className="p-5 font-bold">Term</th>
-                    <th className="p-5 font-bold">MIGS Status</th>
-                    <th className="p-5 font-bold">Loan Status</th>
-                    <th className="p-5 font-bold">Submission</th>
-                    <th className="p-5 font-bold text-right">Actions</th>
+                    <th className="px-3 py-4 font-bold">Loan ID</th>
+                    <th className="px-3 py-4 font-bold">Member Name</th>
+                    <th className="px-3 py-4 font-bold">Loan Type</th>
+                    <th className="px-3 py-4 font-bold">Amount</th>
+                    <th className="px-3 py-4 font-bold">Term</th>
+                    <th className="px-3 py-4 font-bold">MIGS Status</th>
+                    <th className="px-3 py-4 font-bold">Loan Status</th>
+                    <th className="px-3 py-4 font-bold">Submission</th>
+                    <th className="px-3 py-4 font-bold text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -370,7 +383,7 @@ const BookkeeperLoanApproval = () => {
                     <TableStateRow colSpan={9} variant="loading" label="Loading..." />
                   ) : fetchError ? (
                     <tr>
-                      <td colSpan="9" className="p-5 text-center text-red-600">
+                      <td colSpan="9" className="px-3 py-4 text-center text-red-600">
                         Failed to load loans: {fetchError}
                       </td>
                     </tr>
@@ -384,39 +397,39 @@ const BookkeeperLoanApproval = () => {
                   ) : (
                     paginatedLoans.map((loan) => (
                       <tr key={`${loan.source}-${loan.id}`} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                        <td className="p-5 text-sm text-gray-500 font-medium max-w-[10rem]">
+                        <td className="px-3 py-4 text-sm text-gray-500 font-medium">
                           <p className="truncate" title={loan.id || "N/A"}>{loan.id}</p>
                         </td>
-                        <td className="p-5 text-sm font-bold text-gray-800 max-w-[14rem]">
+                        <td className="px-3 py-4 text-sm font-bold text-gray-800">
                           <p className="truncate" title={loan.name || "N/A"}>{loan.name}</p>
                         </td>
-                        <td className="p-5 text-sm">
+                        <td className="px-3 py-4 text-sm">
                           <span
-                            className={`inline-block max-w-[12rem] truncate px-3 py-1.5 rounded-full text-xs font-bold ${getLoanTypeStyle(loan.type)}`}
+                            className={`inline-block max-w-full truncate px-2.5 py-1 rounded-full text-[11px] font-bold align-middle ${getLoanTypeStyle(loan.type)}`}
                             title={loan.type || "N/A"}
                           >
                             {loan.type || "N/A"}
                           </span>
                         </td>
-                        <td className="p-5 text-sm font-bold text-gray-900">{loan.amount}</td>
-                        <td className="p-5 text-sm text-gray-500 max-w-[8rem]">
+                        <td className="px-3 py-4 text-sm font-bold text-gray-900">{loan.amount}</td>
+                        <td className="px-3 py-4 text-sm text-gray-500">
                           <p className="truncate" title={loan.term || "N/A"}>{loan.term || "N/A"}</p>
                         </td>
-                        <td className="p-5 text-sm">
-                          <span className={`px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${getMigsStyle(loan.status)}`}>
+                        <td className="px-3 py-4 text-sm">
+                          <span className={`inline-block max-w-full truncate px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide align-middle ${getMigsStyle(loan.status)}`}>
                             {loan.status}
                           </span>
                         </td>
-                        <td className="p-5 text-sm">
+                        <td className="px-3 py-4 text-sm">
                           <span
-                            className={`inline-block max-w-[11rem] truncate px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${getLoanStatusBadge(loan.loanStatus)}`}
+                            className={`inline-block max-w-full truncate px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide align-middle ${getLoanStatusBadge(loan.loanStatus)}`}
                             title={formatLoanStatus(loan.loanStatus)}
                           >
                             {formatLoanStatus(loan.loanStatus)}
                           </span>
                         </td>
-                        <td className="p-5 text-sm text-gray-500 whitespace-nowrap" title={loan.submittedAt || loan.date}>{loan.date}</td>
-                        <td className="p-5 text-sm text-right pr-8">
+                        <td className="px-3 py-4 text-sm text-gray-500 truncate" title={loan.submittedAt || loan.date}>{loan.date}</td>
+                        <td className="px-3 py-4 text-sm text-right">
                           <TableActionButton
                             onClick={() => navigate(`/bookkeeper-loan-approval/${loan.id}?source=${loan.source}`)}
                           >
@@ -429,15 +442,15 @@ const BookkeeperLoanApproval = () => {
                   {!loading && !fetchError && paginatedLoans.length > 0 &&
                     Array.from({ length: PAGE_SIZE - paginatedLoans.length }).map((_, i) => (
                       <tr key={`filler-${i}`} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors" aria-hidden="true">
-                        <td className="p-5 text-sm">&nbsp;</td>
-                        <td className="p-5 text-sm"></td>
-                        <td className="p-5 text-sm"></td>
-                        <td className="p-5 text-sm"></td>
-                        <td className="p-5 text-sm"></td>
-                        <td className="p-5 text-sm"></td>
-                        <td className="p-5 text-sm"></td>
-                        <td className="p-5 text-sm"></td>
-                        <td className="p-5 text-sm"></td>
+                        <td className="px-3 py-4 text-sm">&nbsp;</td>
+                        <td className="px-3 py-4 text-sm"></td>
+                        <td className="px-3 py-4 text-sm"></td>
+                        <td className="px-3 py-4 text-sm"></td>
+                        <td className="px-3 py-4 text-sm"></td>
+                        <td className="px-3 py-4 text-sm"></td>
+                        <td className="px-3 py-4 text-sm"></td>
+                        <td className="px-3 py-4 text-sm"></td>
+                        <td className="px-3 py-4 text-sm"></td>
                       </tr>
                     ))
                   }
