@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
@@ -26,6 +26,7 @@ import {
   BarChart3,
   Brain,
   Briefcase,
+  ChevronLeft,
   ChevronRight,
 } from "lucide-react";
 import {
@@ -33,10 +34,12 @@ import {
   Area,
   XAxis,
   CartesianGrid,
+  YAxis,
   ResponsiveContainer,
   PieChart,
   Pie,
-  Cell
+  Cell,
+  Tooltip,
 } from "recharts";
 import { SERIES_PRIMARY, getLoanTypeColor } from "../../lib/chartColors";
 
@@ -52,6 +55,27 @@ const formatDate = (value) => {
   return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
 };
 
+const TrendTooltip = ({ active, payload }) => {
+  const month = payload?.[0]?.payload;
+  if (!active || !month) return null;
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-lg">
+      <p className="mb-2 text-sm font-bold text-gray-900">{month.name}</p>
+      <p className="text-sm font-semibold text-gray-800">
+        {month.total} {month.total === 1 ? 'application' : 'applications'}
+      </p>
+      <div className="mt-1.5 space-y-1 text-xs text-gray-600">
+        <p><span className="font-semibold text-green-700">{month.approved}</span> released / repaying</p>
+        <p><span className="font-semibold text-amber-700">{month.pending}</span> awaiting approval</p>
+      </div>
+      <p className="mt-2 border-t border-gray-100 pt-2 text-[10px] font-semibold text-gray-400">
+        Select the chart point to pin this month
+      </p>
+    </div>
+  );
+};
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 // KPIs, charts and the pending-requests table, fetched in one parallel batch.
@@ -60,8 +84,8 @@ const MANAGER_DASHBOARD_QUERY_KEY = ['dashboard', 'manager'];
 async function fetchManagerDashboard() {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-  // 6-month trailing window for the trend chart.
-  const trendStart = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().slice(0, 10);
+  // 12-month window powers the chart's range controls.
+  const trendStart = new Date(now.getFullYear(), now.getMonth() - 11, 1).toISOString().slice(0, 10);
 
   // Parallel fetch — five small queries.
   const [
@@ -70,7 +94,7 @@ async function fetchManagerDashboard() {
     activeLoansResult,
     totalLoansResult,
     loanTypesResult,
-    recentSixMonthsResult,
+    recentTrendResult,
     delinquencyResult,
   ] = await Promise.all([
     supabase
@@ -100,7 +124,8 @@ async function fetchManagerDashboard() {
       .from('loans')
       .select('application_date, loan_status')
       .gte('application_date', trendStart)
-      .in('loan_status', ['released', 'partially paid', 'fully paid', 'recommended for approval']),
+      .in('loan_status', ['released', 'partially paid', 'fully paid', 'recommended for approval'])
+      .limit(10000),
     // Delinquency proxy: count active loans where any schedule is overdue.
     supabase
       .from('loan_schedules')
@@ -158,20 +183,31 @@ async function fetchManagerDashboard() {
       color: getLoanTypeColor(name, i),
     }));
 
-  // Trend chart — bucket the last 6 months by application_date
+  // Trend chart — bucket applications by month and approval status.
   const buckets = new Map();
-  for (let i = 5; i >= 0; i -= 1) {
+  for (let i = 11; i >= 0; i -= 1) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
-    buckets.set(key, 0);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    buckets.set(key, {
+      key,
+      name: d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+      approved: 0,
+      pending: 0,
+      total: 0,
+    });
   }
-  (recentSixMonthsResult?.data || []).forEach((row) => {
+  (recentTrendResult?.data || []).forEach((row) => {
     if (!row.application_date) return;
     const d = new Date(row.application_date);
-    const key = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
-    if (buckets.has(key)) buckets.set(key, buckets.get(key) + 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const month = buckets.get(key);
+    if (!month) return;
+    const status = String(row.loan_status || '').trim().toLowerCase();
+    if (status === 'recommended for approval') month.pending += 1;
+    else month.approved += 1;
+    month.total += 1;
   });
-  const trendData = [...buckets.entries()].map(([name, value]) => ({ name, value }));
+  const trendData = [...buckets.values()];
 
   // Recent requests — top 5 pending Manager review
   const recentRows = (pendingResult?.data || []).map((l) => {
@@ -207,6 +243,9 @@ async function fetchManagerCreditRisk() {
 const M_Dashboard = () => {
     const navigate = useNavigate();
   const { addNotification } = useNotification();
+  const [trendRange, setTrendRange] = useState(6);
+  const [trendMetric, setTrendMetric] = useState('total');
+  const [selectedTrendMonth, setSelectedTrendMonth] = useState(null);
 
   // Cached across navigation: coming back to the dashboard renders the last
   // result instantly and refreshes it in the background. `loading` is only
@@ -221,6 +260,19 @@ const M_Dashboard = () => {
     distributionData = [],
     recentRequests = [],
   } = data || {};
+  const visibleTrendData = trendData.slice(-trendRange);
+  const activeTrendMonth =
+    visibleTrendData.find((month) => month.key === selectedTrendMonth)
+    || visibleTrendData[visibleTrendData.length - 1]
+    || null;
+  const activeTrendMonthIndex = activeTrendMonth
+    ? visibleTrendData.findIndex((month) => month.key === activeTrendMonth.key)
+    : -1;
+  const trendMetricConfig = {
+    total: { label: 'All applications', color: SERIES_PRIMARY },
+    approved: { label: 'Approved / released', color: '#15803D' },
+    pending: { label: 'Pending review', color: '#B45309' },
+  }[trendMetric];
   useEffect(() => {
     if (error) addNotification(error?.message || 'Unable to load dashboard metrics.', 'error');
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -324,25 +376,140 @@ const M_Dashboard = () => {
             
             {/* Area Chart (Takes up 2/3 width) */}
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 lg:col-span-2">
-              <div className="mb-6">
-                <h3 className="text-gray-800 font-bold text-lg">Loan Approval Trends</h3>
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-gray-800 font-bold text-lg">Loan Approval Trends</h3>
+                  <p className="mt-0.5 text-xs text-gray-500">Applications by month, split by current status · select a point for details</p>
+                </div>
+                <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1" role="group" aria-label="Trend time range">
+                  {[3, 6, 12].map((months) => (
+                    <button
+                      key={months}
+                      type="button"
+                      aria-pressed={trendRange === months}
+                      onClick={() => {
+                        setTrendRange(months);
+                        setSelectedTrendMonth(null);
+                      }}
+                      className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700 ${
+                        trendRange === months
+                          ? 'bg-green-700 text-white'
+                          : 'text-gray-600 hover:bg-white hover:text-gray-900'
+                      }`}
+                    >
+                      {months}M
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="h-64">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Application status filter">
+                  {[
+                    { key: 'total', label: 'All applications' },
+                    { key: 'approved', label: 'Released / repaying' },
+                    { key: 'pending', label: 'Awaiting approval' },
+                  ].map((metric) => (
+                    <button
+                      key={metric.key}
+                      type="button"
+                      aria-pressed={trendMetric === metric.key}
+                      onClick={() => setTrendMetric(metric.key)}
+                      className={`rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700 ${
+                        trendMetric === metric.key
+                          ? 'border-green-700 bg-green-50 text-green-800'
+                          : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-900'
+                      }`}
+                    >
+                      {metric.label}
+                    </button>
+                  ))}
+                </div>
+                <span className="text-[11px] font-medium text-gray-500">
+                  Showing {visibleTrendData.length} months
+                </span>
+              </div>
+              <div className="h-64" style={{ cursor: 'pointer' }}>
                 {loading ? <SkeletonChart /> : <ResponsiveContainer debounce={200} width="100%" height="100%" minWidth={0} minHeight={1}>
-                  <AreaChart data={trendData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                  <AreaChart
+                    data={visibleTrendData}
+                    margin={{ top: 10, right: 8, left: 0, bottom: 0 }}
+                    onClick={(chartState) => {
+                      const month = chartState?.activePayload?.[0]?.payload;
+                      if (month) setSelectedTrendMonth(month.key);
+                    }}
+                  >
                     <defs>
-                      <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={SERIES_PRIMARY} stopOpacity={0.1}/>
-                        <stop offset="95%" stopColor={SERIES_PRIMARY} stopOpacity={0}/>
+                      <linearGradient id="managerTrendFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={trendMetricConfig.color} stopOpacity={0.18}/>
+                        <stop offset="95%" stopColor={trendMetricConfig.color} stopOpacity={0.01}/>
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12, fontWeight: 600 }} dy={10} />
-                    {/* Hiding Y axis as per design, but keeping the grid lines */}
-                    <Area type="monotone" dataKey="value" stroke={SERIES_PRIMARY} strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#6b7280", fontSize: 11, fontWeight: 600 }} dy={10} />
+                    <YAxis
+                      allowDecimals={false}
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: "#6b7280", fontSize: 10 }}
+                      width={30}
+                    />
+                    <Tooltip content={<TrendTooltip />} />
+                    <Area
+                      type="monotone"
+                      dataKey={trendMetric}
+                      name={trendMetricConfig.label}
+                      stroke={trendMetricConfig.color}
+                      strokeWidth={3}
+                      fill="url(#managerTrendFill)"
+                      activeDot={{ r: 6, strokeWidth: 2, stroke: '#ffffff', fill: trendMetricConfig.color }}
+                      dot={{ r: 3, strokeWidth: 0, fill: trendMetricConfig.color }}
+                      isAnimationActive={!loading}
+                      animationDuration={450}
+                    />
                   </AreaChart>
                 </ResponsiveContainer>}
               </div>
+              {activeTrendMonth && (
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3">
+                  <div className="flex items-center gap-2" aria-live="polite">
+                    <button
+                      type="button"
+                      aria-label="Select previous month"
+                      disabled={activeTrendMonthIndex <= 0}
+                      onClick={() => setSelectedTrendMonth(visibleTrendData[activeTrendMonthIndex - 1]?.key || null)}
+                      className="rounded-md p-1 text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <p className="text-sm text-gray-700">
+                      <span className="font-semibold text-gray-900">{activeTrendMonth.name}:</span>{' '}
+                      {activeTrendMonth.total} {activeTrendMonth.total === 1 ? 'application' : 'applications'}
+                      <span className="mx-2 text-gray-300">·</span>
+                      <span className="text-green-800">{activeTrendMonth.approved} released / repaying</span>
+                      <span className="mx-2 text-gray-300">·</span>
+                      <span className="text-amber-800">{activeTrendMonth.pending} awaiting approval</span>
+                    </p>
+                    <button
+                      type="button"
+                      aria-label="Select next month"
+                      disabled={activeTrendMonthIndex < 0 || activeTrendMonthIndex >= visibleTrendData.length - 1}
+                      onClick={() => setSelectedTrendMonth(visibleTrendData[activeTrendMonthIndex + 1]?.key || null)}
+                      className="rounded-md p-1 text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                  {selectedTrendMonth && selectedTrendMonth === activeTrendMonth.key && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTrendMonth(null)}
+                      className="text-xs font-semibold text-gray-500 underline underline-offset-2 hover:text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700"
+                    >
+                      Clear selection
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Donut Chart (Takes up 1/3 width) */}
