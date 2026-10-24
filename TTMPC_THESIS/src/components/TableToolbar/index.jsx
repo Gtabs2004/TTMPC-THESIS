@@ -38,6 +38,7 @@ export function TableToolbar({
   onTabChange,
   children,
   className = "",
+  rightClassName = "",
 }) {
   const hasTabs = Array.isArray(tabs) && tabs.length > 0;
   const hasRight = hasTabs || children;
@@ -54,7 +55,7 @@ export function TableToolbar({
       )}
 
       {hasRight && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className={`flex min-w-0 ${rightClassName || "flex-wrap"} items-center gap-2`}>
           {hasTabs && (
             <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 w-fit">
               {tabs.map((tab) => {

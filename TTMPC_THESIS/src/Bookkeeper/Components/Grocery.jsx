@@ -1,16 +1,19 @@
-﻿import React, { useEffect, useMemo, useState, useRef } from "react";
-import { useNavigate, NavLink, Link } from "react-router-dom";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
-import { UserAuth } from "../../contex/AuthContext";
-import { supabase } from "../../supabaseClient";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import TableStateRow from "../../components/TableStateRow";
 import Pagination from "../../components/Pagination";
+import {
+  downloadGroceryCsv,
+  fetchGroceryTransactions,
+  filterGroceryRows,
+  toGroceryRow,
+} from "../../utils/groceryTransactions";
 import {
   LayoutDashboard,
   Users,
@@ -28,11 +31,7 @@ import {
   Wifi,
   RefreshCw,
   BookOpen,
-  Calendar,
   Download,
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
   Briefcase,
   Wallet,
   Coins,
@@ -43,24 +42,14 @@ import {
 
 const PAGE_SIZE = 10;
 
-// --- MOCK DATA FOR THE TABLE ---
-const MOCK_TRANSACTIONS = [
-  { id: 'GR-TTMPC-00001', memberId: 'TTMPCM-001', date: 'Feb. 10, 2026 - 10:30 AM', amount: 'P1,100.00', txStatus: 'Completed', payment: 'Paid', balance: 'P0.00' },
-  { id: 'GR-TTMPC-00002', memberId: 'TTMPCM-002',  date: 'Feb. 10, 2026 - 10:45 AM', amount: 'P3,500.00', txStatus: 'Completed', payment: 'Paid', balance: 'P0.00' },
-  { id: 'GR-TTMPC-00003', memberId: 'TTMPCM-014',  date: 'Feb. 10, 2026 - 10:50 AM', amount: 'P1,350.00', txStatus: 'Completed', payment: 'Paid', balance: 'P0.00' },
-  { id: 'GR-TTMPC-00004', memberId: 'TTMPCM-124',  date: 'Feb. 10, 2026 - 10:55 AM', amount: 'P400.00', txStatus: 'Completed', payment: 'Paid', balance: 'P0.00' },
-  { id: 'GR-TTMPC-00005', memberId: 'TTMPCM-128',  date: 'Feb. 10, 2026 - 12:50 PM', amount: 'P2,500.00', txStatus: 'Pending', payment: 'On Credit', balance: 'P2,500.00' },
-  { id: 'GR-TTMPC-00006', memberId: 'TTMPCM-063',  date: 'Feb. 10, 2026 - 1:15 PM', amount: 'P1,100.00', txStatus: 'Completed', payment: 'Paid', balance: 'P0.00' },
-  { id: 'GR-TTMPC-00007', memberId: 'TTMPCM-046', date: 'Feb. 10, 2026 - 1:40 PM', amount: 'P750.00', txStatus: 'Completed', payment: 'Paid', balance: 'P0.00' },
-  { id: 'GR-TTMPC-00008', memberId: 'TTMPCM-202',  date: 'Feb. 10, 2026 - 2:25 PM', amount: 'P650.00', txStatus: 'Completed', payment: 'Paid', balance: 'P0.00' },
-  { id: 'GR-TTMPC-00009', memberId: 'TTMPCM-182',  date: 'Feb. 10, 2026 - 2:38 PM', amount: 'P800.00', txStatus: 'Pending', payment: 'On Credit', balance: 'P800.00' },
-];
-
 const Grocery = () => {
-    const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('All');
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [month, setMonth] = useState("");
+  const [pageState, setPage] = useState(1);
   const rtVersion = useRealtimeVersion(["GROCERY_TRANSACTIONS"]);
   const rtSeen = useRef(rtVersion);
   useEffect(() => {
@@ -69,52 +58,55 @@ const Grocery = () => {
     let cancelled = false;
     const load = async () => {
       if (!silent) setLoading(true);
-      const { data, error } = await supabase
-        .from("GROCERY_TRANSACTIONS")
-        .select("*")
-        .order("TransactionDate", { ascending: false })
-        .limit(200);
-      if (cancelled) return;
-      if (!error) setTransactions(data || []);
-      if (!silent) setLoading(false);
+      try {
+        const data = await fetchGroceryTransactions();
+        if (cancelled) return;
+        setTransactions(data);
+        setLoadError("");
+      } catch (error) {
+        if (cancelled) return;
+        console.error("grocery transactions load failed", error);
+        setLoadError(error?.message || "Unable to load grocery transactions.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     };
     load();
     return () => { cancelled = true; };
   }, [rtVersion]);
 
-  const rows = useMemo(() => transactions.map((t) => ({
-    id: t.GroceryID,
-    memberId: t.pos_member_ref || "—",
-    date: t.TransactionDate ? new Date(t.TransactionDate).toLocaleString() : "",
-    amount: `P${Number(t.GroceryAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-    payment: t.Status === "Completed" ? "Paid" : "On Credit",
-    balance: `P${Number(t.balance_due || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-    rawStatus: t.Status,
-  })), [transactions]);
-
-  const filteredRows = useMemo(() => {
-    if (activeTab === "Paid") return rows.filter((r) => r.rawStatus === "Completed");
-    if (activeTab === "On Credit") return rows.filter((r) => r.rawStatus === "On Credit");
-    return rows;
-  }, [rows, activeTab]);
-
-  const [pageState, setPage] = useState(1);
+  const rows = useMemo(() => transactions.map(toGroceryRow), [transactions]);
+  const filteredRows = useMemo(
+    () => filterGroceryRows(rows, { activeTab, search: searchQuery, month }),
+    [rows, activeTab, searchQuery, month]
+  );
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   // Clamp so a shrinking list (realtime refetch) never strands us past the last page.
   const page = Math.min(pageState, totalPages);
   const paginatedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab, searchQuery, month]);
+
   const totals = useMemo(() => {
     const paid = rows.filter((r) => r.rawStatus === "Completed").length;
     const credit = rows.filter((r) => r.rawStatus === "On Credit").length;
-    const sum = transactions.reduce((s, t) => s + Number(t.GroceryAmount || 0), 0);
+    const sum = rows.reduce((total, row) => total + row.amount, 0);
     return { count: rows.length, paid, credit, sum };
-  }, [rows, transactions]);
+  }, [rows]);
+
+  const hasFilters = searchQuery || month || activeTab !== "All";
+  const clearFilters = () => {
+    setSearchQuery("");
+    setMonth("");
+    setActiveTab("All");
+  };
   
 
 
   // Helper component for the status badges
-  const StatusBadge = ({ type, text }) => {
+  const StatusBadge = ({ text }) => {
     const isSuccess = text === 'Completed' || text === 'Paid';
     return (
       <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${
@@ -159,7 +151,7 @@ const Grocery = () => {
             
             <TableToolbar
               title="Grocery Transactions"
-              subtitle={`Showing ${filteredRows.length} of ${rows.length} transactions`}
+              subtitle={`Showing ${filteredRows.length ? (page - 1) * PAGE_SIZE + 1 : 0}-${Math.min(page * PAGE_SIZE, filteredRows.length)} of ${filteredRows.length} matching transactions`}
               tabs={[
                 { value: "All", label: "All", count: totals.count },
                 { value: "Paid", label: "Paid", count: totals.paid },
@@ -167,26 +159,49 @@ const Grocery = () => {
               ]}
               activeTab={activeTab}
               onTabChange={(tab) => { setActiveTab(tab); setPage(1); }}
+              rightClassName="flex-nowrap overflow-x-auto"
             >
-              <div className="relative w-full sm:w-64">
+              <div className="relative w-64 shrink-0">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search by Grocery ID, Member ID, or POS ID..."
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  aria-label="Search grocery ID, member ID, or POS event ID"
+                  placeholder="Search grocery, member, or POS event ID"
                   className="w-full bg-white h-8 rounded-lg border border-gray-200 pl-8 pr-3 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
                 />
               </div>
 
-              <button className="flex items-center gap-1.5 h-8 px-2.5 bg-white border border-gray-200 rounded-lg text-[11px] font-semibold text-gray-700 hover:bg-gray-50">
-                <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                April 2026
-                <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-              </button>
+              <label className="flex shrink-0 items-center gap-2 text-[11px] font-semibold text-gray-600">
+                <span>Month</span>
+                <input
+                  type="month"
+                  value={month}
+                  onChange={(event) => setMonth(event.target.value)}
+                  aria-label="Filter by month"
+                  className="h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
+                />
+              </label>
 
-              <button className="flex items-center gap-1.5 h-8 px-2.5 bg-white border border-gray-200 rounded-lg text-[11px] font-semibold text-gray-700 hover:bg-gray-50">
+              <button
+                type="button"
+                onClick={() => downloadGroceryCsv(filteredRows)}
+                disabled={loading || filteredRows.length === 0}
+                className="flex shrink-0 items-center gap-1.5 h-8 px-2.5 bg-white border border-gray-200 rounded-lg text-[11px] font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
                 <Download className="w-3.5 h-3.5 text-gray-400" />
                 Export List
               </button>
+              {hasFilters && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="h-8 shrink-0 px-2 text-[11px] font-semibold text-green-800 hover:underline"
+                >
+                  Clear filters
+                </button>
+              )}
             </TableToolbar>
 
             {/* Table */}
@@ -196,6 +211,7 @@ const Grocery = () => {
                   <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Grocery ID</th>
                     <th className="p-5 font-bold">Member ID</th>
+                    <th className="p-5 font-bold">POS Event ID</th>
                     <th className="p-5 font-bold">Transaction Date</th>
                     <th className="p-5 font-bold">Amount</th>
                     <th className="p-5 font-bold" title="Paid: the member settled this purchase at the till. On Credit: it was charged to the member's account and the Balance is still owed.">Payment</th>
@@ -204,25 +220,28 @@ const Grocery = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <TableStateRow colSpan={6} variant="loading" label="Loading..." />
+                    <TableStateRow colSpan={7} variant="loading" label="Loading..." />
+                  ) : loadError ? (
+                    <TableStateRow colSpan={7} variant="empty" icon={AlertCircle} label="Could not load grocery transactions" sublabel={loadError} />
                   ) : filteredRows.length === 0 ? (
                     <TableStateRow
-                      colSpan={6}
+                      colSpan={7}
                       variant="empty"
                       icon={ShoppingCart}
-                      label="No transactions yet."
+                      label={rows.length ? "No transactions match these filters." : "No transactions yet."}
                     />
                   ) : paginatedRows.map((tx) => (
                     <tr key={tx.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                       <td className="p-5 text-sm font-medium text-gray-700">{tx.id}</td>
                       <td className="p-5 text-sm font-medium text-gray-700">{tx.memberId}</td>
-                      <td className="p-5 text-sm text-gray-500">{tx.date}</td>
-                      <td className="p-5 text-sm font-medium text-gray-900">{tx.amount}</td>
+                      <td className="p-5 text-sm text-gray-500">{tx.posEventId}</td>
+                      <td className="p-5 text-sm text-gray-500">{tx.dateLabel}</td>
+                      <td className="p-5 text-sm font-medium text-gray-900">₱{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td className="p-5 text-sm">
-                         <StatusBadge type="payment" text={tx.payment} />
+                         <StatusBadge text={tx.payment} />
                       </td>
-                      <td className={`p-5 text-sm font-semibold ${tx.balance !== 'P0.00' ? 'text-red-500' : 'text-gray-900'}`}>
-                        {tx.balance}
+                      <td className={`p-5 text-sm font-semibold ${tx.balance > 0 ? 'text-red-500' : 'text-gray-900'}`}>
+                        ₱{tx.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                     </tr>
                   ))}
