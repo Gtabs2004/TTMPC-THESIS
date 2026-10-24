@@ -15,7 +15,7 @@ export const memberStatusLabel = (loan) => {
   if (status === "to be disbursed" || status === "ready for disbursement") return { text: "Ready for Release", tone: "warn" };
   if (status === "pending rescheduling") return { text: "Rescheduled", tone: "warn" };
   if (status === "approved") return { text: "Approved", tone: "success" };
-  if (status === "recommended for approval") return { text: "Under Review", tone: "warn" };
+  if (status === "recommended for approval" || status === "recommended for bod approval") return { text: "With Manager", tone: "warn" };
   if (status === "pending") return { text: "Submitted", tone: "warn" };
   if (status === "revision_requested") return { text: "Revision Requested", tone: "warn" };
   if (status === "revised_submitted") return { text: "Resubmitted — Under Review", tone: "info" };

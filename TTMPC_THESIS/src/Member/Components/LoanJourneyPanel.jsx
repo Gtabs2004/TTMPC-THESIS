@@ -32,6 +32,7 @@ import {
 const LIFECYCLE_STAGES = [
   { id: "submitted", label: "Loan Submitted", icon: FileText, description: "Your application has been received." },
   { id: "review", label: "Under Review", icon: ClipboardCheck, description: "Bookkeeper is reviewing your documents." },
+  { id: "manager_review", label: "With Manager", icon: ThumbsUp, description: "Bookkeeper has forwarded your loan to the Manager for approval." },
   { id: "approved", label: "Approved", icon: ThumbsUp, description: "The Manager has approved your loan." },
   { id: "ready", label: "Ready for Release", icon: PackageCheck, description: "Awaiting cashier disbursement." },
   { id: "disbursed", label: "Disbursed", icon: Banknote, description: "Funds have been released to you." },
@@ -48,7 +49,7 @@ const resolveStageIndex = (loan) => {
   if (status === "released") return STAGE_INDEX.disbursed;
   if (status === "to be disbursed" || status === "ready for disbursement") return STAGE_INDEX.ready;
   if (status === "approved") return STAGE_INDEX.approved;
-  if (status === "recommended for approval") return STAGE_INDEX.review;
+  if (status === "recommended for approval" || status === "recommended for bod approval") return STAGE_INDEX.manager_review;
   if (status === "pending rescheduling") return STAGE_INDEX.review;
   if (status === "pending") return STAGE_INDEX.submitted;
   // Terminal negative states leave stage at the latest known step.

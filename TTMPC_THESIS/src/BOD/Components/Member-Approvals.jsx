@@ -66,7 +66,7 @@ const Member_Approvals = () => {
     approvalRate: null,
     approvedThisMonth: null,
   });
-  const LIMIT = 5;
+  const LIMIT = 10;
 
   // LOGIC FIX: Added 'Training' to match your SQL Insert exactly
   const getStatusOrClause = (statusTab, roleOverride) => {

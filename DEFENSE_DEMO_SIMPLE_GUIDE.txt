@@ -1,0 +1,291 @@
+REGANT DEMO REHEARSAL - SIMPLE GUIDE
+For: Ashley, Gero, Romelyn, Erden, Ervine
+Time: about 35 minutes for all five scenes
+
+=====================================================================
+HOW THIS WORKS
+=====================================================================
+
+- One person types at a time. The others watch and say what they see.
+- Each person uses their OWN private browser window (Incognito).
+  One window per role, so the logins do not mix.
+- Every step has three parts:
+      WHO     = whose turn it is
+      DO      = what to click or type
+      EXPECT  = what you should see on the screen
+- If what you see is different from EXPECT, STOP. Do not fix it.
+  Write down: the step number, what you saw, and any red error text.
+  Send it to Claude afterwards.
+
+BRING BEFORE YOU START
+  1. A payslip picture or PDF (5 MB or smaller)
+  2. Ashley's real email (it must be new, never used in the system)
+  3. The dashboard numbers, written down BEFORE you start:
+        - number of members
+        - total share capital
+        - vault balance
+     (we compare them again at the end)
+
+ROLES
+  Ashley   = Manager (and the new applicant in Scene 1)
+  Gero     = Bookkeeper
+  Romelyn  = Cashier
+  Erden    = BOD and Secretary
+  Ervine   = Treasurer
+
+
+=====================================================================
+SCENE 1 - ASHLEY JOINS AS A NEW MEMBER (about 8 minutes)
+=====================================================================
+
+What this shows: an applicant becomes a member only after training,
+payment, and BOD confirmation.
+
+STEP 1
+  WHO:    Ashley
+  GO TO:  the page /membership_form (no login needed)
+  DO:     Fill in the form (see the FORM VALUES list below),
+          tick the declaration box, press Submit.
+  EXPECT: "Application submitted successfully". Status: Pending.
+
+STEP 2
+  WHO:    Erden (logged in as BOD)
+  GO TO:  /member-approvals, then open Ashley's application
+  DO:     Press "Proceed to Training". Keep the email box ticked.
+  EXPECT: Status changes to Training. An email arrives at Ashley's
+          address.
+
+STEP 3
+  WHO:    Erden (logged in as Secretary)
+  GO TO:  /Secretary_Attendance
+  DO:     Set Ashley to Present, then confirm.
+  EXPECT: "Saved". The row becomes locked.
+
+STEP 4
+  WHO:    Romelyn (logged in as Cashier)
+  GO TO:  /Cashier_MembershipPayments
+  DO:     Record two payments for Ashley:
+            first  - Membership Fee: 200
+            second - Initial Paid-Up Capital: 20,000
+  EXPECT: Two "paid" badges and two receipts.
+
+STEP 5
+  WHO:    Erden (logged in as BOD)
+  GO TO:  /member-approvals, then Ashley's application
+  DO:     Press "Confirm and Complete". Keep the email box ticked.
+  EXPECT: - a new membership number
+          - status "Official Member"
+          - exactly ONE capital row of 20,000
+          - a login email is sent
+  IF YOU SEE "Cannot approve ... unpaid": Step 4 is not finished.
+  Go back and finish it.
+
+STEP 6
+  WHO:    Ashley
+  GO TO:  the member login page
+  DO:     Log in with her email and the temporary password.
+          The temporary password is her SURNAME with no spaces,
+          then 1234. Example: Tabiolo1234.
+          The system asks for a new password. Set one.
+  EXPECT: The member dashboard opens.
+          Members count is up by 1.
+          Total share capital is up by 20,000.
+
+IMPORTANT - CHECK THE EMAIL AT STEP 2.
+  Our email subscription may have ended.
+  If no email arrives, the status still changes. Carry on.
+  Give Ashley her login by hand (her email + the password rule in
+  Step 6) and tell the developers (item 25 on their list).
+
+FORM VALUES (fields with * are required; the form jumps to the first
+missing one). Choose "Single" so the spouse fields are skipped.
+
+  Surname, First name, Middle name ... Ashley's own
+  Gender .............................. Female
+  Civil Status ........................ Single
+  Date of Birth ....................... 1998-05-14
+                                        (18 or older, not in the future)
+  Place of Birth ...................... Iloilo City
+  Religion ............................ Roman Catholic
+  Blood Type .......................... O+
+  Height, Weight ...................... 160, 52
+  TIN ................................. 123-456-789
+                                        (9 to 12 digits)
+  GSIS Number ......................... 1234567890
+                                        (exactly 10 digits)
+  Father's Name, Mother's Name ........ anything
+  Permanent Address ................... Tubungan, Iloilo
+  Contact Number ...................... 09171234567
+                                        (the leading 0 disappears later;
+                                        this is known, not an error)
+  Email Address ....................... Ashley's real email (new)
+  Educational Attainment .............. Bachelor's degree
+  Occupation .......................... Teacher
+  Income Source ....................... Salary
+  Employer ............................ DepEd Tubungan
+  Position ............................ Teacher I
+  Monthly Salary ...................... 25,000.00
+  Other Source of Income .............. N/A
+
+WHAT TO SAY TO THE PANEL:
+  "The applicant becomes a member only after training, payment, and
+   BOD confirmation. That creates exactly one starting capital row."
+
+
+=====================================================================
+SCENE 2 - ONE MEMBER BECOMES MIGS, ANOTHER STOPS (about 6 minutes)
+=====================================================================
+
+What this shows: MIGS points come from the cooperative's own records
+and change when the records change. The pass line is 50 points.
+
+STARTING POINT (after Recompute):
+  TTMPC-416 = 46 points  (Non-MIGS)
+  TTMPC-439 = 57 points  (MIGS)
+  Do NOT use TTMPC-461 yet.
+
+STEP 1
+  WHO:    Gero (Bookkeeper)
+  GO TO:  /migs, choose year 2026
+  DO:     Press "Recompute all".
+  EXPECT: 416 = 46 and 439 = 57.
+
+STEP 2
+  WHO:    Erden (Secretary)
+  GO TO:  General Assembly page
+  DO:     Mark TTMPC-416 as Present, then save.
+  EXPECT: 416 gets +5 attendance points.
+
+STEP 3
+  WHO:    Gero (Bookkeeper)
+  GO TO:  /migs-evaluate, open TTMPC-439
+  DO:     Choose "Has outside loan", then confirm.
+  EXPECT: Outside-loan points for 439 go from 10 down to 0.
+
+STEP 4
+  WHO:    Gero (Bookkeeper)
+  GO TO:  /migs
+  DO:     Press "Recompute all" again.
+  EXPECT: 416 = 51 (now MIGS).
+          439 = 47 (now Non-MIGS).
+
+WHAT TO SAY TO THE PANEL:
+  "Points are computed from the cooperative's own records. A declared
+   outside loan or a missed meeting means missing points. A MIGS
+   member can borrow up to 5 times their capital. A Non-MIGS member
+   can borrow up to 3 times."
+
+
+=====================================================================
+SCENE 3 - PROFILE CHANGE WITH A PAYSLIP (about 5 minutes)
+=====================================================================
+
+What this shows: a member cannot change pay or address directly.
+Every change goes to the Bookkeeper with proof.
+
+STEP 1
+  WHO:    Ashley (member login)
+  GO TO:  My Profile
+  DO:     Change the Permanent Address AND the Net Take-Home Pay.
+          Attach the payslip. Choose the pay month. Press Save.
+  EXPECT: Two requests shown as "pending".
+          The profile itself has NOT changed yet.
+
+STEP 2
+  WHO:    Gero (Bookkeeper)
+  GO TO:  /bookkeeper-profile-changes
+  DO:     Open Ashley's requests.
+  EXPECT: You see the old value, the new value, and a link to the
+          payslip.
+
+STEP 3
+  WHO:    Gero (Bookkeeper)
+  GO TO:  same page
+  DO:     APPROVE the address change.
+          REJECT the net pay change and type a reason.
+  EXPECT: The address is updated. The net pay is unchanged.
+
+STEP 4
+  WHO:    Ashley
+  GO TO:  My Profile, open her requests
+  EXPECT: One "Approved", one "Rejected" with the reason shown.
+
+WHAT TO SAY TO THE PANEL:
+  "A member cannot edit pay directly. Every change goes to the
+   Bookkeeper with proof, and every decision is in the audit log."
+
+
+=====================================================================
+SCENE 4 - INTEREST ON SHARE CAPITAL / ISC (about 5 minutes, Gero only)
+=====================================================================
+
+What this shows: the yearly dividend on members' share capital.
+
+STEP 1
+  WHO:    Gero (Bookkeeper)
+  GO TO:  /bookkeeper-isc
+  DO:     Set the period: December 2025 to September 2026.
+          Set the pool: 1,000,000. Press "Calculate".
+  EXPECT: 347 members, 10 months, rate about 2.77 percent.
+
+STEP 2
+  WHO:    Gero
+  DO:     Press "Post".
+  EXPECT: A new posting appears in /bookkeeper-isc-journal.
+
+STEP 3
+  WHO:    Gero
+  DO:     Open "payout preferences". Untick one or two members
+          (they will get cash instead of more capital).
+  EXPECT: Those members are marked for cash.
+
+!!! DO NOT PRESS "SETTLE" IN THE REHEARSAL !!!
+    Settle adds capital for ALL members and cannot be undone.
+    Press Settle only on the real defense day.
+
+
+=====================================================================
+SCENE 5 - ONE LOAN FROM APPLICATION TO RELEASE (about 8 minutes)
+=====================================================================
+
+What this shows: five roles touch one loan, and each step is logged.
+
+Use Erden's renewal loan: CL-20260305-7103.
+
+THE ORDER (do not skip a person):
+  1. Erden    (member)     - applies or opens the loan
+  2. Gero     (Bookkeeper) - evaluates it
+  3. Ashley   (Manager)    - approves it
+  4. Ervine   (Treasurer)  - approves it for release
+  5. Romelyn  (Cashier)    - releases the money
+
+AFTER EACH STEP, LOOK FOR:
+  - the loan status changed
+  - the member got a notification
+AT THE END, LOOK FOR:
+  - the vault went DOWN by the net cash released
+
+SECOND EXAMPLE (payment with a penalty):
+  Romelyn takes a payment on TTMPC-417, loan CL-20260421-7105.
+  The penalty is collected FIRST, then the rest goes to the loan.
+
+
+=====================================================================
+AFTER THE REHEARSAL
+=====================================================================
+
+1. Run the file docs/sim/sim_11h_migs_demo_reset.sql in TEST.
+   (If the demo ran on MAIN, the developers restore 416 and 439.)
+2. Go to /migs and press "Recompute all".
+3. Compare the dashboard numbers with the ones you wrote down:
+   members, total share capital, vault.
+4. Send Claude everything you saw, especially:
+     - any red error
+     - any number that differs between two screens
+5. The rehearsal wrote to the shared database. These rows now exist:
+     - Ashley's application
+     - 2 payments and 2 receipts
+     - the new member and her capital row
+     - her login
+     - her profile requests
+     - the ISC posting
