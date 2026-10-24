@@ -22,7 +22,6 @@ import {
   CheckCircle,
   Wallet,
   AlertTriangle,
-  ChevronDown,
   History,
   BarChart3,
   Brain,
@@ -325,11 +324,8 @@ const M_Dashboard = () => {
             
             {/* Area Chart (Takes up 2/3 width) */}
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 lg:col-span-2">
-              <div className="flex justify-between items-center mb-6">
+              <div className="mb-6">
                 <h3 className="text-gray-800 font-bold text-lg">Loan Approval Trends</h3>
-                <button className="flex items-center gap-2 text-sm text-gray-600 border border-gray-200 rounded-md px-3 py-1.5 hover:bg-gray-50">
-                  Last 6 Months <ChevronDown size={16} />
-                </button>
               </div>
               <div className="h-64">
                 {loading ? <SkeletonChart /> : <ResponsiveContainer debounce={200} width="100%" height="100%" minWidth={0} minHeight={1}>
