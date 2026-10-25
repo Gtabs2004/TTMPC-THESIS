@@ -1157,16 +1157,21 @@ const Cashier_Payments = () => {
 
                   {/* Payment History */}
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Payment History</h3>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Successful Payment History</h3>
                     {(() => {
                       const loanPayments = paymentRecords
-                        .filter((p) => String(p.loan_id) === String(selectedLoan.loan_id))
+                        .filter((p) =>
+                          String(p.loan_id) === String(selectedLoan.loan_id) &&
+                          ["validated", "confirmed", "bookkeeper_confirmed", "approved"].includes(
+                            String(p.confirmation_status || "").trim().toLowerCase()
+                          )
+                        )
                         .sort((a, b) => new Date(b.payment_date || 0) - new Date(a.payment_date || 0));
 
                       if (loanPayments.length === 0) {
                         return (
                           <div className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm text-gray-500">
-                            No payments recorded for this loan yet.
+                            No successful payments recorded for this loan yet.
                           </div>
                         );
                       }
@@ -1177,6 +1182,7 @@ const Cashier_Payments = () => {
                             <thead>
                               <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                                 <th className="p-5 font-bold">Date</th>
+                                <th className="p-5 font-bold">Installment</th>
                                 <th className="p-5 font-bold">Reference #</th>
                                 <th className="p-5 font-bold text-right">Amount</th>
                                 <th className="p-5 font-bold text-right">Penalty</th>
@@ -1188,6 +1194,9 @@ const Cashier_Payments = () => {
                                 <tr key={p.payment_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                                   <td className="p-5 text-gray-700 tabular-nums whitespace-nowrap">
                                     {p.payment_date ? new Date(p.payment_date).toLocaleDateString() : "—"}
+                                  </td>
+                                  <td className="p-5 text-gray-700 whitespace-nowrap">
+                                    {p.installment_no ? `#${p.installment_no}` : "—"}
                                   </td>
                                   <td className="p-5 text-gray-700 whitespace-nowrap">{p.payment_id || "—"}</td>
                                   <td className="p-5 text-gray-900 font-medium tabular-nums text-right whitespace-nowrap">
@@ -1620,6 +1629,3 @@ const Cashier_Payments = () => {
 
 
 export default Cashier_Payments;
-
-
-

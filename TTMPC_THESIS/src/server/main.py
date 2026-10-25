@@ -2756,6 +2756,7 @@ async def get_cashier_loans_for_payments():
                     "payment_id": row.get("payment_reference") or build_sequence_id("TTMPCLP-", idx),
                     "loan_id": row.get("loan_id"),
                     "schedule_id": schedule_display_by_internal_id.get(str(row.get("schedule_id") or ""), row.get("schedule_id")),
+                    "installment_no": (schedule_by_internal_id.get(str(row.get("schedule_id") or "")) or {}).get("installment_no"),
                     "transaction_id": row.get("transaction_reference") or build_sequence_id("TTMPCLP_TXN_", idx),
                     "amount_paid": decimal_to_float(row.get("amount_paid") or 0),
                     "payment_date": row.get("payment_date"),
