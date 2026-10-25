@@ -19,7 +19,7 @@ const cbuSortKey = (row) => {
   const raw = String(row?.cbu_deposit_id || "");
   const digits = raw.replace(/\D/g, "");
   return [
-    String(row?.transaction_date || ""),
+    String(row?.transaction_date || "").slice(0, 10),
     digits ? Number(digits) : -1,
     String(row?.id || ""),
   ];
@@ -49,6 +49,10 @@ export function sortCbuRowsAscending(rows) {
  * whose `ending_share_capital` is the member's current balance.
  */
 export function pickLatestCbuRow(rows) {
-  const sorted = sortCbuRowsAscending(rows);
+  const today = new Date().toISOString().slice(0, 10);
+  const eligibleRows = (rows || []).filter(
+    (row) => String(row?.transaction_date || "").slice(0, 10) <= today
+  );
+  const sorted = sortCbuRowsAscending(eligibleRows);
   return sorted.length ? sorted[sorted.length - 1] : null;
 }

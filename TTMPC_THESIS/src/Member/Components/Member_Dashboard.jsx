@@ -40,6 +40,21 @@ import {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
+async function fetchMemberCbuRows(memberId) {
+  const rows = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase
+      .from("capital_build_up")
+      .select("id, cbu_deposit_id, starting_share_capital, ending_share_capital, capital_added, transaction_date")
+      .eq("member_id", memberId)
+      .range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) return rows;
+  }
+}
+
 const styles = `
   @keyframes fadeInUp {
     from {
@@ -347,8 +362,8 @@ const MemberDashboard = () => {
       const temporaryFlag = Boolean(account?.is_temporary);
       const latestApplication = bundle.application || null;
 
-      const cbuRows = bundle.cbu || [];
-      const cbuRow = cbuRows[0] || null;
+      const cbuRows = await fetchMemberCbuRows(memberId);
+      const cbuRow = pickLatestCbuRow(cbuRows);
       const shareCapitalBalance = cbuRow
         ? (cbuRow.ending_share_capital !== null && cbuRow.ending_share_capital !== undefined
             ? Number(cbuRow.ending_share_capital)
@@ -568,8 +583,8 @@ const MemberDashboard = () => {
             const membershipId = String(account?.membership_id || memberRow?.membership_number_id || '').trim();
             const temporaryFlag = Boolean(account?.is_temporary);
 
-            const cbuRows = cachedBundle.cbu || [];
-            const cbuRow = cbuRows[0] || null;
+            const cbuRows = await fetchMemberCbuRows(memberId);
+            const cbuRow = pickLatestCbuRow(cbuRows);
             const shareCapitalBalance = cbuRow
               ? (cbuRow.ending_share_capital !== null && cbuRow.ending_share_capital !== undefined
                   ? Number(cbuRow.ending_share_capital)
