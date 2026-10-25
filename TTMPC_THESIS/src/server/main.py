@@ -6589,6 +6589,17 @@ def resubmit_member_loan_revision(
         if not amount.is_finite():
             raise HTTPException(status_code=422, detail=f"{field} must be a finite number.")
         edits[field] = int(amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    bonus_amount = edits.get("bonus_amount_numeric")
+    if bonus_amount not in (None, ""):
+        try:
+            amount = Decimal(str(bonus_amount).replace(",", "").strip())
+        except (InvalidOperation, ValueError):
+            raise HTTPException(status_code=422, detail="bonus_amount_numeric must be a valid number.")
+        if not amount.is_finite():
+            raise HTTPException(status_code=422, detail="bonus_amount_numeric must be a finite number.")
+        edits["bonus_amount_numeric"] = (
+            int(amount) if amount == amount.to_integral_value() else float(amount)
+        )
 
     collateral_paths_to_remove = []
     if body.collateral_rows is not None:

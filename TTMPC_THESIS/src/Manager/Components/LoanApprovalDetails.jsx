@@ -169,6 +169,7 @@ const LoanApprovalDetails = () => {
   const [riskAssessment, setRiskAssessment] = useState(null);
   const [riskLoading, setRiskLoading] = useState(false);
   const [riskError, setRiskError] = useState('');
+  const riskScoreAttemptedForLoan = useRef(null);
   const [showRiskDetail, setShowRiskDetail] = useState(true);
   const [revisionResetDone, setRevisionResetDone] = useState(false);
   const [printing, setPrinting] = useState(false);
@@ -783,13 +784,13 @@ const LoanApprovalDetails = () => {
     };
   }, [id, rtVersion, isNonMemberSource]);
 
-  // Load an existing score, or automatically score an application in review.
-  const rtVersionRisk = useRealtimeVersion(["risk_assessments"]);
-  const rtSeenRisk = useRef(rtVersionRisk);
+  // Refresh the saved assessment once when this loan's details are opened.
+  const riskLoanReady = Boolean(loanDetails);
+  const riskLoanStatus = String(loanDetails?.loan_status || loanDetails?.application_status || loanDetails?.status || '')
+    .trim()
+    .toLowerCase();
   useEffect(() => {
-    const silent = rtSeenRisk.current !== rtVersionRisk;
-    rtSeenRisk.current = rtVersionRisk;
-    if (!id || !loanDetails) return;
+    if (!id || !riskLoanReady) return;
     let isMounted = true;
     (async () => {
       setRiskLoading(true);
@@ -803,9 +804,6 @@ const LoanApprovalDetails = () => {
         if (!isMounted) return;
         if (error) throw error;
 
-        const status = String(loanDetails.loan_status || loanDetails.application_status || loanDetails.status || '')
-          .trim()
-          .toLowerCase();
         const shouldAutoScore = new Set([
           'pending',
           'for approval',
@@ -817,11 +815,14 @@ const LoanApprovalDetails = () => {
           'for manager',
           'recommended for approval',
           'recommended for bod approval',
-        ]).has(status);
-        if (!data && !shouldAutoScore) {
+        ]).has(riskLoanStatus);
+        if (!data && !shouldAutoScore && !isBookkeeperFlow) {
           setRiskAssessment(null);
           return;
         }
+
+        if (riskScoreAttemptedForLoan.current === id) return;
+        riskScoreAttemptedForLoan.current = id;
 
         const response = await fetch(`${API_BASE_URL}/api/risk/predict`, {
           method: 'POST',
@@ -829,7 +830,7 @@ const LoanApprovalDetails = () => {
           body: JSON.stringify({
             loan_control_number: id,
             source: isNonMemberSource ? 'non_member_loans' : 'loans',
-            force_refresh: false,
+            force_refresh: isBookkeeperFlow,
           }),
         });
         const payload = await response.json();
@@ -842,7 +843,6 @@ const LoanApprovalDetails = () => {
         if (!isMounted) return;
         setRiskAssessment(payload);
       } catch (err) {
-        if (silent) return;
         console.error('Automatic credit risk assessment failed:', err);
         if (isMounted) setRiskError(err?.message || 'Automatic risk assessment failed.');
       } finally {
@@ -852,7 +852,7 @@ const LoanApprovalDetails = () => {
     return () => {
       isMounted = false;
     };
-  }, [id, loanDetails, rtVersionRisk, isNonMemberSource]);
+  }, [id, riskLoanReady, riskLoanStatus, isNonMemberSource, isBookkeeperFlow]);
 
   // Reprint the borrower's original application form. Same backend templates
   // the member portal uses; personal data is re-read from the PDS because

@@ -60,6 +60,24 @@ const toFloat = (value) => {
   return Number.isNaN(parsed) ? null : parsed;
 };
 
+const toWholeAmount = (value, fieldName) => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(String(value).replace(/,/g, '').trim());
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`${fieldName} must be a valid number.`);
+  }
+  return Math.round(parsed);
+};
+
+const toNumericAmount = (value, fieldName) => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(String(value).replace(/,/g, '').trim());
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`${fieldName} must be a valid number.`);
+  }
+  return parsed;
+};
+
 const LOAN_TYPE_NAME_VARIANTS = {
   CONSOLIDATED: ['Consolidated Loan', 'Consolidated'],
   BONUS: ['Bonus Loan', 'Bonus'],
@@ -728,6 +746,15 @@ export async function submitUnifiedLoan({
     interest_rate: resolvedInterestRate,
     term: toInt(term),
     ...optionalFields,
+    ...(Object.prototype.hasOwnProperty.call(optionalFields, 'latest_net_pay')
+      ? { latest_net_pay: toWholeAmount(optionalFields.latest_net_pay, 'Latest net pay') }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(optionalFields, 'share_capital')
+      ? { share_capital: toWholeAmount(optionalFields.share_capital, 'Share capital') }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(optionalFields, 'bonus_amount_numeric')
+      ? { bonus_amount_numeric: toNumericAmount(optionalFields.bonus_amount_numeric, 'Bonus amount') }
+      : {}),
     loan_status: normalizedLoanStatus,
     application_status: normalizedApplicationStatus,
     application_type: normalizedApplicationType,
