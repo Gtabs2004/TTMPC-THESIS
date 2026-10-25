@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
 import TableStateRow from "../../components/TableStateRow";
 import Pagination from "../../components/Pagination";
@@ -11,10 +10,7 @@ import LoanNotificationBell from "../../components/LoanNotificationBell";
 import StaffSidebar from "../../components/StaffSidebar";
 import { treasurerNav } from "../../components/StaffSidebar/configs/treasurer";
 import {
-  CreditCard,
   Plus,
-  ArrowUpRight,
-  ArrowDownRight,
   RefreshCw,
   X,
   AlertCircle,
@@ -39,7 +35,7 @@ const FORECAST_LOAN_TYPES = [
   { value: "bonus",        label: "Bonus",        color: FORECAST_LOAN_TYPE_COLORS.bonus },
 ];
 
-const FORECAST_MONTHS = 12;
+const FORECAST_MONTHS_AHEAD = 1;
 
 // Cash sufficiency rule (confirmed by the cooperative, see
 // 2026-10-21_profile_change_requests.md part B). Coverage = cash available /
@@ -136,7 +132,7 @@ const Vault = () => {
   const [showModal, setShowModal] = useState(false);
   const [typeFilter, setTypeFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const [monthlyForecast, setMonthlyForecast] = useState([]); // 12 rows: { period, consolidated, emergency, bonus }
+  const [monthlyForecast, setMonthlyForecast] = useState([]); // Next month's forecast by loan type
   const [reservedCash, setReservedCash] = useState(0); // approved/ready-for-disbursement loans not yet released
   const [forecastLoading, setForecastLoading] = useState(false);
   const [forecastError, setForecastError] = useState("");
@@ -176,8 +172,8 @@ const Vault = () => {
   // cashier-side vault postings write to.
   useRealtimeRefetch(["vault_entries"], () => fetchData({ silent: true }));
 
-  // Pull the SARIMA forecast for all 12 upcoming months, for Consolidated,
-  // Emergency and Bonus, plus the cash already committed to approved loans
+  // Pull the SARIMA forecast through next month for Consolidated, Emergency
+  // and Bonus, plus the cash already committed to approved loans
   // waiting for release (so "available" isn't just the raw vault balance).
   // Cash planning uses `upper` (upper 80% CI, the model/API default) as the
   // "need" to prepare for — point estimate is shown only as "likely" and
@@ -189,7 +185,7 @@ const Vault = () => {
       const results = await Promise.all(
         FORECAST_LOAN_TYPES.map(async (t) => {
           const res = await fetch(
-            `${API_BASE_URL}/api/analytics/demand/forecast?loan_type=${t.value}&periods=${FORECAST_MONTHS}`,
+            `${API_BASE_URL}/api/analytics/demand/forecast?loan_type=${t.value}&months_from_today=${FORECAST_MONTHS_AHEAD}`,
             { headers: { Accept: "application/json" } },
           );
           const payload = await res.json().catch(() => ({}));
@@ -212,9 +208,11 @@ const Vault = () => {
           };
         }
       }
+      const now = new Date();
+      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const nextMonthKey = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}`;
       const rows = Array.from(byPeriod.values())
-        .sort((a, b) => a.period.localeCompare(b.period))
-        .slice(0, FORECAST_MONTHS);
+        .filter((row) => row.period === nextMonthKey);
       setMonthlyForecast(rows);
 
       // Cash already spoken for: the NET cash out of loans in "ready for
@@ -259,23 +257,17 @@ const Vault = () => {
     return filteredEntries.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredEntries, currentPage]);
 
-  const totals = useMemo(() => {
-    const t = { deposit: 0, withdrawal: 0, adjustment: 0, disbursement: 0, opening_balance: 0 };
-    for (const e of entries) t[e.change_type] = (t[e.change_type] || 0) + Number(e.amount || 0);
-    return t;
-  }, [entries]);
-
   // Cash available to cover upcoming releases = vault balance minus cash
   // already committed to loans approved and waiting for disbursement. We
-  // compare every forecast month against this SAME figure (not a running
-  // balance) since future collections aren't forecast — see the "Questions
+  // compare next month's forecast against cash available now since future
+  // collections aren't forecast — see the "Questions
   // only you can answer" #3 in 2026-10-21_cash_forecast_addition.md.
   const availableCash = useMemo(
     () => Number(balance.current_balance || 0) - reservedCash,
     [balance.current_balance, reservedCash],
   );
 
-  // One row per forecast month: need (upper 80% CI, summed across
+  // One row for next month: need (upper 80% CI, summed across
   // Consolidated/Emergency/Bonus) vs. availableCash, plus likely (point
   // estimate) and the stress case (upper 95% CI) for context only; the status
   // is decided on the 80% need alone. See CASH_BUFFER / CRITICAL_COVERAGE.
@@ -378,7 +370,7 @@ const Vault = () => {
                   Cash Sufficiency Forecast
                 </h2>
                 <p className="text-xs text-gray-500 mt-1">
-                  Cash available vs. forecasted loan releases for the next {FORECAST_MONTHS} months. Status
+                  Cash available vs. forecasted loan releases for next month only. Status
                   uses a safe-side estimate (80% confidence) and a 20% cash buffer; "Likely" and the 95% "Stress
                   Case" are shown for context only. Compared against today's cash on hand, not a projected future balance.
                 </p>
@@ -428,7 +420,7 @@ const Vault = () => {
                   <div className="rounded-xl border border-gray-200 p-4 bg-gray-50">
                     <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Cash Available</p>
                     <p className="text-xl font-extrabold text-gray-900 tabular-nums mt-1">{PHP(availableCash)}</p>
-                    <p className="text-[11px] text-gray-500 mt-1">Compared against every month below</p>
+                    <p className="text-[11px] text-gray-500 mt-1">Compared against next month's forecast</p>
                   </div>
                 </div>
 
@@ -471,74 +463,9 @@ const Vault = () => {
                   );
                 })()}
 
-                {/* 12-month table */}
-                <div className="overflow-x-auto rounded-xl border border-gray-200">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-gray-50 text-[10px] uppercase tracking-wider text-gray-500 font-bold">
-                        <th className="p-3 text-left">Month</th>
-                        <th className="p-3 text-right">Forecast Need (80%)</th>
-                        <th className="p-3 text-right">Likely</th>
-                        <th className="p-3 text-right">Stress Case (95%)</th>
-                        <th className="p-3 text-right">Reserved</th>
-                        <th className="p-3 text-right">Available</th>
-                        <th className="p-3 text-right">Coverage</th>
-                        <th className="p-3 text-center">Status</th>
-                        <th className="p-3 text-right">Prepare</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {monthlyCashPosition.map((row) => {
-                        const badge = STATUS_META[row.status];
-                        return (
-                          <tr key={row.period} className="border-t border-gray-100">
-                            <td className="p-3 text-gray-800 font-semibold whitespace-nowrap">{row.label}</td>
-                            <td className="p-3 text-right tabular-nums font-bold text-gray-900">{PHP(row.need)}</td>
-                            <td className="p-3 text-right tabular-nums text-gray-500">{PHP(row.likely)}</td>
-                            <td className="p-3 text-right tabular-nums text-gray-500">{PHP(row.stress)}</td>
-                            <td className="p-3 text-right tabular-nums text-amber-700">{PHP(reservedCash)}</td>
-                            <td className="p-3 text-right tabular-nums text-gray-700">{PHP(availableCash)}</td>
-                            <td className="p-3 text-right tabular-nums text-gray-700">
-                              {row.coverageRatio === null ? "—" : `${(row.coverageRatio * 100).toFixed(0)}%`}
-                            </td>
-                            <td className="p-3 text-center">
-                              <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${badge.badge}`}>
-                                {badge.label}
-                              </span>
-                            </td>
-                            <td className="p-3 text-right tabular-nums text-gray-800">
-                              {row.recommended > 0 ? (
-                                <>
-                                  {row.minimum > 0 && (
-                                    <span className="block text-[11px] text-gray-500">Min {PHP(row.minimum)}</span>
-                                  )}
-                                  <span className="font-semibold">{PHP(row.recommended)}</span>
-                                  <span className="block text-[11px] text-gray-500">recommended</span>
-                                </>
-                              ) : (
-                                "—"
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
               </>
             )}
           </div>
-
-          {/* MINI-TOTALS */}
-          <StatCardRow cols={3}>
-            {[
-              { key: "deposit", label: "Deposits", icon: ArrowDownRight, tone: "text-emerald-700" },
-              { key: "withdrawal", label: "Withdrawals", icon: ArrowUpRight, tone: "text-red-700" },
-              { key: "disbursement", label: "Disbursements", icon: CreditCard, tone: "text-blue-700" },
-            ].map((c) => (
-              <StatCard key={c.key} label={c.label} value={PHP(totals[c.key])} icon={c.icon} iconColor={c.tone} />
-            ))}
-          </StatCardRow>
 
           {/* LEDGER */}
           <div className="rounded-xl bg-white border border-gray-200 shadow-sm">
