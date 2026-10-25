@@ -15106,14 +15106,20 @@ async def get_secretary_membership_record_details(member_ref: str):
                     .eq("membership_id", membership_number)
                     .execute()
                 ).data or []
-                details["cbu_applied_to_loans"] = decimal_to_float(sum(
+                applied_total = sum(
                     (Decimal(str(m.get("amount") or 0)) for m in moves if m.get("kind") == "loan_offset"), Decimal("0")
-                ))
-                details["cbu_paid_out"] = decimal_to_float(sum(
+                )
+                paid_total = sum(
                     (Decimal(str(m.get("amount") or 0)) for m in moves if m.get("kind") == "payout"), Decimal("0")
-                ))
+                )
+                details["cbu_applied_to_loans"] = decimal_to_float(applied_total)
+                details["cbu_paid_out"] = decimal_to_float(paid_total)
+                live_balance = _member_cbu_balance(member_uuid) if member_uuid else Decimal("0")
+                settlement_total = money(live_balance + applied_total + paid_total)
+                if settlement_total > 0:
+                    details["termination_cbu_total"] = decimal_to_float(settlement_total)
                 details["cbu_remaining"] = (
-                    decimal_to_float(max(_member_cbu_balance(member_uuid), Decimal("0")))
+                    decimal_to_float(max(live_balance, Decimal("0")))
                     if details["member_status"] == "terminated" and member_uuid
                     else 0.0
                 )
@@ -19810,12 +19816,23 @@ def _member_cbu_balance(member_uuid: str) -> Decimal:
     """Latest running CBU balance, ordered the same way as the Cashier's CRJ
     deposit endpoint: date, then cbu_deposit_id's numeric suffix (never the
     random `id`), ignoring the future-dated year-end import placeholder."""
-    rows = (
-        supabase.table("capital_build_up")
-        .select("ending_share_capital,transaction_date,cbu_deposit_id,id")
-        .eq("member_id", member_uuid)
-        .execute()
-    ).data or []
+    rows: list[dict] = []
+    page = 1000
+    offset = 0
+    while True:
+        batch = (
+            supabase.table("capital_build_up")
+            .select("ending_share_capital,transaction_date,cbu_deposit_id,id")
+            .eq("member_id", member_uuid)
+            .order("id")
+            .range(offset, offset + page - 1)
+            .execute()
+        ).data or []
+        rows.extend(batch)
+        if len(batch) < page:
+            break
+        offset += page
+
     today = date.today().isoformat()
     rows = [r for r in rows if str(r.get("transaction_date") or "")[:10] <= today]
     if not rows:
@@ -19823,7 +19840,11 @@ def _member_cbu_balance(member_uuid: str) -> Decimal:
 
     def order(row: dict) -> tuple:
         digits = "".join(ch for ch in str(row.get("cbu_deposit_id") or "") if ch.isdigit())
-        return (str(row.get("transaction_date") or ""), int(digits) if digits else -1, str(row.get("id") or ""))
+        return (
+            str(row.get("transaction_date") or "")[:10],
+            int(digits) if digits else -1,
+            str(row.get("id") or ""),
+        )
 
     latest = max(rows, key=order)
     return Decimal(str(latest.get("ending_share_capital") or 0))
@@ -20497,8 +20518,11 @@ def _settlement_rows(statuses: list[str]) -> list[dict]:
         mid = m.get("membership_id")
         applied = moves.get(mid, {}).get("loan_offset", Decimal("0"))
         paid = moves.get(mid, {}).get("payout", Decimal("0"))
-        total = Decimal(str(m.get("termination_cbu_total") or 0))
-        remaining = max(_member_cbu_balance(m["id"]), Decimal("0")) if status == "terminated" else Decimal("0")
+        live_balance = _member_cbu_balance(m["id"])
+        total = money(live_balance + applied + paid)
+        if total == 0 and m.get("termination_cbu_total") is not None:
+            total = Decimal(str(m["termination_cbu_total"]))
+        remaining = max(live_balance, Decimal("0")) if status == "terminated" else Decimal("0")
         if status == "exiting":
             payout_label = "Paying remaining loans"
         elif status == "closed":
@@ -20514,7 +20538,7 @@ def _settlement_rows(statuses: list[str]) -> list[dict]:
             "resolution_no": m.get("termination_resolution_number"),
             "termination_date": m.get("termination_date"),
             "reason": reasons.get(mid, ""),
-            "cbu_total": decimal_to_float(total) if m.get("termination_cbu_total") is not None else None,
+            "cbu_total": decimal_to_float(total) if m.get("termination_cbu_total") is not None or total > 0 else None,
             "applied_to_loans": decimal_to_float(applied),
             "refundable": decimal_to_float(max(total - applied, Decimal("0"))),
             "paid_so_far": decimal_to_float(paid),
@@ -20811,14 +20835,14 @@ def cashier_list_cbu_payouts(current_user: dict = _Depends(_get_current_user)):
     _require_cashier(current_user)
 
     rows = _settlement_rows(["terminated", "closed"])
-    history = (
+    history = _pc_retry(lambda: (
         supabase.table("cbu_payouts")
         .select("id,membership_id,amount,payout_date,reference,notes,recorded_by_email,created_at")
         .eq("kind", "payout")
         .order("created_at", desc=True)
         .limit(100)
         .execute()
-    ).data or []
+    )).data or []
     names = {r["membership_id"]: r["name"] for r in rows}
     for h in history:
         h["name"] = names.get(h.get("membership_id"), h.get("membership_id"))
