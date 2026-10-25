@@ -376,7 +376,7 @@ const Manager_Reports = () => {
             <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
               <div className="flex items-center gap-2 mb-4">
                 <Award className="w-4 h-4 text-gray-500" />
-                <h3 className="text-gray-800 font-bold text-sm">Member Classification</h3>
+                <h3 className="text-gray-800 font-bold text-sm">Members Classification</h3>
               </div>
               <div className="relative h-44 flex items-center justify-center">
                 <ResponsiveContainer debounce={200} width="100%" height="100%" minWidth={0} minHeight={1}>

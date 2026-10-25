@@ -1923,7 +1923,7 @@ const LoanApprovalDetails = () => {
                   <p className="font-bold text-gray-800">{loanDetails.summary.term}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Member Classification</p>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Members Classification</p>
                   {(() => {
                     const liveLabel = migsLabel?.label;
                     const fallback = loanDetails.summary.migsStatus;

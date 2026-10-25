@@ -931,7 +931,7 @@ const MemberDashboard = () => {
                     <div className="flex justify-between items-start mb-5">
                       <div>
                         <h3 className="text-xs font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-wider mb-1">
-                          Member Classification
+                          Members Classification
                         </h3>
                         <div className="flex items-baseline gap-1.5">
                           <span className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-gray-900 dark:text-mdark-text leading-none">

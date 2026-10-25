@@ -98,8 +98,7 @@ export default function StaffSidebar({ portal, items, sections }) {
   // A sub-page counts as its list page too (e.g. /bookkeeper-loan-approval/123
   // belongs to the "Loan Approval" link), so the group opens on detail pages.
   // `alsoActive` lists extra paths that belong to an entry even though they
-  // don't sit under its own path (e.g. /migs-evaluate is a page of "Member
-  // Classification" at /migs, so the plain prefix match misses it).
+  // don't sit under its own path (e.g. the classification evaluation page).
   const isAlsoActive = (s) =>
     (s.alsoActive || []).some(
       (p) => location.pathname === p || location.pathname.startsWith(`${p}/`)

@@ -401,7 +401,7 @@ const Secretary_General_Assembly = () => {
                   General Assembly Attendance
                 </h1>
                 <p className="mt-1 max-w-2xl text-sm text-gray-600">
-                  Record member attendance for the {SCORING_YEAR} General Assembly. Attendance is used as MIGS scoring input.
+                  Record member attendance for the {SCORING_YEAR} General Assembly. Attendance contributes to Members Classification.
                 </p>
               </div>
             </div>

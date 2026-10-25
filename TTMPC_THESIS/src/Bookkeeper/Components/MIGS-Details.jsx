@@ -155,9 +155,9 @@ const MIGSDetails = () => {
 
       <div className="flex-1 min-w-0 flex flex-col">
         <header className="bg-white h-16 shadow-sm flex items-center justify-between px-8 border-b border-gray-100 shrink-0">
-          <button onClick={() => navigate("/migs")} className="flex items-center gap-2 text-gray-700 hover:text-gray-900 transition-colors">
+          <button onClick={() => navigate("/members-classification")} className="flex items-center gap-2 text-gray-700 hover:text-gray-900 transition-colors">
             <ChevronLeft className="w-5 h-5" />
-            <span className="font-medium">Back to MIGS Scoring</span>
+            <span className="font-medium">Back to Members Classification</span>
           </button>
           <div className="flex items-center gap-4">
             <button className="relative p-1 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">

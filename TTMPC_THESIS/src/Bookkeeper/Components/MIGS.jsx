@@ -78,7 +78,7 @@ const MIGS = () => {
         }
         setRows(Array.isArray(result.data) ? result.data : []);
         addNotification(
-          `Loaded ${result.count || 0} members for MIGS scoring.`,
+          `Loaded ${result.count || 0} member classification records.`,
           "success"
         );
       } catch (err) {
@@ -140,8 +140,8 @@ const MIGS = () => {
   const handleComputeAll = async () => {
     if (computing) return;
     const ok = await confirm({
-      title: "Save MIGS Classifications",
-      message: `Save today's MIGS classification for all ${rows.length} members? Each member is saved as MIGS or Non-MIGS from their current score (50 or more is MIGS). Other modules, such as loan approval, read this saved classification.`,
+      title: "Save Member Classifications",
+      message: `Save today's classification for all ${rows.length} members? Each member is classified as MIGS or Non-MIGS from their current score (50 or more is MIGS). Other modules, such as loan approval, read this saved classification.`,
       confirmLabel: "Save for All Members",
       tone: "warning",
     });
@@ -159,7 +159,7 @@ const MIGS = () => {
       const total = (result?.inserted || 0) + (result?.updated || 0);
       setLastComputeRun(result?.accrual_date || new Date().toISOString().slice(0, 10));
       addNotification(
-        `Labeled ${total} members as of ${result?.accrual_date}. ${result?.errors?.length ? `(${result.errors.length} errors)` : ""}`,
+        `Saved classifications for ${total} members as of ${result?.accrual_date}. ${result?.errors?.length ? `(${result.errors.length} errors)` : ""}`,
         result?.errors?.length ? "warning" : "success"
       );
     } catch (err) {
@@ -203,10 +203,10 @@ const MIGS = () => {
                 <Loader2 className="w-14 h-14 text-[#2C7A3F] animate-spin" />
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-1">
-                Computing MIGS Classifications
+                Computing Member Classifications
               </h3>
               <p className="text-sm text-gray-600 mb-4">
-                Scoring every member and writing snapshots to the system. This usually takes 30–60 seconds.
+                Calculating each member&apos;s classification and saving the results. This usually takes 30–60 seconds.
               </p>
               <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
                 <div className="bg-[#2C7A3F] h-1.5 rounded-full animate-pulse w-3/4"></div>
@@ -227,9 +227,9 @@ const MIGS = () => {
         <main className="animate-page-in p-8 min-w-0">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="font-bold text-2xl text-gray-900">MIGS Scoring</h1>
+              <h1 className="font-bold text-2xl text-gray-900">Members Classification</h1>
               <p className="text-xs text-gray-500 mt-0.5">
-                Each member's score and MIGS classification. Save to make today's classification official for the whole cooperative.
+                Review each member&apos;s score and classification. Save to make today&apos;s classifications official for the whole cooperative.
                 {lastComputeRun ? ` Last run: ${lastComputeRun}.` : ""}
               </p>
             </div>
@@ -331,7 +331,7 @@ const MIGS = () => {
                       colSpan={8}
                       variant="empty"
                       icon={Users}
-                      label="No MIGS scoring records found."
+                      label="No member classification records found."
                     />
                   ) : (
                     paginatedRows.map((r) => (
@@ -384,7 +384,7 @@ const MIGS = () => {
                               more obvious hit area, and it reads as a control. */}
                           <TableActionButton
                             icon={Eye}
-                            onClick={() => navigate(`/migs-evaluate?member_id=${encodeURIComponent(String(r.member_id || ""))}`)}
+                            onClick={() => navigate(`/members-classification/evaluate?member_id=${encodeURIComponent(String(r.member_id || ""))}`)}
                           >
                             Evaluate
                           </TableActionButton>
@@ -409,6 +409,4 @@ const MIGS = () => {
 };
 
 export default MIGS;
-
-
 

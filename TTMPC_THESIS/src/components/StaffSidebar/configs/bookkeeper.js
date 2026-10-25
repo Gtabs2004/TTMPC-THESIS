@@ -24,7 +24,11 @@ export const bookkeeperNav = [
     subItems: [
       { name: "Manage Member",         path: "/manage-member" },
       { name: "Profile Changes",       path: "/bookkeeper-profile-changes", badgeKey: "profile_changes" },
-      { name: "Member Classification", path: "/migs", alsoActive: ["/migs-evaluate"] },
+      {
+        name: "Members Classification",
+        path: "/members-classification",
+        alsoActive: ["/members-classification/evaluate", "/migs", "/migs-evaluate"],
+      },
     ],
   },
   {

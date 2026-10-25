@@ -141,6 +141,8 @@ export const router = createBrowserRouter([
     {path: "/loan-application", element: bookkeeperGuarded(<LoanApplication/>)},
     {path: "/bookkeeper-loan-approval", element: bookkeeperGuarded(<BookkeeperLoanApproval/>)},
     {path: "/bookkeeper-loan-ledger/:loanId", element: bookkeeperGuarded(<LoanLedger/>)},
+    {path: "/members-classification", element: bookkeeperGuarded(<MIGS/>)},
+    {path: "/members-classification/evaluate", element: bookkeeperGuarded(<MIGSDetails/>)},
     {path: "/migs", element: bookkeeperGuarded(<MIGS/>)},
     {path: "/migs-evaluate", element: bookkeeperGuarded(<MIGSDetails/>)},
     {path: "/payments", element: bookkeeperGuarded(<BookkeeperPayments/>)},
