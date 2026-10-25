@@ -852,11 +852,11 @@ export async function fetchLoanForRevisionEdit(controlNumber) {
 // Resubmits a loan the Manager sent back for revision. `fields` carries only
 // the loan's own editable columns (amount/term/purpose/etc.) — identity and
 // workflow-status fields are set server-side.
-export async function resubmitLoanRevision(controlNumber, fields) {
+export async function resubmitLoanRevision(controlNumber, fields, collateralRows) {
   const response = await authedFetch(`/api/member/loans/${encodeURIComponent(controlNumber)}/resubmit`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields }),
+    body: JSON.stringify({ fields, collateral_rows: collateralRows }),
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok || !result?.success) {

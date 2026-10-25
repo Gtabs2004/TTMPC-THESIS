@@ -171,6 +171,10 @@ function Consolidated_Loan() {
   const [collateralUploadingIndex, setCollateralUploadingIndex] = useState(null);
   const [collateralPreviews, setCollateralPreviews] = useState({});
   const collateralFileInputRefs = useRef({});
+  const loanSubmitInFlight = useRef(false);
+  const persistedCollateralPaths = useRef(new Set());
+  const uploadedCollateralPaths = useRef(new Set());
+  const [revisionCollateralLoaded, setRevisionCollateralLoaded] = useState(false);
 
   const COLLATERAL_TYPES = [
     { value: 'co_maker',    label: 'Co-Maker Guarantee' },
@@ -189,7 +193,7 @@ function Consolidated_Loan() {
     setCollaterals((rows) => {
       const removed = rows[index];
       const path = removed?.document_url;
-      if (path) {
+      if (path && !persistedCollateralPaths.current.has(path)) {
         setCollateralPreviews((prev) => {
           if (!prev[path]) return prev;
           URL.revokeObjectURL(prev[path]);
@@ -203,6 +207,7 @@ function Consolidated_Loan() {
           .then(({ error }) => {
             if (error) console.warn('Failed to remove collateral photo from storage:', error.message);
           });
+        uploadedCollateralPaths.current.delete(path);
       }
       return rows.filter((_, i) => i !== index);
     });
@@ -214,6 +219,13 @@ function Consolidated_Loan() {
         Object.values(prev).forEach((url) => URL.revokeObjectURL(url));
         return {};
       });
+      const orphanedPaths = [...uploadedCollateralPaths.current];
+      uploadedCollateralPaths.current.clear();
+      if (orphanedPaths.length) {
+        supabase.storage.from('Supporting_Documents').remove(orphanedPaths).then(({ error }) => {
+          if (error) console.warn('Failed to clean up unused collateral photos:', error.message);
+        });
+      }
     };
   }, []);
 
@@ -244,6 +256,15 @@ function Consolidated_Loan() {
         throw new Error(error.message || 'Failed to upload collateral image.');
       }
 
+      const previousPath = row?.document_url;
+      if (previousPath && !persistedCollateralPaths.current.has(previousPath)) {
+        const { error: removeError } = await supabase.storage
+          .from('Supporting_Documents')
+          .remove([previousPath]);
+        if (removeError) console.warn('Failed to remove replaced collateral photo:', removeError.message);
+        uploadedCollateralPaths.current.delete(previousPath);
+      }
+      uploadedCollateralPaths.current.add(storagePath);
       updateCollateral(index, 'document_url', storagePath);
 
       const localPreview = URL.createObjectURL(file);
@@ -911,6 +932,23 @@ function Consolidated_Loan() {
             || loanRow.raw_payload?.optionalFields?.manager_review_details?.remarks
             || ''
         );
+
+        const { data: collateralRows, error: collateralError } = await supabase
+          .from('loan_collateral')
+          .select('collateral_id, collateral_type, description, document_url')
+          .eq('loan_control_number', editControlNumber);
+        if (collateralError) throw collateralError;
+        const normalizedCollaterals = (collateralRows || []).map((row) => ({
+          collateral_id: row.collateral_id,
+          type: row.collateral_type,
+          description: row.description,
+          document_url: row.document_url || '',
+        }));
+        persistedCollateralPaths.current = new Set(
+          normalizedCollaterals.map((row) => row.document_url).filter(Boolean)
+        );
+        setCollaterals(normalizedCollaterals);
+        setRevisionCollateralLoaded(true);
       } catch (err) {
         addNotification(err.message || 'Unable to load your loan application for editing.', 'error');
       }
@@ -972,10 +1010,15 @@ function Consolidated_Loan() {
 
   // 3. LOGIC: Database Insertion
   const submitApplication = async () => {
+    if (loanSubmitInFlight.current) return;
+    loanSubmitInFlight.current = true;
     setLoading(true);
 
     try {
       if (isRevisionEdit) {
+        if (!revisionCollateralLoaded) {
+          throw new Error('Collateral details are still loading. Please wait and try again.');
+        }
         await resubmitLoanRevision(editControlNumber, {
           loan_amount: formData.loan_amount_numeric,
           principal_amount: formData.loan_amount_numeric,
@@ -987,7 +1030,13 @@ function Consolidated_Loan() {
           source_of_income: formData.source_of_income || null,
           latest_net_pay: formData.latest_net_pay || null,
           share_capital: formData.share_capital || null,
-        });
+        }, collaterals.map((collateral) => ({
+          collateral_id: collateral.collateral_id || null,
+          collateral_type: collateral.type,
+          description: collateral.description,
+          document_url: collateral.document_url || null,
+        })));
+        uploadedCollateralPaths.current.clear();
         setSubmittedOpen(true);
         return;
       }
@@ -1039,8 +1088,14 @@ function Consolidated_Loan() {
           const { error: collateralError } = await supabase.from('loan_collateral').insert(rows);
           if (collateralError) {
             console.warn('Loan created, but collateral insert failed:', collateralError);
+          } else {
+            uploadedCollateralPaths.current.clear();
           }
+        } else {
+          uploadedCollateralPaths.current.clear();
         }
+      } else {
+        uploadedCollateralPaths.current.clear();
       }
 
       setSubmittedOpen(true);
@@ -1050,6 +1105,7 @@ function Consolidated_Loan() {
       console.error('Consolidated loan submission failed:', err);
       addNotification("Submission error: " + reason, "error");
     } finally {
+      loanSubmitInFlight.current = false;
       setLoading(false);
     }
   };

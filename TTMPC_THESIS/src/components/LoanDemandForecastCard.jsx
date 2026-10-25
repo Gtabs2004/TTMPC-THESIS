@@ -4,7 +4,6 @@ import {
   CartesianGrid,
   Bar,
   ComposedChart,
-  ErrorBar,
   Line,
   ReferenceLine,
   ResponsiveContainer,
@@ -133,9 +132,6 @@ const buildSeries = (actualsByYear, forecast, periods, loanType) => {
       upper: fcRow?.upper ?? null,
       lower95: fcRow?.lower95 ?? null,
       upper95: fcRow?.upper95 ?? null,
-      forecastError: fcRow
-        ? [Math.max(0, fcRow.predicted - fcRow.lower), Math.max(0, fcRow.upper - fcRow.predicted)]
-        : null,
     };
   });
 };
@@ -330,7 +326,6 @@ const LoanDemandForecastCard = ({ className = "" }) => {
         upper95: predictedRow?.upper95 ?? null,
         band80: predictedRow?.band80 ?? null,
         band95: predictedRow?.band95 ?? null,
-        forecastError: predictedRow?.forecastError ?? null,
       };
     });
   }, [seriesByType]);
@@ -690,16 +685,7 @@ const LoanDemandForecastCard = ({ className = "" }) => {
                             radius={[3, 3, 0, 0]}
                             name="Expected demand"
                             isAnimationActive={false}
-                          >
-                            <ErrorBar
-                              dataKey="forecastError"
-                              width={8}
-                              strokeWidth={1.5}
-                              stroke={t.color}
-                              opacity={0.62}
-                              direction="y"
-                            />
-                          </Bar>
+                          />
                         </>
                       ) : (
                         <>

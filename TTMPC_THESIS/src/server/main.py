@@ -6372,6 +6372,7 @@ def _require_bookkeeper(current_user: dict) -> None:
 
 class LoanRevisionResubmit(BaseModel):
     fields: dict = Field(default_factory=dict)
+    collateral_rows: list[dict] | None = None
 
 
 def _revision_loan_table_and_row(control_number: str) -> tuple[str, dict]:
@@ -6388,6 +6389,74 @@ def _revision_loan_table_and_row(control_number: str) -> tuple[str, dict]:
         if row:
             return table, row
     raise HTTPException(status_code=404, detail="Loan application not found.")
+
+
+def _sync_member_revision_collateral(control_number: str, rows: list[dict]) -> list[str]:
+    """Sync member-declared collateral and return removed Storage object paths."""
+    response = (
+        supabase.table("loan_collateral")
+        .select("*")
+        .eq("loan_control_number", control_number)
+        .execute()
+    )
+    existing_rows = response.data or []
+    existing_by_id = {str(row.get("collateral_id")): row for row in existing_rows}
+    allowed_types = {"co_maker", "cbu_shares", "chattel", "real_estate", "atm_hold", "other"}
+    storage_prefix = f"loan_collateral/{control_number}/"
+    desired_rows = []
+
+    for item in rows:
+        if not isinstance(item, dict):
+            raise HTTPException(status_code=422, detail="Invalid collateral entry.")
+        collateral_type = str(item.get("collateral_type") or "").strip()
+        description = str(item.get("description") or "").strip()
+        document_url = str(item.get("document_url") or "").strip() or None
+        collateral_id = str(item.get("collateral_id") or "").strip()
+
+        if collateral_type not in allowed_types or not description:
+            raise HTTPException(status_code=422, detail="Each collateral entry needs a valid type and description.")
+        if document_url and not document_url.startswith(storage_prefix):
+            raise HTTPException(status_code=422, detail="Collateral photo path does not belong to this loan.")
+        if collateral_id and collateral_id not in existing_by_id:
+            raise HTTPException(status_code=403, detail="Collateral entry does not belong to this loan.")
+
+        desired_rows.append({
+            "collateral_id": collateral_id or f"col_{control_number}_{uuid4().hex[:12]}",
+            "loan_control_number": control_number,
+            "collateral_type": collateral_type,
+            "description": description,
+            "document_url": document_url,
+        })
+
+    desired_ids = {row["collateral_id"] for row in desired_rows}
+    desired_paths = {row["document_url"] for row in desired_rows if row["document_url"]}
+    removed_paths = {
+        row["document_url"]
+        for row in existing_rows
+        if row.get("document_url") and row.get("document_url") not in desired_paths
+    }
+
+    if desired_rows:
+        try:
+            supabase.table("loan_collateral").upsert(desired_rows, on_conflict="collateral_id").execute()
+        except Exception as exc:
+            error_text = str(exc).lower()
+            if "declared_value" not in error_text or "23502" not in error_text:
+                raise
+            legacy_rows = []
+            for desired in desired_rows:
+                legacy = {**desired}
+                existing = existing_by_id.get(desired["collateral_id"], {})
+                legacy["declared_value"] = existing.get("declared_value")
+                if legacy["declared_value"] is None:
+                    legacy["declared_value"] = 0
+                legacy_rows.append(legacy)
+            supabase.table("loan_collateral").upsert(legacy_rows, on_conflict="collateral_id").execute()
+    for collateral_id in existing_by_id:
+        if collateral_id not in desired_ids:
+            supabase.table("loan_collateral").delete().eq("collateral_id", collateral_id).execute()
+
+    return sorted(removed_paths)
 
 
 @app.get("/api/member/loans/{control_number}")
@@ -6426,8 +6495,15 @@ def resubmit_member_loan_revision(
     if str(row.get("member_id") or "").strip() != member_id:
         raise HTTPException(status_code=403, detail="This loan application does not belong to you.")
 
-    current_status = str(row.get("loan_status") or "").strip().lower()
-    if current_status != "revision_requested":
+    current_status = str(row.get("loan_status") or row.get("application_status") or "").strip().lower()
+    current_statuses = {
+        str(row.get(field) or "").strip().lower()
+        for field in ("loan_status", "application_status")
+    }
+    current_statuses.discard("")
+    if "revision_requested" not in current_statuses:
+        if "revised_submitted" in current_statuses:
+            return {"success": True, "loan_status": "revised_submitted", "already_submitted": True}
         raise HTTPException(
             status_code=409,
             detail="This loan application is not currently awaiting your revision.",
@@ -6440,6 +6516,12 @@ def resubmit_member_loan_revision(
         "created_at", "updated_at",
     }
     edits = {k: v for k, v in (body.fields or {}).items() if k not in protected_fields}
+
+    collateral_paths_to_remove = []
+    if body.collateral_rows is not None:
+        if table != "loans":
+            raise HTTPException(status_code=422, detail="Collateral revisions are only supported for member loans.")
+        collateral_paths_to_remove = _sync_member_revision_collateral(control_number, body.collateral_rows)
 
     update_payload = {
         **edits,
@@ -6460,6 +6542,29 @@ def resubmit_member_loan_revision(
     if not (updated.data or []):
         raise HTTPException(status_code=500, detail="Loan application was not updated.")
 
+    cleanup_warning = None
+    if body.collateral_rows is not None:
+        try:
+            folder = f"loan_collateral/{control_number}"
+            desired_paths = {
+                str(item.get("document_url") or "").strip()
+                for item in body.collateral_rows
+                if isinstance(item, dict) and str(item.get("document_url") or "").strip()
+            }
+            storage = supabase.storage.from_("Supporting_Documents")
+            stored_files = storage.list(folder) or []
+            orphaned_paths = [
+                f"{folder}/{item['name']}"
+                for item in stored_files
+                if item.get("name") and f"{folder}/{item['name']}" not in desired_paths
+            ]
+            stale_paths = sorted(set(collateral_paths_to_remove + orphaned_paths))
+            if stale_paths:
+                storage.remove(stale_paths)
+        except Exception as err:
+            cleanup_warning = "Some removed collateral photos could not be deleted from storage."
+            logger.warning("revision collateral storage cleanup failed for %s: %s", control_number, err)
+
     try:
         role = _resolve_staff_role(current_user["id"], current_user.get("email") or "") or "member"
         supabase.table("audit_log").insert({
@@ -6468,7 +6573,7 @@ def resubmit_member_loan_revision(
             "actor_email": current_user.get("email") or None,
             "entity_type": "loan",
             "entity_id": control_number,
-            "action": "resubmit",
+            "action": "update",
             "before": {"loan_status": current_status},
             "after": {"loan_status": "revised_submitted"},
             "context": {
@@ -6495,7 +6600,7 @@ def resubmit_member_loan_revision(
     except Exception as err:
         logger.warning("revision resubmission notification failed: %s", err)
 
-    return {"success": True, "loan_status": "revised_submitted"}
+    return {"success": True, "loan_status": "revised_submitted", "cleanup_warning": cleanup_warning}
 
 
 
