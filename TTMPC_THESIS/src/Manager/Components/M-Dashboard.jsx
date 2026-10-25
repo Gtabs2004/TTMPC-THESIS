@@ -13,6 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Skeleton, SkeletonChart, SkeletonDonut } from "../../components/Skeleton";
 import TableStateRow from "../../components/TableStateRow";
 import RecentActivityCard from "../../components/RecentActivityCard";
+import { getLoanTypeChipClass } from "../../utils/loanTypeColors";
 import {
   LayoutDashboard,
   Users,
@@ -319,7 +320,7 @@ const M_Dashboard = () => {
       {/* SIDEBAR (Kept from your original code) */}
       <StaffSidebar portal="Manager" items={managerNav} />
 
-      {/* MAIN CONTENT WRAPPER */}
+     
       <div className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
         {/* HEADER (Kept mostly identical) */}
         <StaffTopbar portal="Manager" notifications={<LoanNotificationBell role="manager" />} />
@@ -685,11 +686,15 @@ const M_Dashboard = () => {
                         className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors cursor-pointer"
                       >
                         <td className="p-5 font-bold text-gray-800">{req.name}</td>
-                        <td className="p-5 text-gray-500">{req.type}</td>
+                        <td className="p-5">
+                          <span className={`badge-animated ${getLoanTypeChipClass(req.type)}`}>
+                            {req.type}
+                          </span>
+                        </td>
                         <td className="p-5 font-bold text-gray-800">{req.amount}</td>
                         <td className="p-5 text-gray-500">{req.date}</td>
                         <td className="p-5">
-                          <span className="px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider bg-orange-100 text-orange-600">
+                          <span className="status-badge bg-amber-50 text-amber-700 ring-amber-200">
                             {req.status}
                           </span>
                         </td>
