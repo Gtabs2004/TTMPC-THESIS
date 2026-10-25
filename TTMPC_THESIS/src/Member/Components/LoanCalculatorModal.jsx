@@ -136,13 +136,11 @@ export default function LoanCalculatorModal({ open, onClose }) {
   // Bonus loan specific state
   const [bonusMonthlyRate, setBonusMonthlyRate] = useState(BONUS_RATE_MIGS);
 
-  // Personalized eligibility ceiling — same source data and formula the real
-  // application forms use (share capital × MIGS multiplier), so the
-  // calculator's max stops silently disagreeing with what a member could
-  // actually apply for. Falls back to the flat product range if this can't
-  // be resolved (e.g. not signed in) rather than breaking the simulation.
+  // Personalized eligibility ceiling — the same source data and formula the
+  // real application forms use (share capital × MIGS multiplier). The
+  // calculator flags amounts above it without restricting the simulation.
   const [memberId, setMemberId] = useState(null);
-  const [shareCapital, setShareCapital] = useState(0);
+  const [shareCapital, setShareCapital] = useState(null);
   const { data: migsLabel } = useMigsLabel(memberId);
 
   // When switching loan types, reset amount and term to sensible defaults.
@@ -173,7 +171,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
       setActiveLoanError("");
       setShowFormula(false);
       setMemberId(null);
-      setShareCapital(0);
+      setShareCapital(null);
       setBonusMonthlyRate(BONUS_RATE_MIGS);
     }
   }, [open]);
@@ -187,7 +185,12 @@ export default function LoanCalculatorModal({ open, onClose }) {
         const { profile } = await fetchLoanPrefill();
         if (cancelled || !profile) return;
         setMemberId(profile.member_id || null);
-        setShareCapital(Number(profile.share_capital || 0));
+        const capital = profile.share_capital;
+        setShareCapital(
+          capital == null || capital === "" || !Number.isFinite(Number(capital))
+            ? null
+            : Math.max(0, Number(capital))
+        );
       } catch {
         // Not signed in, or the lookup failed — leave the calculator on the
         // flat product-wide range rather than surfacing an error for what's
@@ -291,22 +294,10 @@ export default function LoanCalculatorModal({ open, onClose }) {
   const bonusRate = isMigsMember === null
     ? bonusMonthlyRate
     : isMigsMember ? BONUS_RATE_MIGS : BONUS_RATE_NON_MIGS;
-  const eligibleCapacity = shareCapital > 0 ? shareCapital * migsMultiplier : 0;
+  const eligibleCapacity = shareCapital == null ? 0 : shareCapital * migsMultiplier;
   // hasEligibilityData = prefill resolved AND migs label resolved
-  const hasEligibilityData = memberId != null && migsLabel != null && shareCapital > 0;
-  const effectiveMax = hasEligibilityData
-    ? Math.max(selectedType.min, Math.min(selectedType.max, eligibleCapacity))
-    : selectedType.max;
-  const isCappedByEligibility = hasEligibilityData && effectiveMax < selectedType.max;
-
-  // If eligibility data arrives (or the member switches loan type) and the
-  // currently selected amount is now above what they actually qualify for,
-  // pull it back down instead of silently simulating an amount they can't
-  // borrow.
-  useEffect(() => {
-    if (loanAmount === "") return;
-    if (Number(loanAmount) > effectiveMax) setLoanAmount(effectiveMax);
-  }, [effectiveMax, loanAmount]);
+  const hasEligibilityData = memberId != null && migsLabel != null && shareCapital != null;
+  const isCappedByEligibility = hasEligibilityData && eligibleCapacity < selectedType.max;
 
   const result = useMemo(() => {
     const principal = Number(loanAmount || 0);
@@ -352,6 +343,8 @@ export default function LoanCalculatorModal({ open, onClose }) {
   if (!open) return null;
 
   const amountNum = Number(loanAmount || 0);
+  const exceedsCapitalLimit =
+    hasEligibilityData && amountNum > 0 && amountNum > eligibleCapacity;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-2.5 py-3 sm:px-4 sm:py-6 overflow-y-auto">
@@ -432,7 +425,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
                     className="w-full appearance-none border border-gray-200 dark:border-mdark-border rounded-xl px-4 py-2.5 text-sm font-semibold bg-white dark:bg-mdark-elevated text-gray-800 dark:text-mdark-text focus:ring-2 focus:ring-primary outline-none pr-9"
                   >
                     {(loanType === "EMERGENCY" ? EMERGENCY_AMOUNT_QUICK_PICKS : loanType === "BONUS" ? BONUS_AMOUNT_QUICK_PICKS : CONSOLIDATED_AMOUNT_QUICK_PICKS)
-                      .filter((v) => v >= selectedType.min && v <= effectiveMax)
+                      .filter((v) => v >= selectedType.min && v <= selectedType.max)
                       .map((v) => (
                         <option key={v} value={v}>{formatPHP(v)}</option>
                       ))}
@@ -455,23 +448,34 @@ export default function LoanCalculatorModal({ open, onClose }) {
                       onBlur={(e) => {
                         const raw = stripCommas(e.target.value);
                         if (raw === "") return;
-                        const clamped = Math.min(Math.max(Number(raw), selectedType.min), effectiveMax);
+                        const clamped = Math.min(Math.max(Number(raw), selectedType.min), selectedType.max);
                         if (clamped !== Number(raw)) setLoanAmount(clamped);
                       }}
                       className="w-full border border-gray-200 dark:border-mdark-border rounded-xl pl-8 pr-4 py-2.5 text-sm font-semibold bg-white dark:bg-mdark-elevated text-gray-800 dark:text-mdark-text focus:ring-2 focus:ring-primary outline-none"
-                      placeholder={`Between ${formatPHPCompact(selectedType.min)} and ${formatPHPCompact(effectiveMax)}`}
+                      placeholder={`Between ${formatPHPCompact(selectedType.min)} and ${formatPHPCompact(selectedType.max)}`}
                     />
                   </div>
                 )}
 
                 <div className="flex justify-between text-[10px] text-gray-400 dark:text-mdark-text-muted font-medium mt-1.5">
                   <span>Min {formatPHPCompact(selectedType.min)}</span>
-                  <span>Max {formatPHPCompact(effectiveMax)}</span>
+                  <span>Product max {formatPHPCompact(selectedType.max)}</span>
                 </div>
+
+                {exceedsCapitalLimit && (
+                  <p
+                    role="status"
+                    aria-live="polite"
+                    aria-atomic="true"
+                    className="text-[11px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60 rounded-lg px-2.5 py-1.5 mt-2 leading-snug"
+                  >
+                    The proposed amount is {formatPHP(amountNum)} due to exceeding {migsMultiplier}× of the member&apos;s capital.
+                  </p>
+                )}
 
                 {isCappedByEligibility && (
                   <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60 rounded-lg px-2.5 py-1.5 mt-2 leading-snug">
-                    Your ceiling is {formatPHPCompact(shareCapital)} share capital × {migsMultiplier}× ({migsLabel?.label ?? "Non-MIGS"}) = <span className="font-bold">{formatPHPCompact(eligibleCapacity)}</span>. The product-wide max is {formatPHPCompact(selectedType.max)}.
+                    Your eligibility ceiling is {formatPHPCompact(shareCapital)} share capital × {migsMultiplier}× ({migsLabel?.label ?? "Non-MIGS"}) = <span className="font-bold">{formatPHPCompact(eligibleCapacity)}</span>. You can still simulate a higher amount up to the product max of {formatPHPCompact(selectedType.max)}.
                   </p>
                 )}
               </div>
