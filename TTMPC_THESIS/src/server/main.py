@@ -15363,44 +15363,68 @@ async def get_bookkeeper_pending_payments():
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
     try:
-        payments_response = (
-            supabase.table("loan_payments")
-            .select("id,payment_reference,loan_id,schedule_id,amount_paid,penalties,payment_date,confirmation_status,transaction_reference")
-            .order("payment_date", desc=True)
-            .execute()
-        )
-        payment_rows = [
-            row
-            for row in (payments_response.data or [])
-            if str(row.get("confirmation_status") or "pending_bookkeeper").strip().lower() == "pending_bookkeeper"
-        ]
+        payment_rows: list[dict] = []
+        page_size = 1000
+        offset = 0
+        while True:
+            batch = (
+                supabase.table("loan_payments")
+                .select("id,payment_reference,loan_id,schedule_id,amount_paid,penalties,payment_date,confirmation_status,transaction_reference")
+                .or_("confirmation_status.ilike.pending_bookkeeper,confirmation_status.is.null")
+                .order("payment_date", desc=True)
+                .range(offset, offset + page_size - 1)
+                .execute()
+            ).data or []
+            payment_rows.extend(
+                row
+                for row in batch
+                if str(row.get("confirmation_status") or "pending_bookkeeper").strip().lower() == "pending_bookkeeper"
+            )
+            if len(batch) < page_size:
+                break
+            offset += page_size
 
         loan_ids = sorted({str(row.get("loan_id") or "").strip() for row in payment_rows if row.get("loan_id")})
         member_name_by_loan: dict[str, str] = {}
+        loan_details_by_id: dict[str, dict] = {}
         if loan_ids:
             loans_response = (
                 supabase.table("loans")
-                .select("control_number,member:member_id(first_name,last_name)")
+                .select("control_number,member:member_id(first_name,last_name,is_bona_fide),loan_type:loan_type_id(code,name)")
                 .in_("control_number", loan_ids)
                 .execute()
             )
             for loan_row in loans_response.data or []:
                 member = loan_row.get("member") or {}
-                member_name_by_loan[str(loan_row.get("control_number") or "")] = (
+                loan_id = str(loan_row.get("control_number") or "")
+                member_name_by_loan[loan_id] = (
                     f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Unknown Member"
                 )
+                loan_type = loan_row.get("loan_type") or {}
+                loan_details_by_id[loan_id] = {
+                    "loan_type": loan_type.get("name") or "N/A",
+                    "loan_type_code": str(loan_type.get("code") or normalize_cashier_loan_type(loan_type.get("name"))).upper(),
+                    "member_type": "Member" if member.get("is_bona_fide") is not False else "Non-Member",
+                }
 
         schedule_code_by_id: dict[str, str] = {}
         try:
-            schedule_rows = (
-                supabase.table("loan_schedules")
-                .select("id,schedule_id")
-                .execute()
-            ).data or []
-            for sched in schedule_rows:
-                internal_id = str(sched.get("id") or "")
-                if internal_id:
-                    schedule_code_by_id[internal_id] = str(sched.get("schedule_id") or internal_id)
+            schedule_ids = sorted({
+                str(row.get("schedule_id") or "").strip()
+                for row in payment_rows
+                if row.get("schedule_id")
+            })
+            for start in range(0, len(schedule_ids), 300):
+                schedule_rows = (
+                    supabase.table("loan_schedules")
+                    .select("id,schedule_id")
+                    .in_("id", schedule_ids[start:start + 300])
+                    .execute()
+                ).data or []
+                for sched in schedule_rows:
+                    internal_id = str(sched.get("id") or "")
+                    if internal_id:
+                        schedule_code_by_id[internal_id] = str(sched.get("schedule_id") or internal_id)
         except Exception:
             schedule_code_by_id = {}
 
@@ -15419,6 +15443,7 @@ async def get_bookkeeper_pending_payments():
                     "confirmation_status": row.get("confirmation_status") or "pending_bookkeeper",
                     "transaction_reference": row.get("transaction_reference"),
                     "member_name": member_name_by_loan.get(str(row.get("loan_id") or ""), "Unknown Member"),
+                    **loan_details_by_id.get(str(row.get("loan_id") or ""), {}),
                 }
             )
 
