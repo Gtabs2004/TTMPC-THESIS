@@ -91,10 +91,6 @@ const FEATURE_LABELS = {
 
 const featureLabel = (feat) => FEATURE_LABELS[feat] || feat;
 
-// The model returns all 21 features ranked by impact. Showing every one buries
-// the signal, so the detail panel lists the strongest drivers only.
-const DRIVERS_SHOWN = 8;
-
 // Small "?" hover hint that explains a label in plain words.
 const InfoTip = ({ text }) => (
   <span title={text} aria-label={text} className="inline-flex cursor-help align-middle ml-1 text-gray-400">
@@ -102,16 +98,14 @@ const InfoTip = ({ text }) => (
   </span>
 );
 
-// Plain-language "Why / Worth checking" lists for the summary card: the two
-// strongest details pulling the score down, and the two pushing it up.
+// Plain-language summary lists ordered by each feature's contribution.
 const summarizeDrivers = (drivers) => {
   const byStrength = (dir) =>
     (drivers || [])
       .filter((d) => d.direction === dir && Number.isFinite(Number(d.contribution)))
       .sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution))
-      .slice(0, 2)
       .map((d) => featureLabel(d.feature));
-  return { lowers: byStrength("down"), raises: byStrength("up") };
+  return { decreaseRisk: byStrength("down"), increaseRisk: byStrength("up") };
 };
 
 // Plain-word rating for the assessment's ranking accuracy (ROC-AUC, 0-1).
@@ -577,21 +571,21 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
 
                     {/* Plain-language summary: why the score is what it is. */}
                     {(() => {
-                      const { lowers, raises } = summarizeDrivers(selectedLoan.drivers);
-                      if (lowers.length === 0 && raises.length === 0) return null;
+                      const { decreaseRisk, increaseRisk } = summarizeDrivers(selectedLoan.drivers);
+                      if (decreaseRisk.length === 0 && increaseRisk.length === 0) return null;
                       return (
                         <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3 space-y-2">
                           <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Summary</p>
-                          {lowers.length > 0 && (
+                          {decreaseRisk.length > 0 && (
                             <p className="text-sm text-gray-700">
-                              <span className="font-semibold text-emerald-700">Working in the applicant's favour: </span>
-                              {lowers.join(" and ")}.
+                              <span className="font-semibold text-emerald-700">Decrease Risk: </span>
+                              {decreaseRisk.join(", ")}.
                             </p>
                           )}
-                          {raises.length > 0 && (
+                          {increaseRisk.length > 0 && (
                             <p className="text-sm text-gray-700">
-                              <span className="font-semibold text-red-600">Worth checking: </span>
-                              {raises.join(" and ")}.
+                              <span className="font-semibold text-red-600">Increase Risk: </span>
+                              {increaseRisk.join(", ")}.
                             </p>
                           )}
                         </div>
@@ -669,7 +663,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                 ["Savings", readValue("Savings", "peso")],
                 ["Occupation Tier", readValue("OccTier")],
               ];
-              const shown = allDrivers.slice(0, DRIVERS_SHOWN);
+              const shown = allDrivers;
               const maxAbs = Math.max(...shown.map((driver) => Math.abs(Number(driver.contribution) || 0)), 1e-9);
 
               return (
@@ -690,7 +684,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
 
                   <div>
                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">
-                      Score drivers
+                      Risk variables
                     </p>
                     <div className="space-y-2.5">
                       {shown.map((driver) => {
@@ -707,7 +701,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                                 {featureLabel(driver.feature)}
                               </span>
                               <span className={`text-[10px] font-bold uppercase shrink-0 ${tagColor}`}>
-                                {isNeutral ? "No effect" : isUp ? "Raises" : "Lowers"}
+                                {isNeutral ? "No risk impact" : isUp ? "Increase Risk" : "Decrease Risk"}
                               </span>
                             </div>
                             <div className="w-full bg-gray-100 rounded-full h-1.5">
@@ -721,7 +715,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                       })}
                     </div>
                     <p className="text-[11px] text-gray-400 mt-3">
-                      Red bars raise this application&apos;s risk score and green bars lower it. A longer bar means a stronger effect.
+                      Red bars indicate Increase Risk and green bars indicate Decrease Risk. Longer bars indicate a stronger contribution.
                     </p>
                   </div>
                 </div>

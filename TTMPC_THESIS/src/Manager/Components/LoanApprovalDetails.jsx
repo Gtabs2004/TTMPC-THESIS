@@ -2352,7 +2352,7 @@ const LoanApprovalDetails = () => {
               Groceries: 'Grocery Patronage (points)',
               HasSnapshot: 'Has Financial Snapshot',
             };
-            const detailDrivers = (riskAssessment.drivers || []).slice(0, 8);
+            const detailDrivers = riskAssessment.drivers || [];
             const maxAbs = Math.max(...detailDrivers.map((d) => Math.abs(d.contribution)), 1e-9);
 
             return (
@@ -2483,7 +2483,7 @@ const LoanApprovalDetails = () => {
                       {detailDrivers.length > 0 && (
                         <div className="border border-gray-200 rounded-xl p-4">
                           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">
-                            Score drivers
+                            Risk variables
                           </p>
                           <div className="space-y-2.5">
                             {detailDrivers.map((d) => {
@@ -2498,7 +2498,7 @@ const LoanApprovalDetails = () => {
                                       {FEATURE_LABELS[d.feature] || d.feature}
                                     </span>
                                     <span className={`text-[10px] font-bold uppercase shrink-0 ${isNeutral ? 'text-gray-400' : isUp ? 'text-red-600' : 'text-green-700'}`}>
-                                      {isNeutral ? 'Neutral' : isUp ? 'Raises' : 'Lowers'}
+                                      {isNeutral ? 'No risk impact' : isUp ? 'Increase Risk' : 'Decrease Risk'}
                                     </span>
                                   </div>
                                   <div className="w-full bg-gray-100 rounded-full h-1.5">
