@@ -435,10 +435,23 @@ export async function fetchLoanPrefill() {
         .limit(200);
 
       if (!cbuError && Array.isArray(cbuRows) && cbuRows.length) {
+        // Same-day capital_build_up rows share one transaction_date (often
+        // midnight-stamped), so sorting on that field alone leaves ties in
+        // arbitrary/fetch order -- a stale smaller balance can outrank a
+        // real same-day deposit. Tiebreak on cbu_deposit_id's numeric
+        // suffix (matches the DB-side fix in recompute_member_shares() /
+        // get_member_login_bundle()), then id, so the real latest row wins.
+        const suffixOf = (row) => {
+          const n = parseInt(String(row?.cbu_deposit_id || '').replace(/^CBUD_0*/, ''), 10);
+          return Number.isFinite(n) ? n : -Infinity;
+        };
         const latestRow = [...cbuRows].sort((a, b) => {
           const aTs = Date.parse(a?.transaction_date || 0) || 0;
           const bTs = Date.parse(b?.transaction_date || 0) || 0;
-          return bTs - aTs;
+          if (bTs !== aTs) return bTs - aTs;
+          const bySuffix = suffixOf(b) - suffixOf(a);
+          if (bySuffix !== 0) return bySuffix;
+          return String(b?.id || '').localeCompare(String(a?.id || ''));
         })[0];
 
         latestShareCapital =

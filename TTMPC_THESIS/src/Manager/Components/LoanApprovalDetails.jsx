@@ -608,6 +608,62 @@ const LoanApprovalDetails = () => {
 
         totalPayable = principalAmount + resolvedTotalInterest;
 
+        // Renewal: find the predecessor loan (same member, same loan type,
+        // most recent prior application_date, excluding rejected/cancelled)
+        // and its outstanding balance, so the reviewer can see what this
+        // renewal is paying off -- mirrors the server-side resolution in
+        // main.py's _resolve_renewal_predecessors / _outstanding_balances.
+        let predecessorLoan = null;
+        const applicationTypeLower = String(data.application_type || '').toLowerCase();
+        if (applicationTypeLower === 'renewal' && data.member?.id && resolvedLoanType) {
+          try {
+            const { data: chainRows, error: chainError } = await supabase
+              .from('loans')
+              .select('control_number, application_date, loan_status, principal_amount, loan_amount, total_interest, monthly_amortization, term, loan_type:loan_type_id(name)')
+              .eq('member_id', data.member.id)
+              .lt('application_date', data.application_date || new Date().toISOString())
+              .order('application_date', { ascending: false });
+            if (!chainError && chainRows?.length) {
+              const predecessor = chainRows.find((row) => {
+                const status = String(row.loan_status || '').toLowerCase();
+                return (row.loan_type?.name || '') === resolvedLoanType
+                  && status !== 'rejected' && status !== 'cancelled';
+              });
+              if (predecessor) {
+                const { data: predPayments } = await supabase
+                  .from('loan_payments')
+                  .select('amount_paid, confirmation_status')
+                  .eq('loan_id', predecessor.control_number);
+                const validated = (predPayments || []).filter((p) =>
+                  ['validated', 'confirmed', 'bookkeeper_confirmed', 'approved'].includes(
+                    String(p.confirmation_status || '').toLowerCase()
+                  )
+                );
+                const paidSoFar = validated.reduce((sum, p) => sum + Number(p.amount_paid || 0), 0);
+                const predPrincipal = Number(predecessor.principal_amount ?? predecessor.loan_amount ?? 0);
+                // total_interest may be stale/unset on older rows; fall back to
+                // monthly_amortization x term - principal, same convention as
+                // the Statement/summary math elsewhere in this file.
+                let predInterest = Number(predecessor.total_interest || 0);
+                if (predInterest <= 0 && predecessor.monthly_amortization && predecessor.term) {
+                  predInterest = Math.max(
+                    Number(predecessor.monthly_amortization) * Number(predecessor.term) - predPrincipal,
+                    0
+                  );
+                }
+                const predTotalPayable = predPrincipal + predInterest;
+                predecessorLoan = {
+                  controlNumber: predecessor.control_number,
+                  originalAmount: predPrincipal,
+                  outstandingBalance: Math.max(predTotalPayable - paidSoFar, 0),
+                };
+              }
+            }
+          } catch (predErr) {
+            console.warn('Renewal predecessor lookup failed:', predErr);
+          }
+        }
+
         const rawCoMakers = data.raw_payload?.optionalFields?.bookkeeper_loan_details?.coMakers
           ?? data.raw_payload?.coMakers
           ?? [];
@@ -633,6 +689,8 @@ const LoanApprovalDetails = () => {
           status: formatStatus(data.loan_status || data.application_status),
           borrowerMemberId: data.member?.id || data.member_id || null,
           borrowerMembershipId: data.member?.membership_id || null,
+          isRenewal: applicationTypeLower === 'renewal',
+          predecessorLoan,
           summary: {
             loanType: resolvedLoanType,
             recommendedAmount: formatCurrency(data.loan_amount),
@@ -1679,6 +1737,14 @@ const LoanApprovalDetails = () => {
                 <span>{loanDetails.summary.loanType}</span>
                 <span className="text-gray-300">Â·</span>
                 <span className="font-bold text-gray-800">{loanDetails.summary.recommendedAmount}</span>
+                {loanDetails.isRenewal && (
+                  <>
+                    <span className="text-gray-300">Â·</span>
+                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[11px] font-bold">
+                      Renewal
+                    </span>
+                  </>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -1777,12 +1843,43 @@ const LoanApprovalDetails = () => {
               <div className="bg-[#FAF9FB] rounded-xl p-6 grid grid-cols-2 gap-y-6">
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Loan Type</p>
-                  <p className="font-bold text-gray-800">{loanDetails.summary.loanType}</p>
+                  <p className="font-bold text-gray-800 flex items-center gap-2">
+                    {loanDetails.summary.loanType}
+                    {loanDetails.isRenewal && (
+                      <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                        Renewal
+                      </span>
+                    )}
+                  </p>
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Recommended Amount</p>
                   <p className="font-bold text-member-green text-xl">{loanDetails.summary.recommendedAmount}</p>
                 </div>
+                {loanDetails.isRenewal && (
+                  <div className="col-span-2 bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
+                    <p className="text-[10px] font-bold text-blue-700 uppercase tracking-wider mb-1">
+                      Renewing From
+                    </p>
+                    {loanDetails.predecessorLoan ? (
+                      <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+                        <p className="text-xs text-gray-700">
+                          Loan <span className="font-mono font-bold text-gray-800">{loanDetails.predecessorLoan.controlNumber}</span>
+                        </p>
+                        <p className="text-xs text-gray-700">
+                          Original: <span className="font-bold text-gray-800">{formatCurrency(loanDetails.predecessorLoan.originalAmount)}</span>
+                        </p>
+                        <p className="text-xs text-gray-700">
+                          Remaining Balance: <span className="font-bold text-blue-700">{formatCurrency(loanDetails.predecessorLoan.outstandingBalance)}</span>
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-500">
+                        No prior {loanDetails.summary.loanType} loan found for this member.
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Term</p>
                   <p className="font-bold text-gray-800">{loanDetails.summary.term}</p>

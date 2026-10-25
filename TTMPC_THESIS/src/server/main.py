@@ -6900,7 +6900,7 @@ async def get_bookkeeper_loan_approval_queue(current_user: dict = _Depends(_get_
         loans = (
             supabase.table("loans")
             .select(
-                "control_number,loan_amount,term,loan_status,application_status,application_date,"
+                "control_number,loan_amount,term,loan_status,application_status,application_type,application_date,"
                 "applicant_full_name,"
                 "member:member_id(first_name,last_name,is_bona_fide,membership_id),"
                 "loan_types:loan_type_id(name)"

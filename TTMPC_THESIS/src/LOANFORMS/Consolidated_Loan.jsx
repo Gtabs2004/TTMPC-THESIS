@@ -585,10 +585,22 @@ function Consolidated_Loan() {
 
   const isAmountAllowed = (amount) => Number(amount) <= dropdownLoanCapacity;
 
+  // For a renewal, recommendLoan()'s amount is only net-pay/capacity aware --
+  // it doesn't know the member has an existing balance to pay off. Without a
+  // floor here, the "Recommended for you" amount can come back below that
+  // balance (e.g. recommends P60,000 while P66,667 is still owed), which
+  // would leave the member short and confused by a negative net proceeds
+  // figure if they click "Use this". Raise minAmount to the renewal payoff
+  // (snapped to the form's P5,000 step) so the recommendation always at
+  // least covers paying off the old loan.
+  const renewalPayoffFloor = isRenewal
+    ? Math.ceil((Number(simulatedRemainingBalance || 0) + RENEWAL_DEDUCTIONS) / 5000) * 5000
+    : 0;
+
   const loanRecommendation = recommendLoan({
     netPay: Number(formData.latest_net_pay || 0),
     capacity: dropdownLoanCapacity,
-    minAmount: Number(CONSOLIDATED_LOAN_AMOUNT_OPTIONS[0]),
+    minAmount: Math.max(Number(CONSOLIDATED_LOAN_AMOUNT_OPTIONS[0]), renewalPayoffFloor),
     maxAmount: Number(CONSOLIDATED_LOAN_AMOUNT_OPTIONS[CONSOLIDATED_LOAN_AMOUNT_OPTIONS.length - 1]),
     step: 5000,
     terms: TERM_OPTIONS,
@@ -997,8 +1009,11 @@ function Consolidated_Loan() {
           // Persist form-time values used by the Repayment Stress Index so the
           // risk model has authoritative inputs even if the PDS is updated
           // later or doesn't have the relevant columns.
-          latest_net_pay: formData.latest_net_pay || null,
-          share_capital: formData.share_capital || null,
+          // loans.latest_net_pay / share_capital are bigint -- a decimal
+          // string like "27800.00" fails to cast ("invalid input syntax for
+          // type bigint"), so round to a whole number before sending.
+          latest_net_pay: formData.latest_net_pay ? Math.round(Number(formData.latest_net_pay)) : null,
+          share_capital: formData.share_capital ? Math.round(Number(formData.share_capital)) : null,
           consolidated_notes: null,
         },
       });

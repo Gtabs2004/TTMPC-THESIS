@@ -116,6 +116,7 @@ const BookkeeperLoanApproval = () => {
           term,
           loan_status,
           application_status,
+          application_type,
           application_date,
           applicant_full_name,
           member:member_id (
@@ -239,12 +240,14 @@ const BookkeeperLoanApproval = () => {
     const migsStatus = isNonMember
       ? "N/A"
       : (loan.migs_status || "Unscored");
+    const isRenewal = String(loan.application_type || "").trim().toLowerCase() === "renewal";
 
     return {
       id: loan.control_number,
       source: loan.source,
       name: memberName,
       type: loanTypeName,
+      isRenewal,
       amount: loan.loan_amount ? `\u20B1${Number(loan.loan_amount).toLocaleString()}` : "\u20B10",
       term: `${loan.term || 0} Months`,
       status: migsStatus,
@@ -259,6 +262,7 @@ const BookkeeperLoanApproval = () => {
     all: displayLoans.length,
     pending: displayLoans.filter((loan) => ["pending", "draft"].includes(loan.loanStatus)).length,
     revision: displayLoans.filter((loan) => ["revision_requested", "revised_submitted"].includes(loan.loanStatus)).length,
+    renewal: displayLoans.filter((loan) => loan.isRenewal).length,
   };
 
   const filteredLoans = displayLoans.filter((loan) => {
@@ -274,6 +278,9 @@ const BookkeeperLoanApproval = () => {
     }
     if (activeTab === "revision") {
       return ["revision_requested", "revised_submitted"].includes(loan.loanStatus);
+    }
+    if (activeTab === "renewal") {
+      return loan.isRenewal;
     }
     return true;
   });
@@ -339,6 +346,7 @@ const BookkeeperLoanApproval = () => {
                 { value: "all", label: "All", count: tabCounts.all },
                 { value: "pending", label: "Pending", count: tabCounts.pending },
                 { value: "revision", label: "Revision Requested", count: tabCounts.revision },
+                { value: "renewal", label: "Renewal", count: tabCounts.renewal },
               ]}
               activeTab={activeTab}
               onTabChange={setActiveTab}
@@ -407,12 +415,19 @@ const BookkeeperLoanApproval = () => {
                           <p className="truncate" title={loan.name || "N/A"}>{loan.name}</p>
                         </td>
                         <td className="px-3 py-4 text-sm">
-                          <span
-                            className={`inline-block max-w-full truncate px-2.5 py-1 rounded-full text-[11px] font-bold align-middle ${getLoanTypeStyle(loan.type)}`}
-                            title={loan.type || "N/A"}
-                          >
-                            {loan.type || "N/A"}
-                          </span>
+                          <div className="flex flex-col items-start gap-0.5">
+                            {loan.isRenewal && (
+                              <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                                Renewal
+                              </span>
+                            )}
+                            <span
+                              className={`inline-block max-w-full truncate px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap ${getLoanTypeStyle(loan.type)}`}
+                              title={loan.type || "N/A"}
+                            >
+                              {loan.type || "N/A"}
+                            </span>
+                          </div>
                         </td>
                         <td className="px-3 py-4 text-sm font-bold text-gray-900">{loan.amount}</td>
                         <td className="px-3 py-4 text-sm text-gray-500">
