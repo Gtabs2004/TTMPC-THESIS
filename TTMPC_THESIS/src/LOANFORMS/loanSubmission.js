@@ -1,6 +1,7 @@
 import { supabase } from '../supabaseClient';
 import { invalidate } from '../Member/memberDataCache';
 import { consumeOverride } from '../utils/renewalOverrides';
+import { pickLatestCbuRow } from '../utils/cbuOrdering';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
@@ -446,31 +447,30 @@ export async function fetchLoanPrefill() {
   // Source 0: authoritative latest share capital from capital_build_up.
   if (memberRow?.id) {
     try {
-      const { data: cbuRows, error: cbuError } = await supabase
-        .from('capital_build_up')
-        .select('*')
-        .eq('member_id', memberRow.id)
-        .limit(200);
+      const cbuRows = [];
+      const pageSize = 1000;
+      for (let offset = 0; ; offset += pageSize) {
+        const { data, error: cbuError } = await supabase
+          .from('capital_build_up')
+          .select('*')
+          .eq('member_id', memberRow.id)
+          .range(offset, offset + pageSize - 1);
 
-      if (!cbuError && Array.isArray(cbuRows) && cbuRows.length) {
-        // Same-day capital_build_up rows share one transaction_date (often
-        // midnight-stamped), so sorting on that field alone leaves ties in
-        // arbitrary/fetch order -- a stale smaller balance can outrank a
-        // real same-day deposit. Tiebreak on cbu_deposit_id's numeric
-        // suffix (matches the DB-side fix in recompute_member_shares() /
-        // get_member_login_bundle()), then id, so the real latest row wins.
-        const suffixOf = (row) => {
-          const n = parseInt(String(row?.cbu_deposit_id || '').replace(/^CBUD_0*/, ''), 10);
-          return Number.isFinite(n) ? n : -Infinity;
-        };
-        const latestRow = [...cbuRows].sort((a, b) => {
-          const aTs = Date.parse(a?.transaction_date || 0) || 0;
-          const bTs = Date.parse(b?.transaction_date || 0) || 0;
-          if (bTs !== aTs) return bTs - aTs;
-          const bySuffix = suffixOf(b) - suffixOf(a);
-          if (bySuffix !== 0) return bySuffix;
-          return String(b?.id || '').localeCompare(String(a?.id || ''));
-        })[0];
+        if (cbuError) {
+          console.warn('Loan prefill: unable to read capital_build_up (RLS or schema mismatch).', {
+            member_id: memberRow.id,
+            code: cbuError.code,
+            message: cbuError.message,
+          });
+          break;
+        }
+
+        cbuRows.push(...(data || []));
+        if (!data || data.length < pageSize) break;
+      }
+
+      if (cbuRows.length) {
+        const latestRow = pickLatestCbuRow(cbuRows);
 
         latestShareCapital =
           latestRow?.ending_share_capital ??
@@ -481,15 +481,12 @@ export async function fetchLoanPrefill() {
           latestRow?.share_capital ??
           latestRow?.amount ??
           null;
-      } else if (cbuError) {
-        console.warn('Loan prefill: unable to read capital_build_up (RLS or schema mismatch).', {
-          member_id: memberRow.id,
-          code: cbuError.code,
-          message: cbuError.message,
-        });
       }
     } catch (_err) {
-      // Keep prefill resilient when CBU read fails.
+      console.warn('Loan prefill: failed while reading capital_build_up.', {
+        member_id: memberRow.id,
+        error: _err?.message || _err,
+      });
     }
   }
 
