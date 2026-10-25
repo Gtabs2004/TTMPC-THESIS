@@ -124,7 +124,19 @@ const Manager_Manage_Member = () => {
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <TableToolbar subtitle={`Showing ${paginatedRows.length} of ${filtered.length} members`} />
+            <TableToolbar subtitle={`Showing ${paginatedRows.length} of ${filtered.length} members`}>
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search by name, member ID, or email..."
+                  aria-label="Search members by name, member ID, or email"
+                  className="w-full h-8 rounded-lg border border-gray-200 bg-white pl-8 pr-3 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
+                />
+              </div>
+            </TableToolbar>
             <div className="overflow-x-auto">
             {loading ? (
               <div className="p-8">
@@ -207,7 +219,6 @@ const Manager_Manage_Member = () => {
 };
 
 export default Manager_Manage_Member;
-
 
 
 

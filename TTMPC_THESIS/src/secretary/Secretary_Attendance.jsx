@@ -745,10 +745,6 @@ const Secretary_Attendance = () => {
                 <div className="text-xs text-gray-400">
                   Showing {totalCount === 0 ? 0 : (page - 1) * LIMIT + 1}-{Math.min(page * LIMIT, totalCount)} of {totalCount} records
                 </div>
-                <button className="flex items-center gap-1.5 h-8 px-2.5 border border-gray-200 rounded-lg text-[11px] font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
-                  <Download size={14} />
-                  Export List
-                </button>
               </div>
             </div>
 

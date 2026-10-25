@@ -139,10 +139,6 @@ const Secretary_Records = () => {
               title="All Members"
               subtitle={`Showing ${paginatedRecords.length} of ${filteredRecords.length} members`}
             >
-              <button className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-gray-200 text-[11px] font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
-                <Download className="w-3.5 h-3.5" />
-                Export List
-              </button>
             </TableToolbar>
             <div className="overflow-x-auto p-8 pt-6">
             <table className="w-full text-left border-collapse text-sm">
