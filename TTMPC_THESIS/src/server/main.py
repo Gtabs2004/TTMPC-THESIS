@@ -9596,6 +9596,202 @@ def _compute_payment_charts() -> tuple[list[dict], dict[str, list[dict]]]:
     return yearly_collections, behavior_by_year
 
 
+@app.get("/api/bod/financial-summary")
+def get_bod_financial_summary(current_user: dict = _Depends(_get_current_user)):
+    """Return the BOD dashboard's current balances and current-year ledger totals."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    role = _resolve_staff_role(current_user["id"], current_user.get("email") or "")
+    if role != "bod":
+        raise HTTPException(status_code=403, detail="Only the BOD may view the financial summary.")
+
+    today = _cooperative_today()
+    year = today.year
+    year_start = date(year, 1, 1).isoformat()
+    # Ledger totals only count what has already been posted: future-dated rows
+    # (advance/placeholder entries) would otherwise show up as activity in months
+    # that haven't happened yet.
+    next_year_start = min(date(year + 1, 1, 1), today + timedelta(days=1)).isoformat()
+    page_size = 1000
+
+    def fetch_year_rows(
+        table_name: str,
+        columns: str,
+        date_column: str,
+        *,
+        filter_column: str | None = None,
+        filter_values: list[str] | None = None,
+        entry_type: str | None = None,
+        positive_field: str | None = None,
+        member_savings_only: bool = False,
+    ) -> list[dict]:
+        rows: list[dict] = []
+        offset = 0
+        while True:
+            query = (
+                supabase.table(table_name)
+                .select(columns)
+                .gte(date_column, year_start)
+                .lt(date_column, next_year_start)
+            )
+            if filter_column and filter_values:
+                query = query.in_(filter_column, filter_values)
+            if entry_type:
+                query = query.eq("entry_type", entry_type)
+            if positive_field:
+                query = query.gt(positive_field, 0)
+            if member_savings_only:
+                query = query.eq("savings_accounts.account_kind", "member")
+            batch = query.range(offset, offset + page_size - 1).execute().data or []
+            rows.extend(batch)
+            if len(batch) < page_size:
+                return rows
+            offset += page_size
+
+    def sum_amount(rows: list[dict], field: str, fallback_field: str | None = None) -> Decimal:
+        total = Decimal("0")
+        for row in rows:
+            raw_amount = row.get(field)
+            if raw_amount is None and fallback_field:
+                raw_amount = row.get(fallback_field)
+            total += Decimal(str(raw_amount or 0))
+        return money(total)
+
+    monthly_totals = [
+        {
+            "month": month,
+            "cbu_additions": Decimal("0"),
+            "loan_releases": Decimal("0"),
+            "loan_collections": Decimal("0"),
+            "savings_deposits": Decimal("0"),
+            "time_deposit_placements": Decimal("0"),
+        }
+        for month in range(1, 13)
+    ]
+
+    def add_monthly_totals(rows: list[dict], date_column: str, amount_field: str, metric: str) -> None:
+        for row in rows:
+            transaction_date = parse_date_value(str(row.get(date_column) or ""))
+            if not transaction_date or transaction_date.year != year:
+                continue
+            monthly_totals[transaction_date.month - 1][metric] += Decimal(
+                str(row.get(amount_field) or 0)
+            )
+
+    try:
+        release_rows = fetch_year_rows(
+            "loans",
+            "loan_amount,principal_amount,disbursal_date",
+            "disbursal_date",
+            filter_column="loan_status",
+            filter_values=["released", "partially paid", "fully paid"],
+        )
+        live_payment_rows = fetch_year_rows(
+            "loan_payments",
+            "amount_paid,payment_date",
+            "payment_date",
+            filter_column="confirmation_status",
+            filter_values=["validated", "confirmed", "bookkeeper_confirmed", "approved"],
+        )
+        legacy_payment_rows = fetch_year_rows(
+            "loan_payments_legacy",
+            "amount_paid,payment_date",
+            "payment_date",
+        )
+        cbu_rows = fetch_year_rows(
+            "capital_build_up",
+            "capital_added,transaction_date",
+            "transaction_date",
+            positive_field="capital_added",
+        )
+        savings_rows = fetch_year_rows(
+            "savings_ledger",
+            "amount,posted_at,savings_accounts!inner(account_kind)",
+            "posted_at",
+            entry_type="credit",
+            member_savings_only=True,
+        )
+        time_deposit_rows = fetch_year_rows(
+            "time_deposit_ledger",
+            "amount,posted_at",
+            "posted_at",
+            entry_type="placement",
+        )
+        cbu_total = _total_member_cbu()
+        deposit_kpi_rows = (
+            supabase.table("v_time_deposit_kpis")
+            .select("regular_balance,locked_td_principal")
+            .limit(1)
+            .execute()
+            .data or []
+        )
+        if not deposit_kpi_rows:
+            raise RuntimeError("The Time Deposit KPI view returned no summary row.")
+        deposit_kpis = deposit_kpi_rows[0]
+    except HTTPException:
+        raise
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load BOD financial summary: {err}")
+
+    add_monthly_totals(cbu_rows, "transaction_date", "capital_added", "cbu_additions")
+    add_monthly_totals(release_rows, "disbursal_date", "loan_amount", "loan_releases")
+    for row in release_rows:
+        if row.get("loan_amount") is None:
+            month_date = parse_date_value(str(row.get("disbursal_date") or ""))
+            if month_date and month_date.year == year:
+                monthly_totals[month_date.month - 1]["loan_releases"] += Decimal(
+                    str(row.get("principal_amount") or 0)
+                )
+    add_monthly_totals(live_payment_rows, "payment_date", "amount_paid", "loan_collections")
+    add_monthly_totals(legacy_payment_rows, "payment_date", "amount_paid", "loan_collections")
+    add_monthly_totals(savings_rows, "posted_at", "amount", "savings_deposits")
+    add_monthly_totals(time_deposit_rows, "posted_at", "amount", "time_deposit_placements")
+
+    loan_released_total = sum_amount(release_rows, "loan_amount", "principal_amount")
+    loan_collected_total = sum_amount(live_payment_rows, "amount_paid") + sum_amount(
+        legacy_payment_rows, "amount_paid"
+    )
+    annual = {
+        "cbu_additions": sum_amount(cbu_rows, "capital_added"),
+        "loan_releases": loan_released_total,
+        "loan_collections": loan_collected_total,
+        "loan_released_and_collected": loan_released_total + loan_collected_total,
+        "savings_deposits": sum_amount(savings_rows, "amount"),
+        "time_deposit_placements": sum_amount(time_deposit_rows, "amount"),
+    }
+
+    return {
+        "success": True,
+        "data": {
+            "year": year,
+            "balances": {
+                "total_cbu": decimal_to_float(cbu_total),
+                "savings": decimal_to_float(Decimal(str(deposit_kpis.get("regular_balance") or 0))),
+                "time_deposits": decimal_to_float(
+                    Decimal(str(deposit_kpis.get("locked_td_principal") or 0))
+                ),
+                "total_deposits": decimal_to_float(
+                    Decimal(str(deposit_kpis.get("regular_balance") or 0))
+                    + Decimal(str(deposit_kpis.get("locked_td_principal") or 0))
+                ),
+            },
+            "annual": {key: decimal_to_float(value) for key, value in annual.items()},
+            "monthly": [
+                {
+                    "month": month["month"],
+                    **{
+                        key: decimal_to_float(value)
+                        for key, value in month.items()
+                        if key != "month"
+                    },
+                }
+                for month in monthly_totals
+            ],
+        },
+    }
+
+
 @app.get("/api/bod/member-loan-summary")
 async def get_bod_member_loan_summary():
     """Per-member {activeCount, paidCount} only — for BOD Manage Member, which

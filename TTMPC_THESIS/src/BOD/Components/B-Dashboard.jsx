@@ -14,8 +14,6 @@ import TableStateRow from "../../components/TableStateRow";
 import {
   LayoutDashboard,
   Users,
-  Archive,
-  CalendarCheck,
   Search,
   Download,
   Calendar,
@@ -111,6 +109,12 @@ const GENDER_SLICE_COLORS = {
 };
 
 const formatCurrency = (v) => `₱${Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+const formatCurrencyAxis = (value) => {
+  const amount = Number(value || 0);
+  if (Math.abs(amount) >= 1_000_000) return `₱${(amount / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(amount) >= 1_000) return `₱${(amount / 1_000).toFixed(0)}k`;
+  return `₱${amount.toFixed(0)}`;
+};
 const formatDateShort = (v) => {
   if (!v) return '—';
   const d = new Date(v);
@@ -118,11 +122,55 @@ const formatDateShort = (v) => {
   return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
 };
 const monthKey = (d) => d.toLocaleDateString('en-US', { month: 'short' });
+const FINANCIAL_COLLECTION_SERIES = [
+  {
+    key: 'loan_collections',
+    label: 'Loan collections',
+    color: '#2563eb',
+  },
+  {
+    key: 'cbu_additions',
+    label: 'CBU additions',
+    color: GREEN.dark,
+  },
+  {
+    key: 'savings_deposits',
+    label: 'Savings deposits',
+    color: '#ea580c',
+  },
+  {
+    key: 'time_deposit_placements',
+    label: 'Time Deposit placements',
+    color: '#64748b',
+  },
+];
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // Everything the dashboard shows, fetched in one parallel batch (plus one
 // small dependent lookup). Lives outside the component so TanStack Query can
 // cache it under BOD_DASHBOARD_QUERY_KEY across navigation.
 const BOD_DASHBOARD_QUERY_KEY = ['dashboard', 'bod'];
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+
+async function fetchBodFinancialSummary() {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+  const accessToken = sessionData?.session?.access_token;
+  if (!accessToken) throw new Error('Your session has expired. Please sign in again.');
+
+  const response = await fetch(`${API_BASE_URL}/api/bod/financial-summary`, {
+    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+  });
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error(result?.detail || 'Failed to load the BOD financial summary.');
+  }
+  if (!result?.success || !result?.data) {
+    throw new Error('The BOD financial summary response was incomplete.');
+  }
+  return result.data;
+}
+
 async function fetchAllRows(table, columns) {
   const rows = [];
   const pageSize = 1000;
@@ -157,6 +205,7 @@ async function fetchBodDashboard() {
     recentSavingsRes,
     recentFeesRes,
     recentGroceryRes,
+    annualFinancial,
   ] = await Promise.all([
     supabase
       .from('loans')
@@ -240,6 +289,7 @@ async function fetchBodDashboard() {
       .select('GroceryID, membership_number_id, TransactionDate, GroceryAmount, Status, balance_due, member:membership_number_id(first_name, last_name, membership_id)')
       .order('TransactionDate', { ascending: false })
       .limit(5),
+    fetchBodFinancialSummary(),
   ]);
 
   const activeLoans = activeLoansRes?.data || [];
@@ -510,6 +560,7 @@ async function fetchBodDashboard() {
     kpis,
     approvedTrend,
     annualDisbursement,
+    annualFinancial,
     genderData: genderArr,
     genderTotal,
     recentTxns: txnRows.slice(0, 10),
@@ -523,7 +574,7 @@ const Dashboard_BOD = () => {
   // Cached across navigation: coming back to the dashboard renders the last
   // result instantly and refreshes it in the background. `loading` is only
   // true on the very first load, when there's nothing cached to show yet.
-  const { data, isPending: loading, error } = useQuery({
+  const { data, isPending: loading, error, refetch } = useQuery({
     queryKey: BOD_DASHBOARD_QUERY_KEY,
     queryFn: fetchBodDashboard,
   });
@@ -531,10 +582,14 @@ const Dashboard_BOD = () => {
     kpis = { totalLoansCount: 0, latePaymentsCount: 0, activeLoansCount: 0, approvedThisMonth: 0 },
     approvedTrend = [],
     annualDisbursement = { count: 0, amount: 0, byType: [] },
+    annualFinancial = null,
     genderData = [],
     genderTotal = 0,
     recentTxns = [],
   } = data || {};
+  const financialBalances = annualFinancial?.balances || {};
+  const financialAnnual = annualFinancial?.annual || {};
+  const financialUnavailable = Boolean(error && !annualFinancial);
   useEffect(() => {
     if (error) addNotification(error?.message || 'Failed to load BOD dashboard data.', 'error');
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -542,6 +597,7 @@ const Dashboard_BOD = () => {
 
   const [approvedTab, setApprovedTab] = useState('all');
   const [consolFilter, setConsolFilter] = useState('all');
+  const [financialSeriesKey, setFinancialSeriesKey] = useState('loan_collections');
   // Non-loan transaction types (savings, fees, grocery) have no dedicated
   // BOD detail page to drill into, so clicking one opens this lightweight
   // details modal instead of navigating away. Loan-related rows navigate
@@ -572,6 +628,9 @@ const Dashboard_BOD = () => {
     }
     return [{ key: approvedTab, color: APPROVED_LOAN_TYPE_COLORS[approvedTab] }];
   })();
+  const selectedFinancialSeries = FINANCIAL_COLLECTION_SERIES.find(
+    (series) => series.key === financialSeriesKey
+  ) || FINANCIAL_COLLECTION_SERIES[0];
 
   const handleTxnClick = (txn) => {
     if (txn.clickType === 'loan' && txn.loanId) {
@@ -637,6 +696,185 @@ const Dashboard_BOD = () => {
               subtext={`Disbursed in ${new Date().toLocaleDateString('en-US', { month: 'long' })}`}
             />
           </StatCardRow>
+
+          <section aria-label="Financial overview" className="mb-8 overflow-hidden rounded-xl border border-gray-200 bg-white">
+            <div className="grid grid-cols-1 divide-y divide-gray-100 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+              <div className="min-w-0 px-5 py-4 sm:px-6">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Total CBU</p>
+                {loading ? (
+                  <Skeleton className="mt-2 h-7 w-32" />
+                ) : (
+                  <p className="mt-1 text-xl font-bold tabular-nums text-gray-900">
+                    {financialUnavailable ? 'Unavailable' : formatCurrency(financialBalances.total_cbu)}
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-gray-500">Current member share capital</p>
+              </div>
+              <div className="min-w-0 px-5 py-4 sm:px-6">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Loans{annualFinancial ? ` · ${annualFinancial.year}` : ''}
+                </p>
+                {loading ? (
+                  <Skeleton className="mt-2 h-7 w-48" />
+                ) : financialUnavailable ? (
+                  <p className="mt-1 text-xl font-bold text-gray-900">Unavailable</p>
+                ) : (
+                  <div className="mt-1 grid grid-cols-2 gap-4">
+                    <div className="min-w-0">
+                      <p className="truncate text-xl font-bold tabular-nums text-gray-900">{formatCurrency(financialAnnual.loan_releases)}</p>
+                      <p className="mt-1 text-xs text-gray-500">Released (money out)</p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-xl font-bold tabular-nums text-gray-900">{formatCurrency(financialAnnual.loan_collections)}</p>
+                      <p className="mt-1 text-xs text-gray-500">Collected (payments in)</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0 px-5 py-4 sm:px-6">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Savings + Time Deposits</p>
+                {loading ? (
+                  <Skeleton className="mt-2 h-7 w-32" />
+                ) : (
+                  <p className="mt-1 text-xl font-bold tabular-nums text-gray-900">
+                    {financialUnavailable ? 'Unavailable' : formatCurrency(financialBalances.total_deposits)}
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  {financialUnavailable ? 'Balance breakdown unavailable' : `${formatCurrency(financialBalances.savings)} savings · ${formatCurrency(financialBalances.time_deposits)} time deposits`}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section aria-labelledby="bod-yearly-collection-title" className="mb-8">
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <h2 id="bod-yearly-collection-title" className="text-lg font-bold text-gray-800">
+                  Yearly financial activity
+                </h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  Amounts posted during {annualFinancial?.year || new Date().getFullYear()} — not current balances
+                </p>
+              </div>
+            </div>
+            <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-3">
+              <div className="min-w-0 rounded-xl border border-gray-100 bg-white p-5 shadow-sm xl:col-span-2">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-800">Monthly activity</h3>
+                    <p className="mt-1 text-xs text-gray-500">Choose one category to compare its monthly totals.</p>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs font-semibold text-gray-600">
+                    <span>Category</span>
+                    <select
+                      value={financialSeriesKey}
+                      onChange={(event) => setFinancialSeriesKey(event.target.value)}
+                      className="max-w-52 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-700/30"
+                    >
+                      {FINANCIAL_COLLECTION_SERIES.map((series) => (
+                        <option key={series.key} value={series.key}>{series.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <div className="mt-3 h-64">
+                  {loading ? <SkeletonChart /> : financialUnavailable ? (
+                    <div className="flex h-full flex-col items-center justify-center gap-3 rounded-lg bg-gray-50 text-center">
+                      <p className="text-sm text-gray-600" role="alert">
+                        Financial summary could not be loaded.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => refetch()}
+                        className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-700/30"
+                      >
+                        Try again
+                      </button>
+                    </div>
+                  ) : chartsReady ? (
+                    <ResponsiveContainer debounce={200} width="100%" height="100%" minWidth={0} minHeight={240}>
+                      <BarChart
+                        data={(annualFinancial?.monthly || []).map((month) => ({
+                          ...month,
+                          monthLabel: MONTH_LABELS[month.month - 1] || `Month ${month.month}`,
+                        }))}
+                        margin={{ top: 10, right: 12, left: 4, bottom: 0 }}
+                      >
+                        <CartesianGrid strokeDasharray="0" vertical={false} stroke="#f0f0f0" />
+                        <XAxis dataKey="monthLabel" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280' }} />
+                        <YAxis
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fontSize: 11, fill: '#6B7280' }}
+                          tickFormatter={formatCurrencyAxis}
+                          width={64}
+                        />
+                        <Tooltip
+                          formatter={(value) => [formatCurrency(value), selectedFinancialSeries.label]}
+                          labelFormatter={(label) => `${label} ${annualFinancial?.year || ''}`}
+                          contentStyle={{ borderRadius: '12px', border: '1px solid #E5E7EB', backgroundColor: '#FFFFFF', padding: '12px' }}
+                        />
+                        <Bar
+                          dataKey={selectedFinancialSeries.key}
+                          name={selectedFinancialSeries.label}
+                          fill={selectedFinancialSeries.color}
+                          radius={[4, 4, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : <div className="h-full w-full rounded-lg bg-gray-50" />}
+                </div>
+                {!loading && !financialUnavailable && (
+                  <p className="mt-2 text-xs leading-relaxed text-gray-600">
+                    {financialSeriesKey === 'loan_collections'
+                      ? 'Shows payments recorded up to today, by month. Future-dated entries and scheduled installments are not included.'
+                      : `${selectedFinancialSeries.label} recorded each month.`}
+                  </p>
+                )}
+              </div>
+
+              <div className="min-w-0 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+                <h3 className="text-sm font-bold text-gray-800">
+                  Annual totals
+                </h3>
+                {loading ? (
+                  <div className="mt-5 space-y-4" aria-label="Loading annual financial summary">
+                    <Skeleton className="h-5 w-full" />
+                    <Skeleton className="h-5 w-full" />
+                    <Skeleton className="h-5 w-full" />
+                    <Skeleton className="h-5 w-4/5" />
+                  </div>
+                ) : financialUnavailable ? (
+                  <p className="mt-5 text-sm text-gray-600" role="alert">
+                    Annual totals are unavailable. Use “Try again” to reload the dashboard.
+                  </p>
+                ) : (
+                  <>
+                    <dl className="mt-3 divide-y divide-gray-100">
+                      {[
+                        ['Loans released', financialAnnual.loan_releases],
+                        ['Loan collections', financialAnnual.loan_collections],
+                        ['CBU additions', financialAnnual.cbu_additions],
+                        ['Savings deposits', financialAnnual.savings_deposits],
+                        ['Time Deposit placements', financialAnnual.time_deposit_placements],
+                      ].map(([label, value]) => (
+                        <div key={label} className="flex items-center justify-between gap-3 py-3">
+                          <dt className="text-sm text-gray-600">{label}</dt>
+                          <dd className="shrink-0 text-sm font-semibold tabular-nums text-gray-900">
+                            {formatCurrency(value)}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                    <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
+                      These are separate account flows, not unique new money. A transfer from savings into a Time Deposit may appear in both categories.
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+          </section>
 
           
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 min-w-0">
