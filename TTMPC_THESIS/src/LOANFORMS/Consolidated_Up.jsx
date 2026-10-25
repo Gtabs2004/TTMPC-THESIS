@@ -861,8 +861,8 @@ function Consolidated_Up() {
           loan_purpose: formData.loan_purpose || null,
           monthly_amortization: formData.monthly_amortization || null,
           source_of_income: formData.source_of_income || null,
-          latest_net_pay: formData.latest_net_pay || null,
-          share_capital: formData.share_capital || null,
+          latest_net_pay: formData.latest_net_pay ? Math.round(Number(formData.latest_net_pay)) : null,
+          share_capital: formData.share_capital ? Math.round(Number(formData.share_capital)) : null,
           consolidated_notes: null,
         },
       });

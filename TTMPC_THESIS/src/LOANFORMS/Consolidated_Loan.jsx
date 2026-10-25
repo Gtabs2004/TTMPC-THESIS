@@ -326,13 +326,13 @@ function Consolidated_Loan() {
   // Snap the selected application_type to whichever option is actually allowed
   // once eligibility lands. Prevents a user from staying on a disabled radio.
   useEffect(() => {
-    if (!eligibilityReady) return;
+    if (isRevisionEdit || !eligibilityReady) return;
     if (formData.application_type === 'New' && !canApplyNew && canRenew) {
       setFormData((prev) => ({ ...prev, application_type: 'Renewal' }));
     } else if (formData.application_type === 'Renewal' && !canRenew && canApplyNew) {
       setFormData((prev) => ({ ...prev, application_type: 'New' }));
     }
-  }, [eligibilityReady, canApplyNew, canRenew, formData.application_type]);
+  }, [isRevisionEdit, eligibilityReady, canApplyNew, canRenew, formData.application_type]);
 
   useEffect(() => {
     if (!isRenewal) {
@@ -1172,7 +1172,7 @@ function Consolidated_Loan() {
       addNotification('Loan amount exceeds your ceiling. Please lower the amount.', 'error');
       return;
     }
-    if (renewalBlocked) {
+    if (!isRevisionEdit && renewalBlocked) {
       addNotification('Renewal is not available for this account yet.', 'error');
       return;
     }
@@ -1184,17 +1184,19 @@ function Consolidated_Loan() {
       addNotification('Your Repayment Stress Index exceeds the allowed threshold. Reduce the amount or extend the term.', 'error');
       return;
     }
-    if (eligibilityReady && !canApplyNew && !canRenew) {
-      addNotification(eligibility?.reason || 'You are not currently eligible to apply for a loan.', 'error');
-      return;
-    }
-    if (eligibilityReady && formData.application_type === 'New' && !canApplyNew) {
-      addNotification('New applications are not permitted for your account at this time.', 'error');
-      return;
-    }
-    if (eligibilityReady && formData.application_type === 'Renewal' && !canRenew) {
-      addNotification('Renewals are not permitted for your account at this time.', 'error');
-      return;
+    if (!isRevisionEdit) {
+      if (eligibilityReady && !canApplyNew && !canRenew) {
+        addNotification(eligibility?.reason || 'You are not currently eligible to apply for a loan.', 'error');
+        return;
+      }
+      if (eligibilityReady && formData.application_type === 'New' && !canApplyNew) {
+        addNotification('New applications are not permitted for your account at this time.', 'error');
+        return;
+      }
+      if (eligibilityReady && formData.application_type === 'Renewal' && !canRenew) {
+        addNotification('Renewals are not permitted for your account at this time.', 'error');
+        return;
+      }
     }
     setShowSummary(true);
   };
@@ -1917,7 +1919,7 @@ function Consolidated_Loan() {
           </button>
           <button
             type="submit"
-            disabled={loading || printing || exceedsCeiling || renewalBlocked || eligibilityFailed || stressIndexExceeded}
+            disabled={loading || printing || exceedsCeiling || (!isRevisionEdit && renewalBlocked) || eligibilityFailed || stressIndexExceeded}
             className="mt-5 w-full rounded bg-primary-deep px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-member-green disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? "Processing..." : "Submit Application"}
@@ -1938,7 +1940,7 @@ function Consolidated_Loan() {
           </button>
           <button
             type="submit"
-            disabled={loading || printing || exceedsCeiling || renewalBlocked || eligibilityFailed || stressIndexExceeded}
+            disabled={loading || printing || exceedsCeiling || (!isRevisionEdit && renewalBlocked) || eligibilityFailed || stressIndexExceeded}
             title={
               submissionBlockMessage
             }

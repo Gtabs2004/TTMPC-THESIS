@@ -6578,6 +6578,17 @@ def resubmit_member_loan_revision(
         "created_at", "updated_at",
     }
     edits = {k: v for k, v in (body.fields or {}).items() if k not in protected_fields}
+    for field in ("latest_net_pay", "share_capital"):
+        value = edits.get(field)
+        if value in (None, ""):
+            continue
+        try:
+            amount = Decimal(str(value).replace(",", "").strip())
+        except (InvalidOperation, ValueError):
+            raise HTTPException(status_code=422, detail=f"{field} must be a valid number.")
+        if not amount.is_finite():
+            raise HTTPException(status_code=422, detail=f"{field} must be a finite number.")
+        edits[field] = int(amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
     collateral_paths_to_remove = []
     if body.collateral_rows is not None:
