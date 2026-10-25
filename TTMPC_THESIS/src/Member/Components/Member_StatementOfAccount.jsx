@@ -127,6 +127,11 @@ const classifyType = (name) => {
   return null;
 };
 
+const isReleasedLoan = (status) =>
+  ["released", "disbursed", "partially paid", "paid", "fully paid", "completed", "closed"].includes(
+    String(status || "").trim().toLowerCase()
+  );
+
 const humanizeSource = (value) => {
   const raw = String(value || "").trim();
   if (!raw) return "Capital Contribution";
@@ -288,6 +293,7 @@ const Member_StatementOfAccount = () => {
         if (fetchError) throw fetchError;
 
         const filtered = (data || [])
+          .filter((loan) => isReleasedLoan(loan.loan_status))
           .map((loan) => {
             const typeName = loan.loan_type?.name || "";
             const kind = classifyType(typeName);
@@ -309,6 +315,11 @@ const Member_StatementOfAccount = () => {
 
         if (isMounted) {
           setLoans(filtered);
+          setSelectedLoan((current) =>
+            current && filtered.some((loan) => loan.control_number === current.control_number)
+              ? current
+              : null
+          );
           setMemberLabel(fullName || "Member");
           setAccountNumber(memberRow?.membership_number_id || account?.user_id || "—");
           setAvatarUrl(signedAvatarUrl || "");

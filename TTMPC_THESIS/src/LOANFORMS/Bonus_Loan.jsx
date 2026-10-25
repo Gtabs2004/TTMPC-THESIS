@@ -200,9 +200,33 @@ function Bonus_Loan({ staffIntake = false }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const calculateAge = (dateOfBirth) => {
+    if (!dateOfBirth) return '';
+    const [year, month, day] = dateOfBirth.split('-').map(Number);
+    if (!year || !month || !day) return '';
+
+    const today = new Date();
+    let age = today.getFullYear() - year;
+    if (
+      today.getMonth() + 1 < month ||
+      (today.getMonth() + 1 === month && today.getDate() < day)
+    ) {
+      age -= 1;
+    }
+    return age >= 0 ? String(age) : '';
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     const normalizedValue = name === 'tin_no' ? formatTinNumber(value) : value;
+    if (name === 'date_of_birth' && isNonMemberBonus) {
+      setFormData((prev) => ({
+        ...prev,
+        date_of_birth: value,
+        age: calculateAge(value),
+      }));
+      return;
+    }
     setFormData((prev) => {
       if (name === 'civil_status' && String(value || '').trim().toLowerCase() !== 'married') {
         return {
@@ -575,12 +599,14 @@ function Bonus_Loan({ staffIntake = false }) {
                 contact_no: formData.contact_no || null,
                 residence_address: formData.residence_address || null,
                 date_of_birth: formData.date_of_birth || null,
+                age: formData.age || null,
                 civil_status: formData.civil_status || null,
                 gender: formData.gender || null,
                 tin_no: formData.tin_no || null,
                 gsis_sss_no: formData.gsis_sss_no || null,
                 employer_name: formData.employer_name || null,
                 office_address: formData.office_address || null,
+                share_capital: 'N/A',
               },
             }
           : {},
@@ -699,10 +725,17 @@ function Bonus_Loan({ staffIntake = false }) {
               <div><label className={labelStyles}>Email Address</label><input type="email" name="user_email" value={formData.user_email} onChange={handleChange} className={inputStyles} /></div>
             ) : null}
             <div><label className={labelStyles}>Latest Net Pay *</label><input type="text" inputMode="decimal" name="latest_net_pay" value={formatWithCommas(formData.latest_net_pay)} onChange={(e) => handleChange({ target: { name: e.target.name, value: stripCommas(e.target.value) } })} className={inputClassFor('latest_net_pay')} required {...lockedInputProps('latest_net_pay')} /></div>
-            <div><label className={labelStyles}>Share Capital *</label><input type="text" inputMode="decimal" name="share_capital" value={formatWithCommas(formData.share_capital)} onChange={(e) => handleChange({ target: { name: e.target.name, value: stripCommas(e.target.value) } })} className={inputClassFor('share_capital')} required {...lockedInputProps('share_capital')} /></div>
+            {isNonMemberBonus ? (
+              <div>
+                <label className={labelStyles}>Share Capital</label>
+                <input type="text" value="N/A" readOnly className={`${inputStyles} bg-gray-100 text-gray-500`} />
+              </div>
+            ) : (
+              <div><label className={labelStyles}>Share Capital *</label><input type="text" inputMode="decimal" name="share_capital" value={formatWithCommas(formData.share_capital)} onChange={(e) => handleChange({ target: { name: e.target.name, value: stripCommas(e.target.value) } })} className={inputClassFor('share_capital')} required {...lockedInputProps('share_capital')} /></div>
+            )}
             <div className="md:col-span-3"><label className={labelStyles}>Residence Address *</label><input name="residence_address" value={formData.residence_address} onChange={handleChange} className={inputClassFor('residence_address')} required {...lockedInputProps('residence_address')} /></div>
             <div><label className={labelStyles}>Date of Birth *</label><input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} className={inputClassFor('date_of_birth')} required {...lockedInputProps('date_of_birth')} /></div>
-            <div><label className={labelStyles}>Age *</label><input type="number" name="age" value={formData.age} onChange={handleChange} className={inputClassFor('age')} required {...lockedInputProps('age')} /></div>
+            <div><label className={labelStyles}>Age *</label><input type="number" name="age" value={formData.age} onChange={handleChange} className={inputClassFor('age')} required={isNonMemberBonus} readOnly={isNonMemberBonus} {...(!isNonMemberBonus ? lockedInputProps('age') : {})} /></div>
             <div><label className={labelStyles}>Civil Status *</label><input name="civil_status" value={formData.civil_status} onChange={handleChange} className={inputClassFor('civil_status')} required {...lockedInputProps('civil_status')} /></div>
             <div><label className={labelStyles}>Gender *</label><input name="gender" value={formData.gender} onChange={handleChange} className={inputClassFor('gender')} required {...lockedInputProps('gender')} /></div>
             <div><label className={labelStyles}>TIN No. *</label><input name="tin_no" value={formData.tin_no} onChange={handleChange} inputMode="numeric" maxLength={TIN_FORMATTED_MAX_LENGTH} placeholder="123-456-789-000" className={inputClassFor('tin_no')} required {...lockedInputProps('tin_no')} /></div>

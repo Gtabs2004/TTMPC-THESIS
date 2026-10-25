@@ -1687,6 +1687,65 @@ OPEN_SCHEDULE_STATUSES = {"unpaid", "pending", "overdue"}
 _ROLL_FORWARD_MAX_STEPS = 120
 
 
+def reconcile_zero_payment_missed_arrears(
+    loan_id: str,
+    current_row: dict,
+    as_of: date,
+) -> Decimal | None:
+    """Rebuild carried arrears when every prior short-status row is a zero-payment miss."""
+    installment_no = int(current_row.get("installment_no") or 0)
+    due_date = parse_date_value(current_row.get("due_date"))
+    if installment_no <= 1 or not due_date or due_date < as_of:
+        return None
+
+    prior_rows = (
+        supabase.table("loan_schedules")
+        .select("id,installment_no,due_date,expected_amount,schedule_status")
+        .eq("loan_id", loan_id)
+        .lt("installment_no", installment_no)
+        .execute()
+    ).data or []
+    missed_rows = [
+        row for row in prior_rows
+        if str(row.get("schedule_status") or "").strip().lower() == "partially_paid"
+        and (parse_date_value(row.get("due_date")) or as_of) < as_of
+    ]
+    if not missed_rows:
+        return None
+
+    missed_schedule_ids = [str(row.get("id")) for row in missed_rows if row.get("id")]
+    if len(missed_schedule_ids) != len(missed_rows):
+        return None
+
+    payment_rows = (
+        supabase.table("loan_payments")
+        .select("schedule_id,amount_paid")
+        .in_("schedule_id", missed_schedule_ids)
+        .in_("confirmation_status", ["validated", "confirmed", "bookkeeper_confirmed", "approved"])
+        .execute()
+    ).data or []
+    if any(Decimal(str(payment.get("amount_paid") or 0)) > 0 for payment in payment_rows):
+        return None
+
+    # Missed rows can inherit arrears and may contain credits from the former
+    # roll-forward behavior. Under the current rule, only full installments
+    # are prepaid; a partial overpayment must not discount a later installment.
+    recalculated = money(sum(
+        (
+            max(Decimal(str(row.get("expected_amount") or 0)), Decimal("0"))
+            for row in missed_rows
+        ),
+        Decimal("0"),
+    ))
+    existing = money(Decimal(str(current_row.get("carried_arrears") or 0)))
+    if recalculated != existing:
+        supabase.table("loan_schedules").update(
+            {"carried_arrears": decimal_to_float(recalculated)}
+        ).eq("id", current_row.get("id")).execute()
+        current_row["carried_arrears"] = decimal_to_float(recalculated)
+    return recalculated
+
+
 def roll_forward_missed_installments(loan_id: str, as_of: date | None = None) -> int:
     """Close past-due unpaid installments and carry them forward. Returns how
     many installments were rolled. Never raises: a failure leaves the loan as
@@ -1752,6 +1811,8 @@ def roll_forward_missed_installments(loan_id: str, as_of: date | None = None) ->
             row = open_rows[0]
             due = parse_date_value(row.get("due_date"))
             installment_no = int(row.get("installment_no") or 0)
+            if due and due >= today:
+                reconcile_zero_payment_missed_arrears(loan_id, row, today)
             # Not past due yet (it is the current installment), or it is the
             # last one -- nothing to carry into, it simply stays overdue.
             if not due or due >= today or installment_no <= 0 or installment_no >= term_months:

@@ -302,6 +302,9 @@ const Cashier_Payments = () => {
   // same member_loan_schedule_position view the member SOA reads.
   const [ledgerSchedule, setLedgerSchedule] = useState([]);
   const [ledgerScheduleLoading, setLedgerScheduleLoading] = useState(false);
+  const [previousMissedInstallments, setPreviousMissedInstallments] = useState([]);
+  const [previousMissedLoading, setPreviousMissedLoading] = useState(false);
+  const [previousMissedError, setPreviousMissedError] = useState("");
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   // Holds the reference for the in-flight submission so a retry reuses it and
   // is deduped server-side. Cleared once the payment lands or the modal closes.
@@ -559,32 +562,100 @@ const Cashier_Payments = () => {
     );
   }, [selectedLoan]);
 
-  // What the schedule says is due for the CURRENT period: this installment,
-  // never the whole outstanding balance, capped at the remaining balance.
-  // Uses the loan's amortization, NOT expected_installment: the latter comes
-  // from loan_schedules.expected_amount, which on legacy rows holds the
-  // running total (principal + total interest) instead of the per-period
-  // amount and would collect several times the real due.
-  // Missed months never become carried_arrears (only short payments do), so
-  // a member two months behind would otherwise be prefilled one installment.
-  // When the schedule shows overdue installments, what is due is all of them.
+  // Historical missed installments are shown separately from the open row.
+  // Trust that itemized history only when it reconciles with the server's
+  // missed count; otherwise keep the existing carried-arrears fallback.
   const overdueInstallments = useMemo(
     () => ledgerSchedule.filter((s) => s.status === "Overdue" && Number(s.amount_due) > 0),
     [ledgerSchedule]
   );
+  const reconciledInstallmentAmounts = useMemo(() => {
+    if (!selectedLoan || previousMissedLoading || previousMissedError) return null;
+    const missedCount = Number(selectedLoan.missed_count) || 0;
+    if (missedCount <= 0) return null;
+
+    const openInstallmentNumbers = new Set(
+      ledgerSchedule.map((schedule) => Number(schedule.installment_no))
+    );
+    const historicalMisses = previousMissedInstallments.filter(
+      (schedule) =>
+        !schedule.isSettled &&
+        !openInstallmentNumbers.has(Number(schedule.installment_no))
+    );
+    const overdueRows = ledgerSchedule.filter((schedule) => schedule.status === "Overdue");
+    const successfulStatuses = new Set([
+      "validated",
+      "confirmed",
+      "bookkeeper_confirmed",
+      "approved",
+    ]);
+    const paidInstallmentNumbers = new Set(
+      paymentRecords
+        .filter((payment) =>
+          String(payment.loan_id) === String(selectedLoan.loan_id) &&
+          successfulStatuses.has(String(payment.confirmation_status || "").trim().toLowerCase())
+        )
+        .map((payment) => Number(payment.installment_no))
+        .filter(Number.isFinite)
+    );
+
+    if (
+      historicalMisses.length + overdueRows.length !== missedCount ||
+      overdueRows.some((schedule) => paidInstallmentNumbers.has(Number(schedule.installment_no)))
+    ) {
+      return null;
+    }
+
+    const previousOutstanding = historicalMisses.reduce(
+      (sum, schedule) => sum + Number(schedule.amount_due || 0),
+      0
+    );
+    const overdueAmount = overdueRows.reduce((sum, schedule) => {
+      const principal = Number(schedule.principal_due);
+      const interest = Number(schedule.interest_due);
+      const installmentAmount = Number.isFinite(principal + interest)
+        ? principal + interest
+        : Number(selectedLoan.amortization) || 0;
+      return sum + installmentAmount;
+    }, 0);
+    const nextInstallment = ledgerSchedule.find((schedule) => schedule.status !== "Overdue");
+    const nextPrincipal = Number(nextInstallment?.principal_due);
+    const nextInterest = Number(nextInstallment?.interest_due);
+    const currentInstallmentAmount = nextInstallment
+      ? Number.isFinite(nextPrincipal + nextInterest)
+        ? nextPrincipal + nextInterest
+        : Number(selectedLoan.amortization) || 0
+      : 0;
+    const remaining = Number(selectedLoan.remaining_balance) || 0;
+    const total = roundCurrency(Math.min(
+      previousOutstanding + overdueAmount + currentInstallmentAmount,
+      remaining
+    ));
+    return { previousOutstanding, currentInstallmentAmount, total };
+  }, [
+    selectedLoan,
+    previousMissedLoading,
+    previousMissedError,
+    previousMissedInstallments,
+    ledgerSchedule,
+    paymentRecords,
+  ]);
   const scheduledPaymentAmount = useMemo(() => {
     const periodDue = getDefaultPaymentAmount(selectedLoan);
+    if (reconciledInstallmentAmounts !== null) return reconciledInstallmentAmounts.total;
     if (overdueInstallments.length < 2) return periodDue;
     const overdueTotal = overdueInstallments.reduce((sum, s) => sum + Number(s.amount_due || 0), 0);
     const remaining = Number(selectedLoan?.remaining_balance) || 0;
     return roundCurrency(Math.min(Math.max(overdueTotal, periodDue), remaining));
-  }, [selectedLoan, overdueInstallments]);
+  }, [selectedLoan, overdueInstallments, reconciledInstallmentAmounts]);
 
   const outstandingBalance = Number(selectedLoan?.remaining_balance) || 0;
 
   // Carry-forward from earlier periods, computed by the backend and attached
   // to the current schedule row: arrears ADD to what is due, credit REDUCES it.
-  const priorOutstanding = Number(selectedLoan?.carried_arrears) || 0;
+  const priorOutstanding = reconciledInstallmentAmounts !== null
+    ? reconciledInstallmentAmounts.previousOutstanding
+    : Number(selectedLoan?.carried_arrears) || 0;
   const priorCredit = Number(selectedLoan?.applied_credit) || 0;
   // scheduledPaymentAmount already nets arrears and credit (see
   // getDefaultPaymentAmount), so this is that same figure -- adding the
@@ -598,12 +669,15 @@ const Cashier_Payments = () => {
   // Wording for the hint under the amount field.
   // After a roll-forward the missed months sit in carried_arrears on the
   // current installment, so name both parts instead of calling it all overdue.
-  const dueLabel = (priorOutstanding > 0 && overdueInstallments.length > 0
-    ? `${overdueInstallments.length} missed installment${overdueInstallments.length === 1 ? "" : "s"} + current installment`
-    : overdueInstallments.length >= 2
-    ? `overdue amount (${overdueInstallments.length} installments)`
-    : priorOutstanding > 0 ? "amount due this period" : "scheduled amortization")
-    + (selectedLoanPenalty > 0 ? " + penalty" : "");
+  const dueLabel = (
+    reconciledInstallmentAmounts?.previousOutstanding > 0
+      ? `${Number(selectedLoan?.missed_count) || 0} missed installment${Number(selectedLoan?.missed_count) === 1 ? "" : "s"} + current installment`
+      : priorOutstanding > 0 && overdueInstallments.length > 0
+        ? `${overdueInstallments.length} missed installment${overdueInstallments.length === 1 ? "" : "s"} + current installment`
+        : overdueInstallments.length >= 2
+          ? `overdue amount (${overdueInstallments.length} installments)`
+          : priorOutstanding > 0 ? "amount due this period" : "scheduled amortization"
+  ) + (selectedLoanPenalty > 0 ? " + penalty" : "");
 
   // The amount the cashier actually entered. Everything downstream (penalty
   // total, balance preview, confirmation text, receipt, API payload) reads
@@ -693,13 +767,14 @@ const Cashier_Payments = () => {
   useEffect(() => {
     if (!ledgerLoanId) {
       setLedgerSchedule([]);
+      setPreviousMissedInstallments([]);
       return;
     }
     let isMounted = true;
     setLedgerScheduleLoading(true);
     supabase
       .from("member_loan_schedule_position")
-      .select("installment_no, due_date, amount_due, status, days_past_due, unpaid_penalty")
+      .select("installment_no, due_date, principal_due, interest_due, amount_due, status, days_past_due, unpaid_penalty")
       .eq("control_number", ledgerLoanId)
       .order("installment_no", { ascending: true })
       .then(({ data, error }) => {
@@ -709,6 +784,82 @@ const Cashier_Payments = () => {
       .finally(() => {
         if (isMounted) setLedgerScheduleLoading(false);
       });
+    return () => {
+      isMounted = false;
+    };
+  }, [ledgerLoanId]);
+
+  useEffect(() => {
+    if (!ledgerLoanId) {
+      setPreviousMissedInstallments([]);
+      setPreviousMissedError("");
+      return;
+    }
+
+    let isMounted = true;
+    setPreviousMissedLoading(true);
+    setPreviousMissedInstallments([]);
+    setPreviousMissedError("");
+
+    const loadPreviousMissedInstallments = async () => {
+      try {
+        const [scheduleResult, paymentResult] = await Promise.all([
+          supabase
+            .from("loan_schedules")
+            .select("id, installment_no, due_date, expected_amount, schedule_status")
+            .eq("loan_id", ledgerLoanId)
+            .in("schedule_status", ["partially_paid", "Paid", "paid"])
+            .order("installment_no", { ascending: true }),
+          supabase
+            .from("loan_payments")
+            .select("schedule_id")
+            .eq("loan_id", ledgerLoanId)
+            .in("confirmation_status", ["validated", "confirmed", "bookkeeper_confirmed", "approved"]),
+        ]);
+
+        if (scheduleResult.error) throw scheduleResult.error;
+        if (paymentResult.error) throw paymentResult.error;
+
+        const paidScheduleIds = new Set(
+          (paymentResult.data || [])
+            .map((payment) => String(payment.schedule_id || ""))
+            .filter(Boolean)
+        );
+        const today = new Date().toISOString().slice(0, 10);
+        const missed = (scheduleResult.data || [])
+          .filter((schedule) => {
+            const dueDate = String(schedule.due_date || "").slice(0, 10);
+            const scheduleStatus = String(schedule.schedule_status || "").toLowerCase();
+            return dueDate < today &&
+              !paidScheduleIds.has(String(schedule.id)) &&
+              ["partially_paid", "paid"].includes(scheduleStatus) &&
+              Number(schedule.expected_amount || 0) > 0;
+          })
+          .map((schedule) => ({
+            installment_no: schedule.installment_no,
+            due_date: schedule.due_date,
+            schedule_status: String(schedule.schedule_status || "").toLowerCase(),
+            isSettled: String(schedule.schedule_status || "").toLowerCase() === "paid",
+            // The current overpayment rule keeps monthly installments whole.
+            // Ignore legacy partial credits left on a missed schedule.
+            amount_due: String(schedule.schedule_status || "").toLowerCase() === "paid"
+              ? 0
+              : Math.max(Number(schedule.expected_amount || 0), 0),
+          }));
+
+        if (isMounted) setPreviousMissedInstallments(missed);
+      } catch (error) {
+        console.error("Failed to load previous missed installments:", error);
+        if (isMounted) {
+          setPreviousMissedInstallments([]);
+          setPreviousMissedError(error?.message || "Unable to load previous missed installments.");
+        }
+      } finally {
+        if (isMounted) setPreviousMissedLoading(false);
+      }
+    };
+
+    loadPreviousMissedInstallments();
     return () => {
       isMounted = false;
     };
@@ -1086,27 +1237,60 @@ const Cashier_Payments = () => {
                     </div>
                   </div>
 
-                  {/* Unpaid Installments — overdue ones plus the next due, so the
-                      Cashier sees what the member owes before taking payment. */}
+                  {/* Missed installments are itemized separately so their carried
+                      balance is not counted a second time on the open row. */}
                   {(() => {
-                    if (ledgerScheduleLoading || ledgerSchedule.length === 0) return null;
+                    if (ledgerScheduleLoading) return null;
                     const overdue = ledgerSchedule.filter((s) => s.status === "Overdue");
                     const next = ledgerSchedule.find((s) => s.status !== "Overdue");
-                    const shown = next ? [...overdue, next] : overdue;
-                    const notYetDue = ledgerSchedule.length - shown.length;
-                    const penalty = Number(ledgerSchedule[0].unpaid_penalty || 0);
-                    const overdueTotal = overdue.reduce((sum, s) => sum + Number(s.amount_due || 0), 0);
+                    const openInstallmentNumbers = new Set(
+                      ledgerSchedule.map((schedule) => Number(schedule.installment_no))
+                    );
+                    const previousMissed = previousMissedInstallments.filter(
+                      (schedule) => !openInstallmentNumbers.has(Number(schedule.installment_no))
+                    );
+                    const shown = [
+                      ...previousMissed.map((s) => ({ ...s, isPreviouslyMissed: true })),
+                      ...overdue,
+                      ...(next ? [next] : []),
+                    ].sort((a, b) => Number(a.installment_no) - Number(b.installment_no));
+                    const openShownCount = overdue.length + (next ? 1 : 0);
+                    const notYetDue = Math.max(ledgerSchedule.length - openShownCount, 0);
+                    const penalty = Number(ledgerSchedule[0]?.unpaid_penalty || 0);
+                    const overdueTotal = reconciledInstallmentAmounts !== null
+                      ? reconciledInstallmentAmounts.total
+                      : overdue.reduce((sum, s) => sum + Number(s.amount_due || 0), 0);
+                    if (shown.length === 0 && !previousMissedLoading && !previousMissedError) return null;
                     return (
                       <div className="mb-5">
                         <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
                           <h3 className="text-sm font-semibold text-gray-700">Unpaid Installments</h3>
                           {overdue.length > 0 ? (
                             <span className="text-xs font-semibold text-red-600">
-                              Overdue: {formatCurrency(overdueTotal)}
+                              Installments due: {formatCurrency(overdueTotal)}
                               {penalty > 0 ? ` + penalty ${formatCurrency(penalty)}` : ""}
                             </span>
                           ) : null}
                         </div>
+                        {previousMissed.length > 0 && (
+                          <p className="mb-2 text-xs text-gray-600">
+                            Unpaid missed installments are counted once; settled missed periods remain in history.
+                          </p>
+                        )}
+                        {previousMissedLoading && (
+                          <p className="mb-2 text-xs text-gray-500">Loading previous missed installments…</p>
+                        )}
+                        {previousMissedError && (
+                          <p className="mb-2 text-xs text-red-700">{previousMissedError}</p>
+                        )}
+                        {!previousMissedLoading &&
+                          !previousMissedError &&
+                          Number(selectedLoan.missed_count) > 0 &&
+                          reconciledInstallmentAmounts === null && (
+                            <p className="mb-2 text-xs text-red-700">
+                              Past-due installments could not be reconciled safely. Refresh the loan before recording a payment.
+                            </p>
+                          )}
                         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
                           <table className="w-full text-sm">
                             <thead>
@@ -1120,24 +1304,44 @@ const Cashier_Payments = () => {
                             <tbody>
                               {shown.map((s) => {
                                 const isOverdue = s.status === "Overdue";
-                                // A "next" row can already be fully covered by credit from an
-                                // earlier overpayment (amount_due rolled to 0) -- that reads as
-                                // settled, not something still pending collection.
+                                const isPreviouslyMissed = Boolean(s.isPreviouslyMissed);
+                                const isSettledMissed = isPreviouslyMissed && s.isSettled;
+                                // A fully prepaid next installment remains zero due even
+                                // while prior missed months are itemized separately.
                                 const isSettledByCredit = !isOverdue && Number(s.amount_due) <= 0;
+                                const installmentBaseAmount =
+                                  Number(s.principal_due || 0) + Number(s.interest_due || 0);
+                                const displayedAmountDue =
+                                  !isSettledByCredit &&
+                                  reconciledInstallmentAmounts !== null &&
+                                  !isPreviouslyMissed &&
+                                  installmentBaseAmount > 0
+                                    ? installmentBaseAmount
+                                    : s.amount_due;
                                 return (
-                                  <tr key={s.installment_no} className={`border-t border-gray-100 ${isOverdue ? "bg-red-50/50" : ""}`}>
+                                  <tr key={s.installment_no} className={`border-t border-gray-100 ${isOverdue || (isPreviouslyMissed && !isSettledMissed) ? "bg-red-50/50" : ""}`}>
                                     <td className="px-5 py-3 text-gray-700">{s.installment_no}</td>
                                     <td className="px-5 py-3 text-gray-700 tabular-nums">{new Date(s.due_date).toLocaleDateString()}</td>
-                                    <td className="px-5 py-3 text-right font-medium text-gray-900 tabular-nums">{formatCurrency(s.amount_due)}</td>
+                                    <td className="px-5 py-3 text-right font-medium text-gray-900 tabular-nums">{formatCurrency(displayedAmountDue)}</td>
                                     <td className="px-5 py-3">
                                       <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-                                        isOverdue
+                                        isOverdue || (isPreviouslyMissed && !isSettledMissed)
                                           ? "bg-red-100 text-red-700"
+                                          : isSettledMissed
+                                          ? "bg-gray-100 text-gray-600"
                                           : isSettledByCredit
                                           ? "bg-green-100 text-green-700"
                                           : "bg-amber-100 text-amber-700"
                                       }`}>
-                                        {isOverdue ? `Overdue · ${s.days_past_due}d` : isSettledByCredit ? "Prepaid" : "Due Next"}
+                                        {isPreviouslyMissed
+                                          ? isSettledMissed
+                                            ? "Missed · settled"
+                                            : "Missed · carried forward"
+                                          : isOverdue
+                                          ? `Overdue · ${s.days_past_due}d`
+                                          : isSettledByCredit
+                                          ? "Prepaid"
+                                          : "Due Next"}
                                       </span>
                                     </td>
                                   </tr>
@@ -1244,7 +1448,13 @@ const Cashier_Payments = () => {
                   <button
                     type="button"
                     onClick={proceedFromLedgerToPayment}
-                    disabled={selectedLoan.loan_status === "Fully Paid"}
+                    disabled={
+                      selectedLoan.loan_status === "Fully Paid" ||
+                      ledgerScheduleLoading ||
+                      previousMissedLoading ||
+                      (Number(selectedLoan.missed_count) > 0 &&
+                        (Boolean(previousMissedError) || reconciledInstallmentAmounts === null))
+                    }
                     className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
                   >
                     Pay
@@ -1522,6 +1732,14 @@ const Cashier_Payments = () => {
                           </span>
                           <span className="font-medium text-green-700 tabular-nums">
                             -{formatCurrency(priorCredit)}
+                          </span>
+                        </div>
+                      )}
+                      {reconciledInstallmentAmounts !== null && (
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="text-gray-700">Current installment</span>
+                          <span className="font-medium text-gray-900 tabular-nums">
+                            {formatCurrency(reconciledInstallmentAmounts.currentInstallmentAmount)}
                           </span>
                         </div>
                       )}
