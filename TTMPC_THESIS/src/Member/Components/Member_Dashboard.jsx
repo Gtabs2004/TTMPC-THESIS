@@ -55,6 +55,20 @@ async function fetchMemberCbuRows(memberId) {
   }
 }
 
+const sumSavingsAccountBalances = (rows) => (rows || []).reduce((sum, row) => {
+  const balance = Number(row?.balance || 0);
+  return sum + (Number.isFinite(balance) ? balance : 0);
+}, 0);
+
+async function fetchMemberSavingsTotal(memberId) {
+  const { data, error } = await supabase
+    .from("savings_accounts")
+    .select("balance")
+    .eq("member_id", memberId);
+  if (error) throw error;
+  return sumSavingsAccountBalances(data);
+}
+
 const styles = `
   @keyframes fadeInUp {
     from {
@@ -344,9 +358,8 @@ const MemberDashboard = () => {
       }
     };
 
-    // Fast path: single RPC call replaces the ~9 per-query fetches below.
-    // Returns null if the RPC hasn't been deployed yet or the account row
-    // is missing, so the caller can fall through to the legacy path.
+    // The RPC bundles member, loan, and schedule data; account balances are
+    // fetched from their current tables.
     const buildSnapshotFromRpc = async (sessionUser) => {
       const { data: bundle, error } = await supabase.rpc('get_member_login_bundle', {
         p_auth_user_id: sessionUser.id,
@@ -356,13 +369,14 @@ const MemberDashboard = () => {
 
       const account = bundle.account;
       const memberRow = bundle.member || null;
-      const authEmail = sessionUser?.email || '';
       const memberId = account?.user_id || sessionUser.id;
-      const membershipId = String(account?.membership_id || memberRow?.membership_number_id || '').trim();
       const temporaryFlag = Boolean(account?.is_temporary);
       const latestApplication = bundle.application || null;
 
-      const cbuRows = await fetchMemberCbuRows(memberId);
+      const [cbuRows, savingsAccountTotal] = await Promise.all([
+        fetchMemberCbuRows(memberId),
+        fetchMemberSavingsTotal(memberId),
+      ]);
       const cbuRow = pickLatestCbuRow(cbuRows);
       const shareCapitalBalance = cbuRow
         ? (cbuRow.ending_share_capital !== null && cbuRow.ending_share_capital !== undefined
@@ -390,11 +404,6 @@ const MemberDashboard = () => {
       ].filter(Boolean).join(' ').trim() || 'Member';
 
       const shareCapital = Number.isFinite(shareCapitalBalance) ? shareCapitalBalance : 0;
-
-      const savingsAccountTotal = (bundle.savings || []).reduce((sum, row) => {
-        const amount = Number(row?.Balance ?? row?.Savings_Amount ?? row?.Amount ?? 0);
-        return sum + (Number.isFinite(amount) ? amount : 0);
-      }, 0);
 
       const nextSchedule = (bundle.upcoming_schedules || []).find((row) => {
         const statusText = String(row?.schedule_status || '').trim().toLowerCase();
@@ -449,7 +458,6 @@ const MemberDashboard = () => {
         if (!memberId) throw new Error('Please sign in again to load your dashboard.');
 
         const temporaryFlag = Boolean(account?.is_temporary);
-        const membershipId = String(account?.membership_id || memberRow?.membership_number_id || '').trim();
 
         // BATCH 1 — independent queries that don't need loanIds yet. Fan out in parallel.
         const [
@@ -458,7 +466,7 @@ const MemberDashboard = () => {
           applicationByEmailResult,
           loansResult,
           cbuResult,
-          savingsResult,
+          savingsAccountTotal,
         ] = await Promise.all([
           supabase.from('profiles').select('avatar_url').eq('id', sessionUser.id).maybeSingle(),
           account?.membership_id
@@ -469,9 +477,7 @@ const MemberDashboard = () => {
             : Promise.resolve({ data: null, error: null }),
           supabase.from('loans').select('control_number, principal_amount, loan_amount, total_interest, monthly_amortization, loan_status, application_date, term').eq('member_id', memberId).order('application_date', { ascending: false }),
           supabase.from('capital_build_up').select('id, cbu_deposit_id, starting_share_capital, ending_share_capital, capital_added, transaction_date').eq('member_id', memberId),
-          membershipId
-            ? supabase.from('Savings_Transactions').select('Balance, Savings_Amount, Amount').eq('membership_number_id', membershipId)
-            : Promise.resolve({ data: [], error: null }),
+          fetchMemberSavingsTotal(memberId),
         ]);
 
         const { data: profileRow, error: profileFetchError } = profileResult;
@@ -514,11 +520,6 @@ const MemberDashboard = () => {
           .join(' ')
           .trim() || 'Member';
         const shareCapital = Number.isFinite(shareCapitalBalance) ? shareCapitalBalance : 0;
-
-        const savingsAccountTotal = (savingsResult?.data || []).reduce((sum, row) => {
-          const amount = Number(row?.Balance ?? row?.Savings_Amount ?? row?.Amount ?? 0);
-          return sum + (Number.isFinite(amount) ? amount : 0);
-        }, 0);
 
         const loanIds = normalizedLoans
           .map((loan) => String(loan.control_number || '').trim())
@@ -580,10 +581,12 @@ const MemberDashboard = () => {
             const memberRow = cachedBundle.member || null;
             const authEmail = authData?.user?.email || '';
             const memberId = account?.user_id || authData?.user?.id;
-            const membershipId = String(account?.membership_id || memberRow?.membership_number_id || '').trim();
             const temporaryFlag = Boolean(account?.is_temporary);
 
-            const cbuRows = await fetchMemberCbuRows(memberId);
+            const [cbuRows, savingsAccountTotal] = await Promise.all([
+              fetchMemberCbuRows(memberId),
+              fetchMemberSavingsTotal(memberId),
+            ]);
             const cbuRow = pickLatestCbuRow(cbuRows);
             const shareCapitalBalance = cbuRow
               ? (cbuRow.ending_share_capital !== null && cbuRow.ending_share_capital !== undefined
@@ -611,11 +614,6 @@ const MemberDashboard = () => {
             ].filter(Boolean).join(' ').trim() || 'Member';
 
             const shareCapital = Number.isFinite(shareCapitalBalance) ? shareCapitalBalance : 0;
-            const savingsAccountTotal = (cachedBundle.savings || []).reduce((sum, row) => {
-              const amount = Number(row?.Balance ?? row?.Savings_Amount ?? row?.Amount ?? 0);
-              return sum + (Number.isFinite(amount) ? amount : 0);
-            }, 0);
-
             const nextSchedule = (cachedBundle.upcoming_schedules || []).find((row) => {
               const statusText = String(row?.schedule_status || '').trim().toLowerCase();
               return !['paid', 'fully paid', 'completed'].includes(statusText);
