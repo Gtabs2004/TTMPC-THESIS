@@ -288,7 +288,9 @@ const Manager_Manage_Loans = () => {
             <TableToolbar
               title="Loan Records"
               subtitle={`Showing ${paginatedGroups.length} of ${groupedLoans.length} loans`}
-              tabs={tabs.map((tab) => ({ value: tab.key, label: tab.label, count: tab.count }))}
+              tabs={tabs
+                .filter((tab) => tab.key !== "restructured")
+                .map((tab) => ({ value: tab.key, label: tab.label, count: tab.count }))}
               activeTab={activeTab}
               onTabChange={setActiveTab}
             >

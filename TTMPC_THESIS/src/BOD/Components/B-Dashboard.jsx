@@ -672,6 +672,11 @@ const Dashboard_BOD = () => {
             </div>
           </div>
 
+
+           <div className="mt-8 mb-8">
+            <LoanDemandForecastCard defaultLoanType="consolidated" periods={12} />
+          </div>
+
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
               <h3 className="text-lg font-bold text-gray-800">Cooperative Transactions</h3>
@@ -761,11 +766,7 @@ const Dashboard_BOD = () => {
             </div>
           </div>
 
-          <div className="mt-8">
-            <LoanDemandForecastCard defaultLoanType="consolidated" periods={12} />
-          </div>
-
-        </main>
+       </main>
       </div>
 
       {/* Transaction details modal — non-loan transaction types (savings,
