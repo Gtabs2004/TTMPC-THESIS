@@ -48,6 +48,7 @@ export const RT = {
     "ledger_transactions",
   ],
   CBU: ["capital_build_up", "cbu_payouts", "isc_postings", "isc_transactions"],
+  GROCERY: ["GROCERY_TRANSACTIONS"],
   MEMBERS: [
     "member",
     "member_account",

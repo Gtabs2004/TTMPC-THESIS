@@ -60,6 +60,12 @@ const formatLoanStatus = (value) => {
   return value || "No schedule";
 };
 
+const RISK_CLASSIFICATION_STYLES = {
+  GREEN: "bg-green-50 text-green-700 ring-green-200",
+  AMBER: "bg-amber-50 text-amber-700 ring-amber-200",
+  RED: "bg-red-50 text-red-700 ring-red-200",
+};
+
 const ManageLoans = () => {
     const navigate = useNavigate();
   const { addNotification } = useNotification();
@@ -408,13 +414,14 @@ const ManageLoans = () => {
             <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse table-fixed">
               <colgroup>
-                <col style={{ width: "16%" }} />
                 <col style={{ width: "14%" }} />
+                <col style={{ width: "13%" }} />
                 <col style={{ width: "10%" }} />
                 <col style={{ width: "10%" }} />
+                <col style={{ width: "11%" }} />
+                <col style={{ width: "11%" }} />
                 <col style={{ width: "12%" }} />
-                <col style={{ width: "12%" }} />
-                <col style={{ width: "12%" }} />
+                <col style={{ width: "11%" }} />
                 <col style={{ width: "8%" }} />
               </colgroup>
               <thead>
@@ -425,16 +432,17 @@ const ManageLoans = () => {
                   <th className="p-5 font-bold text-right">Loan Amt</th>
                   <th className="p-5 font-bold text-right">Amortization</th>
                   <th className="p-5 font-bold text-right">Remaining</th>
+                  <th className="p-5 font-bold">Risk Classification</th>
                   <th className="p-5 font-bold">Due Date</th>
                   <th className="p-5 font-bold text-center">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <TableStateRow colSpan={8} variant="loading" label="Loading..." />
+                  <TableStateRow colSpan={9} variant="loading" label="Loading..." />
                 ) : groupedLoans.length === 0 ? (
                   <TableStateRow
-                    colSpan={8}
+                    colSpan={9}
                     variant="empty"
                     icon={Eye}
                     label="No loans found"
@@ -443,6 +451,9 @@ const ManageLoans = () => {
                 ) : null}
 
                 {paginatedGroups.map(({ parent, renewals }) => {
+                  const riskLabel = parent.risk_classification || "Not assessed";
+                  const riskStyle = RISK_CLASSIFICATION_STYLES[parent.risk_band]
+                    || "bg-gray-50 text-gray-600 ring-gray-200";
                   return (
                     <React.Fragment key={parent.loan_id}>
                       <tr className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
@@ -461,6 +472,25 @@ const ManageLoans = () => {
                           <span className={parent.remaining_balance > 0 ? 'text-amber-600' : 'text-green-600'}>
                             {formatCurrency(parent.remaining_balance)}
                           </span>
+                        </td>
+                        <td className="p-5 align-middle">
+                          <span
+                            title={parent.risk_scored_at
+                              ? `${riskLabel} · scored ${formatDate(parent.risk_scored_at)}`
+                              : riskLabel === "Unavailable"
+                                ? "Risk assessment is currently unavailable."
+                                : undefined}
+                            className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ${riskStyle}`}
+                          >
+                            {riskLabel}
+                          </span>
+                          {parent.risk_probability !== null
+                            && parent.risk_probability !== undefined
+                            && Number.isFinite(Number(parent.risk_probability)) ? (
+                            <span className="mt-1 block text-[10px] tabular-nums text-gray-500">
+                              {(Number(parent.risk_probability) * 100).toFixed(1)}% score
+                            </span>
+                          ) : null}
                         </td>
                         <td className="p-5 text-xs font-medium whitespace-nowrap align-middle">
                           {parent.due_date
@@ -495,7 +525,3 @@ const ManageLoans = () => {
 };
 
 export default ManageLoans;
-
-
-
-

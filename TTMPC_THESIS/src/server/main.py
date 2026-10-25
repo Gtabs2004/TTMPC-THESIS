@@ -8954,6 +8954,58 @@ async def get_bookkeeper_manage_loans():
                 }
             )
 
+        # Risk assessments are application-time snapshots. Do not invent a
+        # score for historic loans that have never been assessed.
+        risk_by_loan: dict[str, dict] = {}
+        risk_lookup_failed = False
+        loan_control_numbers = list(dict.fromkeys(
+            str(row.get("loan_id"))
+            for row in mapped_rows
+            if row.get("loan_id")
+        ))
+        try:
+            for start in range(0, len(loan_control_numbers), 500):
+                assessment_rows = (
+                    supabase.table("risk_assessments")
+                    .select("loan_control_number,risk_probability,model_version,scored_at")
+                    .in_("loan_control_number", loan_control_numbers[start : start + 500])
+                    .order("scored_at", desc=True)
+                    .execute()
+                ).data or []
+                for assessment in assessment_rows:
+                    risk_by_loan.setdefault(str(assessment.get("loan_control_number")), assessment)
+        except Exception as err:
+            risk_lookup_failed = True
+            logger.warning("risk classification lookup failed for manage-loans: %s", err)
+
+        thresholds = None
+        if risk_by_loan and not risk_lookup_failed:
+            try:
+                thresholds = risk_thresholds()
+            except Exception as err:
+                logger.warning("risk model thresholds unavailable for manage-loans: %s", err)
+
+        for row in mapped_rows:
+            assessment = risk_by_loan.get(str(row.get("loan_id")))
+            probability = None
+            try:
+                if assessment and assessment.get("risk_probability") is not None:
+                    probability = float(assessment["risk_probability"])
+            except (TypeError, ValueError):
+                probability = None
+
+            band = risk_band(probability, thresholds) if probability is not None and thresholds else None
+            row["risk_probability"] = probability
+            row["risk_band"] = band
+            row["risk_classification"] = (
+                RISK_BAND_META.get(band, {}).get("label")
+                if band
+                else "Unavailable" if risk_lookup_failed or assessment
+                else "Not assessed"
+            )
+            row["risk_model_version"] = assessment.get("model_version") if assessment else None
+            row["risk_scored_at"] = assessment.get("scored_at") if assessment else None
+
         payload = {
             "success": True,
             "data": {
@@ -23072,7 +23124,8 @@ def list_receipts(
 # receipt number. Feeds the dashboard's Recent Transaction (page_size=6) and the
 # Transactions tab in Statement of Account. Identity comes from the token only;
 # these tables are readable by any login (Step 0), so the member's rows are
-# picked here, not in the browser.
+# picked here, not in the browser. Grocery purchases include both Completed and
+# On Credit entries; the response also carries member-wide POS purchase totals.
 
 _MANILA_TZ = timezone(timedelta(hours=8))
 _PAYMENT_DONE = {"validated", "confirmed", "bookkeeper_confirmed", "approved"}
@@ -23134,6 +23187,22 @@ def member_transactions(
             except Exception as exc:
                 raise HTTPException(status_code=500, detail=f"Could not load your transactions: {exc}")
 
+    def fetch_all_pages(build, page_size: int = 1000):
+        rows = []
+        offset = 0
+        while True:
+            try:
+                batch = build().range(offset, offset + page_size - 1).execute().data or []
+            except Exception:
+                try:
+                    batch = build().range(offset, offset + page_size - 1).execute().data or []
+                except Exception as exc:
+                    raise HTTPException(status_code=500, detail=f"Could not load your transactions: {exc}")
+            rows.extend(batch)
+            if len(batch) < page_size:
+                return rows
+            offset += page_size
+
     loans = fetch(lambda: supabase.table("loans").select("control_number,loan_type:loan_type_id(name)").eq("member_id", member_id))
     loan_ids = [str(l["control_number"]) for l in loans if l.get("control_number")]
     loan_type_by_id = {str(l["control_number"]): ((l.get("loan_type") or {}).get("name") or "") for l in loans}
@@ -23165,9 +23234,9 @@ def member_transactions(
     isc_lines = fetch(lambda: supabase.table("isc_transactions").select(
         "id,interest_amount,settlement,settled_at"
     ).eq("member_id", member_id).in_("settlement", ["capitalised", "cash"]))
-    groceries = fetch(lambda: supabase.table("GROCERY_TRANSACTIONS").select(
-        "GroceryID,TransactionDate,GroceryAmount,Status,event_id"
-    ).eq("membership_number_id", member_id))
+    groceries = fetch_all_pages(lambda: supabase.table("GROCERY_TRANSACTIONS").select(
+        "GroceryID,TransactionDate,GroceryAmount,Status,balance_due"
+    ).eq("membership_number_id", member_id).order("TransactionDate").order("GroceryID"))
     cbu_rows = fetch(lambda: supabase.table("capital_build_up").select(
         "id,cbu_deposit_id,transaction_date,capital_added,deposit_account,source_loan_id,source_payment_id,source_isc_id,source_backfill_id"
     ).eq("member_id", member_id).gt("capital_added", 0))
@@ -23293,15 +23362,27 @@ def member_transactions(
             "direction": "credit", "status": "completed", "reference": "",
             "when": when, "day": day,
         })
-    for g in groceries:
-        if g.get("Status") != "Completed" or not g.get("event_id"):
-            continue
+    grocery_rows = [
+        g for g in groceries
+        if str(g.get("Status") or "").strip().lower() in {"completed", "on credit"}
+    ]
+    grocery_purchase_total = sum(
+        (Decimal(str(g.get("GroceryAmount") or 0)) for g in grocery_rows),
+        Decimal("0"),
+    )
+    grocery_balance_due_total = sum(
+        (Decimal(str(g.get("balance_due") or 0)) for g in grocery_rows),
+        Decimal("0"),
+    )
+    for g in grocery_rows:
+        status = "completed" if str(g.get("Status") or "").strip().lower() == "completed" else "on_credit"
         when, day = _feed_when(g.get("TransactionDate"))
         rows.append({
             "source_type": "grocery", "source_id": str(g["GroceryID"]), "category": "grocery",
             "description": "Grocery Purchase",
             "amount": decimal_to_float(Decimal(str(g.get("GroceryAmount") or 0))),
-            "direction": "debit", "status": "completed", "reference": str(g["GroceryID"]),
+            "balance_due": decimal_to_float(Decimal(str(g.get("balance_due") or 0))),
+            "direction": "debit", "status": status, "reference": str(g["GroceryID"]),
             "when": when, "day": day,
         })
 
@@ -23332,4 +23413,8 @@ def member_transactions(
         "total": len(rows),
         "page": page,
         "page_size": page_size,
+        "totals": {
+            "grocery_purchase_amount": decimal_to_float(grocery_purchase_total),
+            "grocery_balance_due": decimal_to_float(grocery_balance_due_total),
+        },
     }
