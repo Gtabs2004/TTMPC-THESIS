@@ -131,6 +131,8 @@ const LoanApprovalDetails = () => {
   const [bookkeeperInternalRemarks, setBookkeeperInternalRemarks] = useState('');
   const [coMakerDetails, setCoMakerDetails] = useState(EMPTY_CO_MAKERS);
   const [collateralRows, setCollateralRows] = useState([]);
+  const [collateralLoading, setCollateralLoading] = useState(true);
+  const [collateralLoadError, setCollateralLoadError] = useState('');
   const [collateralDocumentUrls, setCollateralDocumentUrls] = useState({});
   const [verifiedBonusAmount, setVerifiedBonusAmount] = useState('');
   const [verifiedBonusAmountSaved, setVerifiedBonusAmountSaved] = useState(null);
@@ -173,17 +175,29 @@ const LoanApprovalDetails = () => {
 
   // Load collateral rows for this loan (read-only for every role).
   useEffect(() => {
-    if (!id) return;
+    if (!id) {
+      setCollateralRows([]);
+      setCollateralLoading(false);
+      return;
+    }
     let cancelled = false;
+    setCollateralLoading(true);
+    setCollateralLoadError('');
     (async () => {
       const { data, error } = await supabase
         .from('loan_collateral')
         .select('*')
         .eq('loan_control_number', id)
         .order('created_at', { ascending: true });
-      if (!cancelled && !error) {
+      if (cancelled) return;
+      if (error) {
+        console.error('Unable to load collateral for loan:', id, error);
+        setCollateralRows([]);
+        setCollateralLoadError(error.message || 'Unable to load collateral for this loan.');
+      } else {
         setCollateralRows(data || []);
       }
+      setCollateralLoading(false);
     })();
     return () => { cancelled = true; };
   }, [id]);
@@ -2752,7 +2766,15 @@ const LoanApprovalDetails = () => {
           {/* Collateral panel — read-only. */}
           <div className="border-t border-gray-200 pt-4 mt-4">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Loan Collateral</p>
-            {collateralRows.length === 0 ? (
+            {collateralLoading ? (
+              <div className="border border-dashed border-gray-300 rounded-md p-4 text-center text-xs text-gray-500">
+                Loading collateral...
+              </div>
+            ) : collateralLoadError ? (
+              <div role="alert" className="border border-amber-300 bg-amber-50 rounded-md p-4 text-center text-xs text-amber-800">
+                Collateral could not be loaded: {collateralLoadError}
+              </div>
+            ) : collateralRows.length === 0 ? (
               <div className="border border-dashed border-gray-300 rounded-md p-4 text-center text-xs text-gray-500">
                 No collateral declared for this loan.
               </div>

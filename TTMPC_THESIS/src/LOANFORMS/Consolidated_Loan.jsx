@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import LoanSubmittedDialog from '../components/LoanSubmittedDialog';
-import { fetchLoanForRevisionEdit, fetchLoanPrefill, resubmitLoanRevision, submitUnifiedLoan } from './loanSubmission';
+import { fetchLoanForRevisionEdit, fetchLoanPrefill, insertLoanCollateralRows, resubmitLoanRevision, submitUnifiedLoan } from './loanSubmission';
 import { buildConsolidatedPayload, clampTermMonths, computeLoan } from './loanComputeApi';
 import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
 import { supabase } from '../supabaseClient';
@@ -1074,25 +1074,15 @@ function Consolidated_Loan() {
       // but does not roll back the loan (Bookkeeper can add collateral during review).
       const controlNumber = submitResult?.controlNumber || formData.control_no;
       if (collaterals.length > 0 && controlNumber) {
-        const rows = collaterals
-          .filter((c) => c.type && c.description)
-          .map((c) => ({
-            collateral_id: `col_${controlNumber}_${Math.random().toString(36).slice(2, 8)}_${Date.now()}`,
-            loan_control_number: controlNumber,
-            collateral_type: c.type,
-            description: c.description,
-            document_url: String(c.document_url || '').trim() || null,
-          }));
-
-        if (rows.length > 0) {
-          const { error: collateralError } = await supabase.from('loan_collateral').insert(rows);
-          if (collateralError) {
-            console.warn('Loan created, but collateral insert failed:', collateralError);
-          } else {
-            uploadedCollateralPaths.current.clear();
-          }
-        } else {
+        try {
+          await insertLoanCollateralRows(controlNumber, collaterals);
           uploadedCollateralPaths.current.clear();
+        } catch (collateralError) {
+          console.error('Loan created, but collateral insert failed:', collateralError);
+          addNotification(
+            `Loan submitted, but collateral could not be saved: ${collateralError?.message || 'unknown database error'}. Contact the Bookkeeper before review.`,
+            'error'
+          );
         }
       } else {
         uploadedCollateralPaths.current.clear();

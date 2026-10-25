@@ -871,3 +871,25 @@ export async function resubmitLoanRevision(controlNumber, fields, collateralRows
 
   return result;
 }
+
+export async function insertLoanCollateralRows(controlNumber, collaterals) {
+  const rows = (collaterals || [])
+    .filter((item) => item?.type && item?.description)
+    .map((item) => ({
+      collateral_id: `col_${controlNumber}_${Math.random().toString(36).slice(2, 8)}_${Date.now()}`,
+      loan_control_number: controlNumber,
+      collateral_type: item.type,
+      description: item.description,
+      document_url: String(item.document_url || '').trim() || null,
+    }));
+
+  if (!rows.length) return 0;
+
+  let { error } = await supabase.from('loan_collateral').insert(rows);
+  if (error?.code === '23502' && String(error.message || '').includes('declared_value')) {
+    const legacyRows = rows.map((row) => ({ ...row, declared_value: 0 }));
+    ({ error } = await supabase.from('loan_collateral').insert(legacyRows));
+  }
+  if (error) throw error;
+  return rows.length;
+}
