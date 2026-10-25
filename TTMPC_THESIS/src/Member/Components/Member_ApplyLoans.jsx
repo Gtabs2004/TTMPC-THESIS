@@ -130,13 +130,6 @@ const Member_ApplyLoans = () => {
     if (!b) return false;
     return !b.can_apply_new && !b.can_renew;
   };
-  const anyRestriction = eligibilityReady && Object.values(perType).some(
-    (b) => !b?.can_apply_new || !b?.can_renew,
-  );
-  const anyFullyBlocked = eligibilityReady && Object.values(perType).some(
-    (b) => !b?.can_apply_new && !b?.can_renew,
-  );
-
   // 6-month rule override requests. A locked loan type with an active loan can
   // ask the Bookkeeper to unlock Renewal early; an approved request shows up
   // in `eligibility` itself (can_renew flips to true), so only the pending /
@@ -347,57 +340,6 @@ const Member_ApplyLoans = () => {
               </div>
             </div>
 
-            {anyRestriction && (
-              <div
-                className={`mb-4 rounded-xl border p-3 sm:p-4 flex items-start gap-3 ${
-                  anyFullyBlocked
-                    ? "border-red-200 bg-red-50 text-red-800"
-                    : "border-amber-200 bg-amber-50 text-amber-800"
-                }`}
-                role="alert"
-              >
-                <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                <div className="min-w-0 text-sm">
-                  <p className="font-bold">
-                    {anyFullyBlocked
-                      ? "Some loan types are locked because you have an active loan of that type."
-                      : "Some loan types only allow Renewal right now."}
-                  </p>
-                  <ul className="mt-2 space-y-1 text-xs">
-                    {Object.entries(perType).map(([key, bucket]) => {
-                      if (!bucket) return null;
-                      const locked = !bucket.can_apply_new && !bucket.can_renew;
-                      const partial = !bucket.can_apply_new && bucket.can_renew;
-                      if (!locked && !partial) return null;
-                      // Only an active loan blocked by the 6-month rule can be
-                      // overridden (not, say, a closed Bonus window or an
-                      // application still in the approval pipeline).
-                      const canRequestOverride = locked && Boolean(bucket.active_loan_id) && !bucket.open_application_status;
-                      const request = canRequestOverride ? latestOverrideFor(key, bucket) : null;
-                      const isPending = request?.status === "pending";
-                      return (
-                        <li key={key}>
-                          <span className="font-bold capitalize">{key}:</span>{" "}
-                          <span>{bucket.reason}</span>
-                          {/* The action lives on the loan card below, next to the
-                              loan it applies to -- the banner only explains why. */}
-                          {canRequestOverride && isPending && (
-                            <span className="ml-1 font-semibold">Early renewal requested.</span>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                  {overrideActionError && (
-                    <p className="mt-2 text-xs font-semibold">{overrideActionError}</p>
-                  )}
-                  {eligibility?.simulation_active && (
-                    <p className="mt-2 text-[10px] font-bold uppercase tracking-wider">Simulation Mode</p>
-                  )}
-                </div>
-              </div>
-            )}
-
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
               {selectorOptions.map((item) => {
                 const Icon = item.icon;
@@ -477,6 +419,11 @@ const Member_ApplyLoans = () => {
                           </>
                         )}
                       </div>
+                    )}
+                    {canRequestOverride && overrideActionError && (
+                      <p className="mt-2 text-xs font-semibold text-red-700" role="alert">
+                        {overrideActionError}
+                      </p>
                     )}
 
                     {bucket?.open_application_status === "revision_requested" && (

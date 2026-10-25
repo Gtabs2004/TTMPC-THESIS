@@ -30,16 +30,121 @@ DECLARE
 
   -- active loan per type (most recent by disbursal_date / application_date)
   v_cons_id        text;
+  v_cons_open_id   text;
+  v_cons_open_status text;
   v_cons_payments  int := 0;
   v_emrg_id        text;
+  v_emrg_open_id   text;
+  v_emrg_open_status text;
   v_emrg_payments  int := 0;
   v_bonus_id       text;
+  v_bonus_open_id  text;
+  v_bonus_open_status text;
   v_bonus_payments int := 0;
 
   v_bucket_cons    jsonb;
   v_bucket_emrg    jsonb;
   v_bucket_bonus   jsonb;
 BEGIN
+  -- An application still in review blocks another of the same type. Keep
+  -- this in sync with OPEN_APPLICATION_STATUSES in main.py. Check both status
+  -- columns because older rows may have only one of them updated.
+  SELECT l.control_number,
+         CASE
+           WHEN LOWER(COALESCE(l.loan_status, '')) = 'revision_requested'
+             OR LOWER(COALESCE(l.application_status, '')) = 'revision_requested'
+             THEN 'revision_requested'
+           WHEN LOWER(COALESCE(l.loan_status, '')) = 'revised_submitted'
+             OR LOWER(COALESCE(l.application_status, '')) = 'revised_submitted'
+             THEN 'revised_submitted'
+           WHEN LOWER(COALESCE(l.loan_status, '')) IN (
+             'draft', 'pending', 'recommended for approval', 'recommended for bod approval',
+             'approved', 'ready for disbursement', 'to be disbursed'
+           ) THEN LOWER(l.loan_status)
+           ELSE LOWER(l.application_status)
+         END
+  INTO v_cons_open_id, v_cons_open_status
+  FROM public.loans l
+  JOIN public.loan_types lt ON lt.id = l.loan_type_id
+  WHERE l.member_id = p_member_id
+    AND (LOWER(lt.code) LIKE '%consolidated%' OR LOWER(lt.name) LIKE '%consolidated%')
+    AND (
+      LOWER(COALESCE(l.loan_status, '')) IN (
+        'draft', 'pending', 'recommended for approval', 'recommended for bod approval',
+        'revision_requested', 'revised_submitted', 'approved', 'ready for disbursement', 'to be disbursed'
+      )
+      OR LOWER(COALESCE(l.application_status, '')) IN (
+        'draft', 'pending', 'recommended for approval', 'recommended for bod approval',
+        'revision_requested', 'revised_submitted', 'approved', 'ready for disbursement', 'to be disbursed'
+      )
+    )
+  ORDER BY l.application_date DESC NULLS LAST, l.control_number DESC
+  LIMIT 1;
+
+  SELECT l.control_number,
+         CASE
+           WHEN LOWER(COALESCE(l.loan_status, '')) = 'revision_requested'
+             OR LOWER(COALESCE(l.application_status, '')) = 'revision_requested'
+             THEN 'revision_requested'
+           WHEN LOWER(COALESCE(l.loan_status, '')) = 'revised_submitted'
+             OR LOWER(COALESCE(l.application_status, '')) = 'revised_submitted'
+             THEN 'revised_submitted'
+           WHEN LOWER(COALESCE(l.loan_status, '')) IN (
+             'draft', 'pending', 'recommended for approval', 'recommended for bod approval',
+             'approved', 'ready for disbursement', 'to be disbursed'
+           ) THEN LOWER(l.loan_status)
+           ELSE LOWER(l.application_status)
+         END
+  INTO v_emrg_open_id, v_emrg_open_status
+  FROM public.loans l
+  JOIN public.loan_types lt ON lt.id = l.loan_type_id
+  WHERE l.member_id = p_member_id
+    AND (LOWER(lt.code) LIKE '%emergency%' OR LOWER(lt.name) LIKE '%emergency%')
+    AND (
+      LOWER(COALESCE(l.loan_status, '')) IN (
+        'draft', 'pending', 'recommended for approval', 'recommended for bod approval',
+        'revision_requested', 'revised_submitted', 'approved', 'ready for disbursement', 'to be disbursed'
+      )
+      OR LOWER(COALESCE(l.application_status, '')) IN (
+        'draft', 'pending', 'recommended for approval', 'recommended for bod approval',
+        'revision_requested', 'revised_submitted', 'approved', 'ready for disbursement', 'to be disbursed'
+      )
+    )
+  ORDER BY l.application_date DESC NULLS LAST, l.control_number DESC
+  LIMIT 1;
+
+  SELECT l.control_number,
+         CASE
+           WHEN LOWER(COALESCE(l.loan_status, '')) = 'revision_requested'
+             OR LOWER(COALESCE(l.application_status, '')) = 'revision_requested'
+             THEN 'revision_requested'
+           WHEN LOWER(COALESCE(l.loan_status, '')) = 'revised_submitted'
+             OR LOWER(COALESCE(l.application_status, '')) = 'revised_submitted'
+             THEN 'revised_submitted'
+           WHEN LOWER(COALESCE(l.loan_status, '')) IN (
+             'draft', 'pending', 'recommended for approval', 'recommended for bod approval',
+             'approved', 'ready for disbursement', 'to be disbursed'
+           ) THEN LOWER(l.loan_status)
+           ELSE LOWER(l.application_status)
+         END
+  INTO v_bonus_open_id, v_bonus_open_status
+  FROM public.loans l
+  JOIN public.loan_types lt ON lt.id = l.loan_type_id
+  WHERE l.member_id = p_member_id
+    AND (LOWER(lt.code) LIKE '%bonus%' OR LOWER(lt.name) LIKE '%bonus%')
+    AND (
+      LOWER(COALESCE(l.loan_status, '')) IN (
+        'draft', 'pending', 'recommended for approval', 'recommended for bod approval',
+        'revision_requested', 'revised_submitted', 'approved', 'ready for disbursement', 'to be disbursed'
+      )
+      OR LOWER(COALESCE(l.application_status, '')) IN (
+        'draft', 'pending', 'recommended for approval', 'recommended for bod approval',
+        'revision_requested', 'revised_submitted', 'approved', 'ready for disbursement', 'to be disbursed'
+      )
+    )
+  ORDER BY l.application_date DESC NULLS LAST, l.control_number DESC
+  LIMIT 1;
+
   -- Latest active loan per type for this member.
   -- "active" = loan_status IN ('released','paid','partially paid')
   -- We join loan_types to classify by code/name just like FastAPI does.
@@ -84,7 +189,14 @@ BEGIN
   END IF;
 
   -- Build consolidated bucket
-  IF v_cons_id IS NULL THEN
+  IF v_cons_open_id IS NOT NULL THEN
+    v_bucket_cons := jsonb_build_object(
+      'loan_type', 'consolidated', 'can_apply_new', false, 'can_renew', false,
+      'reason', 'You already have a consolidated application in progress (' || replace(v_cons_open_status, '_', ' ') || ').',
+      'active_loan_id', v_cons_open_id, 'open_application_status', v_cons_open_status,
+      'payments_made', 0
+    );
+  ELSIF v_cons_id IS NULL THEN
     v_bucket_cons := jsonb_build_object(
       'loan_type',      'consolidated',
       'can_apply_new',  true,
@@ -109,7 +221,14 @@ BEGIN
   END IF;
 
   -- Build emergency bucket
-  IF v_emrg_id IS NULL THEN
+  IF v_emrg_open_id IS NOT NULL THEN
+    v_bucket_emrg := jsonb_build_object(
+      'loan_type', 'emergency', 'can_apply_new', false, 'can_renew', false,
+      'reason', 'You already have an emergency application in progress (' || replace(v_emrg_open_status, '_', ' ') || ').',
+      'active_loan_id', v_emrg_open_id, 'open_application_status', v_emrg_open_status,
+      'payments_made', 0
+    );
+  ELSIF v_emrg_id IS NULL THEN
     v_bucket_emrg := jsonb_build_object(
       'loan_type',      'emergency',
       'can_apply_new',  true,
@@ -134,7 +253,14 @@ BEGIN
   END IF;
 
   -- Build bonus bucket (no application-time window -- decision 3.3-1)
-  IF v_bonus_id IS NULL THEN
+  IF v_bonus_open_id IS NOT NULL THEN
+    v_bucket_bonus := jsonb_build_object(
+      'loan_type', 'bonus', 'can_apply_new', false, 'can_renew', false,
+      'reason', 'You already have a bonus application in progress (' || replace(v_bonus_open_status, '_', ' ') || ').',
+      'active_loan_id', v_bonus_open_id, 'open_application_status', v_bonus_open_status,
+      'payments_made', 0
+    );
+  ELSIF v_bonus_id IS NULL THEN
     v_bucket_bonus := jsonb_build_object(
       'loan_type',      'bonus',
       'can_apply_new',  true,

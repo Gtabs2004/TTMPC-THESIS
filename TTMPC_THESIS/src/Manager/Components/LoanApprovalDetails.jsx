@@ -30,7 +30,6 @@ import {
   Loader2,
   ShieldAlert,
   ShieldCheck,
-  RefreshCw,
   Info,
   ClipboardCheck,
   Printer,
@@ -768,17 +767,19 @@ const LoanApprovalDetails = () => {
     return () => {
       isMounted = false;
     };
-  }, [id, rtVersion]);
+  }, [id, rtVersion, isNonMemberSource]);
 
-  // Load cached risk assessment for this loan (if any)
+  // Load an existing score, or automatically score an application in review.
   const rtVersionRisk = useRealtimeVersion(["risk_assessments"]);
   const rtSeenRisk = useRef(rtVersionRisk);
   useEffect(() => {
     const silent = rtSeenRisk.current !== rtVersionRisk;
     rtSeenRisk.current = rtVersionRisk;
-    if (!id) return;
+    if (!id || !loanDetails) return;
     let isMounted = true;
     (async () => {
+      setRiskLoading(true);
+      setRiskError('');
       try {
         const { data, error } = await supabase
           .from('risk_assessments')
@@ -786,42 +787,58 @@ const LoanApprovalDetails = () => {
           .eq('loan_control_number', id)
           .maybeSingle();
         if (!isMounted) return;
-        if (error) {
-          if (!silent) setRiskError('');
+        if (error) throw error;
+
+        const status = String(loanDetails.loan_status || loanDetails.application_status || loanDetails.status || '')
+          .trim()
+          .toLowerCase();
+        const shouldAutoScore = new Set([
+          'pending',
+          'for approval',
+          'for review',
+          'for evaluation',
+          'under review',
+          'submitted',
+          'for bookkeeper',
+          'for manager',
+          'recommended for approval',
+          'recommended for bod approval',
+        ]).has(status);
+        if (!data && !shouldAutoScore) {
+          setRiskAssessment(null);
           return;
         }
-        if (!data) return;
 
-        // The table row only holds the raw score (probability, features,
-        // model version). The band, action, history rate and the points-to-check
-        // list are derived from it by /api/risk/predict, which is also what
-        // Re-run shows. Ask for that same view without forcing a re-score, so
-        // the details are already on screen before anyone clicks Re-run.
-        try {
-          const response = await fetch(`${API_BASE_URL}/api/risk/predict`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              loan_control_number: id,
-              source: isNonMemberSource ? 'non_member_loans' : 'loans',
-              force_refresh: false,
-            }),
-          });
-          const enriched = response.ok ? await response.json() : null;
-          if (!isMounted) return;
-          setRiskAssessment(enriched || data);
-        } catch (_fetchErr) {
-          if (isMounted) setRiskAssessment(data);
+        const response = await fetch(`${API_BASE_URL}/api/risk/predict`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            loan_control_number: id,
+            source: isNonMemberSource ? 'non_member_loans' : 'loans',
+            force_refresh: false,
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          if (data) {
+            setRiskAssessment(data);
+          }
+          throw new Error(payload?.detail || 'Automatic risk assessment failed.');
         }
-      } catch (_err) {
+        if (!isMounted) return;
+        setRiskAssessment(payload);
+      } catch (err) {
         if (silent) return;
-        // silent — empty assessment state means "not yet scored"
+        console.error('Automatic credit risk assessment failed:', err);
+        if (isMounted) setRiskError(err?.message || 'Automatic risk assessment failed.');
+      } finally {
+        if (isMounted) setRiskLoading(false);
       }
     })();
     return () => {
       isMounted = false;
     };
-  }, [id, rtVersionRisk, isNonMemberSource]);
+  }, [id, loanDetails, rtVersionRisk, isNonMemberSource]);
 
   // Reprint the borrower's original application form. Same backend templates
   // the member portal uses; personal data is re-read from the PDS because
@@ -836,38 +853,6 @@ const LoanApprovalDetails = () => {
       addNotification(`Print error: ${err.message}`, 'error');
     } finally {
       setPrinting(false);
-    }
-  };
-
-  const handleRunRiskAssessment = async () => {
-    if (!id) return;
-    setRiskLoading(true);
-    setRiskError('');
-    try {
-      const source = isNonMemberSource ? 'non_member_loans' : 'loans';
-      const { data: { user } = {} } = (await supabase.auth.getUser()) || {};
-      const response = await fetch(`${API_BASE_URL}/api/risk/predict`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          loan_control_number: id,
-          source,
-          scored_by: user?.id || null,
-          force_refresh: !!riskAssessment, // re-run only when explicitly clicked again
-        }),
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        const detail = typeof payload?.detail === 'string'
-          ? payload.detail
-          : 'Risk assessment failed. Please try again.';
-        throw new Error(detail);
-      }
-      setRiskAssessment(payload);
-    } catch (err) {
-      setRiskError(err.message || 'Failed to run risk assessment.');
-    } finally {
-      setRiskLoading(false);
     }
   };
 
@@ -2164,19 +2149,12 @@ const LoanApprovalDetails = () => {
           <h2 className="flex items-center text-lg font-bold text-gray-800">
             <BarChart2 className="w-5 h-5 mr-2 text-member-green" /> Payment Risk Indicators
           </h2>
-          <button
-            type="button"
-            onClick={handleRunRiskAssessment}
-            disabled={riskLoading}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md border border-member-green text-member-green hover:bg-member-green hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {riskLoading ? (
+          {riskLoading && (
+            <span className="inline-flex items-center gap-2 text-xs font-medium text-gray-500" role="status">
               <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <RefreshCw className="w-4 h-4" />
-            )}
-            {riskAssessment ? 'Re-run' : 'Run Risk Assessment'}
-          </button>
+              Updating automatically
+            </span>
+          )}
         </div>
 
           {riskError && (
@@ -2187,7 +2165,7 @@ const LoanApprovalDetails = () => {
 
           {!riskAssessment && !riskLoading && !riskError && (
             <div className="p-8 border border-dashed border-gray-300 rounded-xl text-center text-sm text-gray-500">
-              No risk assessment yet. Click <span className="font-semibold text-member-green">Run Risk Assessment</span> to score this application.
+              No saved risk assessment is available for this application.
             </div>
           )}
 

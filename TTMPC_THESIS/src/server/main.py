@@ -9314,8 +9314,8 @@ def _compute_credit_risk_snapshot() -> dict:
 
     Reads from risk_assessments (already-scored loans) joined against the
     current in-review queue, instead of re-running feature assembly +
-    prediction. See get_credit_risk_queue()'s own caching for the full-detail
-    Credit Risk page; this only needs counts, not drivers/explanations.
+    prediction. The full-detail Credit Risk page has its own score cache-through;
+    this snapshot only needs counts, not drivers or explanations.
     """
     try:
         loans_resp = (
@@ -17369,6 +17369,7 @@ class RiskPredictRequest(BaseModel):
     source: Literal["loans", "non_member_loans"] = "loans"
     scored_by: str | None = None  # auth.uid() of the manager, optional
     force_refresh: bool = False
+    attribution_only: bool = False
 
 
 def _fetch_loan_for_scoring(control_number: str, source: str) -> dict:
@@ -17424,6 +17425,38 @@ async def predict_loan_risk(payload: RiskPredictRequest):
         )
         if cached.data:
             cached_row = cached.data[0]
+            if payload.attribution_only:
+                try:
+                    cached_features = cached_row.get("features_used") or {}
+                    cached_probability = float(cached_row.get("risk_probability"))
+                    cached_result = risk_score(cached_features)
+                except (ModelNotAvailableError, KeyError, TypeError, ValueError):
+                    cached_result = None
+                    cached_probability = None
+
+                same_assessment = (
+                    cached_result is not None
+                    and cached_result.get("model_version") == cached_row.get("model_version")
+                    and cached_probability is not None
+                    and round(cached_result["probability"], 4) == round(cached_probability, 4)
+                )
+                if not same_assessment:
+                    return {
+                        "cached": True,
+                        **cached_row,
+                        "attribution_available": False,
+                        "attribution_error": "An explanation matching this saved score is unavailable.",
+                        "drivers": [],
+                    }
+
+                return {
+                    "cached": True,
+                    **cached_row,
+                    **cached_result,
+                    "probability": cached_probability,
+                    "attribution_available": True,
+                }
+
             try:
                 cached_result = risk_score(cached_row.get("features_used") or {})
             except (ModelNotAvailableError, KeyError, TypeError, ValueError):
@@ -17514,16 +17547,12 @@ async def predict_loan_risk(payload: RiskPredictRequest):
 
 # ============================================================================
 # SECTION: Credit Risk Queue
-# Feeds the Credit Risk sidebar page (Bookkeeper + Manager) and the dashboard
-# snippet. Scores loans currently under review (application_status IN the
-# review set) and returns the normalized {probability, drivers[]} payload the
-# UI expects. Frontend is model-agnostic — swap the PKL in risk_model.py and
-# this endpoint's response shape stays the same.
+# Feeds the Credit Risk page across staff portals. All applications remain
+# visible; only applications in review are automatically scored or rescored.
 # ============================================================================
 
-# Application statuses considered "in review" — the Credit Risk page shows
-# only these because the model is meant to assist evaluation, not audit
-# already-approved loans.
+# Application statuses eligible for automatic scoring. Saved scores remain
+# visible after an application moves out of this set.
 _CREDIT_RISK_QUEUE_STATUSES = {
     "pending",
     "for approval",
@@ -17533,12 +17562,19 @@ _CREDIT_RISK_QUEUE_STATUSES = {
     "submitted",
     "for bookkeeper",
     "for manager",
+    "recommended for approval",
+    "recommended for bod approval",
+    "revised_submitted",
 }
 
-# 60s cache — same rationale as manage-loans, but scoring is CPU-heavier
-# than a plain fetch so caching helps even more.
-_CREDIT_RISK_QUEUE_CACHE: dict = {"payload": None, "expires_at": 0.0}
-_CREDIT_RISK_QUEUE_CACHE_TTL_SECONDS = 60.0
+# Keep applications visible through the approval and disbursement queues,
+# but remove them from Credit Risk once funds have been released.
+_CREDIT_RISK_PIPELINE_STATUSES = _CREDIT_RISK_QUEUE_STATUSES | {
+    "approved",
+    "ready for disbursement",
+    "to be disbursed",
+    "awaiting disbursement",
+}
 
 # How long a risk_assessments row is trusted without rescoring. `member` has
 # no updated_at, so a loan's underlying financial context (a new payment, a
@@ -17592,59 +17628,58 @@ def _persist_risk_scores(
 
 @app.get("/api/credit-risk/queue")
 async def get_credit_risk_queue(refresh: bool = False):
-    """Scored review queue. `refresh=true` (the page's Refresh button) skips both
-    caches -- the 60s in-memory payload and the 12h stored scores -- so every
-    loan is re-assembled and re-scored from current data."""
+    """Return every application with its saved score; score in-review rows as needed.
+
+    `refresh=true` forces fresh scoring for in-review applications only.
+    Historical applications retain the score recorded during review.
+    """
     if supabase is None:
         raise HTTPException(status_code=503, detail="Supabase client is not configured.")
 
-    import time as _time
-    now = _time.monotonic()
-    if not refresh and _CREDIT_RISK_QUEUE_CACHE["payload"] is not None and _CREDIT_RISK_QUEUE_CACHE["expires_at"] > now:
-        return _CREDIT_RISK_QUEUE_CACHE["payload"]
-
     try:
-        # Filter to review statuses in the query itself instead of fetching
-        # every loan (previously unbounded) and filtering in Python. Two
-        # queries because application_status is nullable and the review set
-        # must also match on loan_status for rows where it's null — same
-        # fallback semantics as before, just pushed down to Postgres.
-        select_cols = (
+        member_columns = (
             "control_number,member_id,loan_amount,principal_amount,monthly_amortization,"
             "term,interest_rate,application_status,loan_status,application_date,disbursal_date,"
             "raw_payload,"
             "member:member_id(first_name,last_name,membership_id,is_bona_fide),"
             "loan_type:loan_type_id(code,name)"
         )
-        by_app_status_resp = (
-            supabase.table("loans")
-            .select(select_cols)
-            .in_("application_status", sorted(_CREDIT_RISK_QUEUE_STATUSES))
-            .order("application_date", desc=True)
-            .execute()
+        nonmember_columns = (
+            "control_number,full_name,loan_amount,term,application_status,loan_status,"
+            "application_date,application_type,raw_payload"
         )
-        loan_rows = list(by_app_status_resp.data or [])
-        by_loan_status_resp = (
-            supabase.table("loans")
-            .select(select_cols)
-            .is_("application_status", "null")
-            .in_("loan_status", sorted(_CREDIT_RISK_QUEUE_STATUSES))
-            .order("application_date", desc=True)
-            .execute()
-        )
-        seen_cns = {str(r.get("control_number")) for r in loan_rows}
-        for row in by_loan_status_resp.data or []:
-            if str(row.get("control_number")) not in seen_cns:
-                loan_rows.append(row)
+
+        def fetch_all_rows(table: str, columns: str) -> list[dict]:
+            page_size = 1000
+            offset = 0
+            rows: list[dict] = []
+            while True:
+                response = (
+                    supabase.table(table)
+                    .select(columns)
+                    .order("application_date", desc=True)
+                    .range(offset, offset + page_size - 1)
+                    .execute()
+                )
+                page = response.data or []
+                rows.extend(page)
+                if len(page) < page_size:
+                    return rows
+                offset += page_size
+
+        loan_rows = fetch_all_rows("loans", member_columns)
+        nonmember_rows = fetch_all_rows("non_member_loans", nonmember_columns)
+        for row in loan_rows:
+            row["_risk_source"] = "loans"
+        for row in nonmember_rows:
+            row["_risk_source"] = "non_member_loans"
+        all_loan_rows = loan_rows + nonmember_rows
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to load loans: {err}")
 
-    # Both queries already match the review-status set — this local filter is
-    # now just a safety net (e.g. mixed-case status values) rather than the
-    # only filter, so it can't silently regress into "everything" again.
     filtered: list[dict] = []
     for row in loan_rows:
-        status = str(row.get("application_status") or row.get("loan_status") or "").strip().lower()
+        status = str(row.get("loan_status") or row.get("application_status") or "").strip().lower()
         if status in _CREDIT_RISK_QUEUE_STATUSES:
             filtered.append(row)
 
@@ -17660,19 +17695,53 @@ async def get_credit_risk_queue(refresh: bool = False):
 
     def _row_shell(loan: dict) -> dict:
         member = loan.get("member") or {}
-        member_name = f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Unknown"
-        loan_type = (loan.get("loan_type") or {}).get("name") or (loan.get("loan_type") or {}).get("code") or "N/A"
+        is_nonmember = loan.get("_risk_source") == "non_member_loans"
+        member_name = (
+            str(loan.get("full_name") or "").strip()
+            if is_nonmember
+            else f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip()
+        ) or "Unknown"
+        loan_type = (
+            loan.get("application_type")
+            or "Non-Member Loan"
+            if is_nonmember
+            else (loan.get("loan_type") or {}).get("name")
+            or (loan.get("loan_type") or {}).get("code")
+            or "N/A"
+        )
         return {
             "loan_id": loan.get("control_number"),
+            "source": loan.get("_risk_source") or "loans",
             "member_name": member_name,
             "membership_id": str(member.get("membership_id") or "").strip(),
-            "member_type": "Member" if bool(member.get("is_bona_fide")) else "Non-Member",
+            "member_type": "Non-Member" if is_nonmember else (
+                "Member" if bool(member.get("is_bona_fide")) else "Non-Member"
+            ),
             "loan_type": loan_type,
             "loan_amount": float(loan.get("loan_amount") or loan.get("principal_amount") or 0),
             "term_months": int(loan.get("term") or 0),
             "application_date": loan.get("application_date"),
-            "application_status": loan.get("application_status") or loan.get("loan_status"),
+            "application_status": loan.get("loan_status") or loan.get("application_status") or "status unavailable",
         }
+
+    cached_by_loan: dict[str, dict] = {}
+    control_numbers = [
+        str(loan.get("control_number"))
+        for loan in all_loan_rows
+        if loan.get("control_number")
+    ]
+    try:
+        for start in range(0, len(control_numbers), 500):
+            existing_resp = (
+                supabase.table("risk_assessments")
+                .select("loan_control_number,risk_probability,model_version,scored_at")
+                .in_("loan_control_number", control_numbers[start : start + 500])
+                .execute()
+            )
+            for row in existing_resp.data or []:
+                cached_by_loan[str(row.get("loan_control_number"))] = row
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load saved risk assessments: {err}")
 
     if filtered:
         current_model_version: str | None = None
@@ -17680,21 +17749,6 @@ async def get_credit_risk_queue(refresh: bool = False):
             current_model_version = risk_model_version()
         except Exception:
             current_model_version = None
-
-        cached_by_loan: dict[str, dict] = {}
-        try:
-            control_numbers = [str(l.get("control_number")) for l in filtered if l.get("control_number")]
-            if control_numbers:
-                existing_resp = (
-                    supabase.table("risk_assessments")
-                    .select("loan_control_number,risk_probability,model_version,scored_at,features_used")
-                    .in_("loan_control_number", control_numbers)
-                    .execute()
-                )
-                for row in existing_resp.data or []:
-                    cached_by_loan[str(row.get("loan_control_number"))] = row
-        except Exception:
-            cached_by_loan = {}
 
         # A manual refresh treats every stored score as stale.
         stale_cutoff = datetime.utcnow() + timedelta(days=1) if refresh else datetime.utcnow() - _RISK_SCORE_STALE_AFTER
@@ -17739,6 +17793,7 @@ async def get_credit_risk_queue(refresh: bool = False):
                         "flagged": result["flagged"],
                         "operating_point": result["operating_point"],
                         "drivers": result["drivers"],
+                        "model_version": result.get("model_version"),
                     })
 
                 # Handoff §4: log every freshly-scored loan with its input row
@@ -17774,6 +17829,7 @@ async def get_credit_risk_queue(refresh: bool = False):
                         # explanation is available by re-scoring the single
                         # loan (POST /api/risk/predict) if a reviewer opens it.
                         "drivers": [],
+                        "model_version": cached.get("model_version"),
                         "from_cache": True,
                     })
         except ModelNotAvailableError as e:
@@ -17791,6 +17847,136 @@ async def get_credit_risk_queue(refresh: bool = False):
                 for loan in filtered
             ]
 
+    try:
+        current_model_version = risk_model_version()
+        if thresholds_used is None:
+            thresholds_used = risk_thresholds()
+    except ModelNotAvailableError:
+        current_model_version = None
+
+    stale_cutoff = datetime.utcnow() + timedelta(days=1) if refresh else datetime.utcnow() - _RISK_SCORE_STALE_AFTER
+    for loan in nonmember_rows:
+        status = str(loan.get("loan_status") or loan.get("application_status") or "").strip().lower()
+        if status not in _CREDIT_RISK_QUEUE_STATUSES:
+            continue
+        control_number = str(loan.get("control_number") or "")
+        cached = cached_by_loan.get(control_number)
+        is_fresh = False
+        if cached and current_model_version and cached.get("model_version") == current_model_version:
+            try:
+                scored_at = datetime.fromisoformat(str(cached.get("scored_at") or "").replace("Z", "+00:00"))
+                is_fresh = scored_at.replace(tzinfo=None) >= stale_cutoff
+            except ValueError:
+                is_fresh = False
+
+        try:
+            if is_fresh:
+                probability = float(cached.get("risk_probability") or 0.0)
+                band = risk_band(probability, thresholds_used)
+                meta = RISK_BAND_META.get(band, {})
+                result_row = {
+                    **_row_shell(loan),
+                    "probability": probability,
+                    "band": band,
+                    "risk_label": meta.get("label"),
+                    "action": meta.get("action"),
+                    "band_share": meta.get("share"),
+                    "band_bad_rate_per_100": meta.get("bad_rate_per_100"),
+                    "drivers": [],
+                    "model_version": cached.get("model_version"),
+                    "from_cache": True,
+                }
+            else:
+                raw = loan.get("raw_payload") or {}
+                optional_fields = raw.get("optionalFields") or {}
+                features = {
+                    "LoanAmount": loan.get("loan_amount"),
+                    "Term": loan.get("term"),
+                    "MonthlyDue": optional_fields.get("monthly_amortization"),
+                    "OccTier": risk_occupation_tier(raw.get("occupation")),
+                    "HasSnapshot": 0,
+                    "HasTimeDeposit": 0,
+                }
+                result = risk_score(features)
+                _persist_risk_scores([loan], [features], [result])
+                result_row = {
+                    **_row_shell(loan),
+                    "probability": result["probability"],
+                    "band": result["band"],
+                    "risk_label": result["risk_label"],
+                    "action": result["action"],
+                    "band_share": result["band_share"],
+                    "band_bad_rate_per_100": result["band_bad_rate_per_100"],
+                    "flagged": result["flagged"],
+                    "operating_point": result["operating_point"],
+                    "drivers": result["drivers"],
+                    "model_version": result.get("model_version"),
+                }
+                model_version = model_version or result.get("model_version")
+                thresholds_used = thresholds_used or result.get("thresholds")
+            scored_rows.append(result_row)
+        except ModelNotAvailableError as err:
+            scored_rows.append({
+                **_row_shell(loan),
+                "probability": None,
+                "band": None,
+                "risk_label": "Unavailable",
+                "drivers": [],
+                "error": str(err),
+            })
+        except Exception as err:
+            scored_rows.append({
+                **_row_shell(loan),
+                "probability": None,
+                "band": None,
+                "risk_label": "Error",
+                "drivers": [],
+                "error": str(err),
+            })
+
+    # Keep every other application in the queue using its saved, application-
+    # time score, but only while it remains in the approval/disbursement
+    # pipeline. Released and completed loans do not belong in this queue.
+    scored_ids = {str(row.get("loan_id") or "") for row in scored_rows}
+    for loan in all_loan_rows:
+        status = str(loan.get("loan_status") or loan.get("application_status") or "").strip().lower()
+        if status not in _CREDIT_RISK_PIPELINE_STATUSES:
+            continue
+        control_number = str(loan.get("control_number") or "")
+        if control_number in scored_ids:
+            continue
+        cached = cached_by_loan.get(control_number)
+        try:
+            probability = float(cached.get("risk_probability")) if cached else None
+        except (TypeError, ValueError):
+            probability = None
+
+        if probability is not None:
+            band = risk_band(probability, thresholds_used) if thresholds_used is not None else None
+            meta = RISK_BAND_META.get(band, {})
+            scored_rows.append({
+                **_row_shell(loan),
+                "probability": probability,
+                "band": band,
+                "risk_label": meta.get("label") or "Previously scored",
+                "action": meta.get("action"),
+                "band_share": meta.get("share"),
+                "band_bad_rate_per_100": meta.get("bad_rate_per_100"),
+                "drivers": [],
+                "model_version": cached.get("model_version"),
+                "scored_at": cached.get("scored_at"),
+                "from_cache": True,
+            })
+            model_version = model_version or cached.get("model_version")
+        else:
+            scored_rows.append({
+                **_row_shell(loan),
+                "probability": None,
+                "band": None,
+                "risk_label": "Not yet scored",
+                "drivers": [],
+            })
+
     # Sort by probability desc, unscored rows at the bottom.
     scored_rows.sort(key=lambda r: (r.get("probability") is None, -(r.get("probability") or 0.0)))
 
@@ -17804,8 +17990,6 @@ async def get_credit_risk_queue(refresh: bool = False):
             "rows": scored_rows,
         },
     }
-    _CREDIT_RISK_QUEUE_CACHE["payload"] = payload
-    _CREDIT_RISK_QUEUE_CACHE["expires_at"] = _time.monotonic() + _CREDIT_RISK_QUEUE_CACHE_TTL_SECONDS
     return payload
 
 

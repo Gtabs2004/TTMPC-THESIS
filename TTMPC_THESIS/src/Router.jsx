@@ -30,6 +30,7 @@ import Member_Services from "./Index_Pages/member_services";
 import Manage_Loans from "./Bookkeeper/Components/Manage-Loans";
 import BookkeeperCreditRisk from "./Bookkeeper/Components/CreditRisk";
 import ManagerCreditRisk from "./Manager/Components/CreditRisk";
+import BODCreditRisk from "./BOD/Components/CreditRisk";
 import Member_Details from "./Bookkeeper/Components/member_details";
 import Bookkeeper_ISC from "./Bookkeeper/Components/ISC_Distribution";
 import ISC_Journal from "./Bookkeeper/Components/ISC_Journal";
@@ -157,6 +158,7 @@ export const router = createBrowserRouter([
     {path: "/manage-loans", element: bookkeeperGuarded(<Manage_Loans/>)},
     {path: "/bookkeeper-credit-risk", element: bookkeeperGuarded(<BookkeeperCreditRisk/>)},
     {path: "/manager-credit-risk", element: managerGuarded(<ManagerCreditRisk/>)},
+    {path: "/bod-credit-risk", element: bodGuarded(<BODCreditRisk/>)},
     {path: "/manage-member", element: bookkeeperGuarded(<Manage_Member/>)},
     // Shared member record. Reached from three portals' Manage Member tables
     // (Bookkeeper, BOD, Manager) and the page itself branches on ?portal= /

@@ -8,6 +8,7 @@ import {
   UserRoundCheck,
   UserCog,
   ReceiptText,
+  Brain,
 } from "lucide-react";
 
 // BOD portal navigation. Same list on every standalone BOD page.
@@ -18,6 +19,7 @@ export const bodNav = [
   { name: "Member Approvals",  icon: UserRoundCheck,           path: "/member-approvals", badgeKey: "member_approvals" },
   { name: "Manage Member",     icon: Users,           path: "/bod-manage-member" },
   { name: "Loan Approvals",    icon: ShieldCheck,     path: "/bod-loan-approvals", badgeKey: "loan_approvals" },
+  { name: "Credit Risk",       icon: Brain,           path: "/bod-credit-risk" },
   { name: "Loan Ledger",       icon: CreditCard,      path: "/bod-manage-loans" },
   { name: "Account Management", icon: UserCog,        path: "/bod-account-management" },
   { name: "Interest Policies", icon: FileText,        path: "/bod-loan-policies" },

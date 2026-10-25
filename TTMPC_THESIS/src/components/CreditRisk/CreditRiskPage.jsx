@@ -4,13 +4,13 @@ import { RT } from "../../lib/realtimeSync";
 import StaffSidebar from "../StaffSidebar";
 import { bookkeeperNav } from "../StaffSidebar/configs/bookkeeper";
 import { managerNav } from "../StaffSidebar/configs/manager";
+import { bodNav } from "../StaffSidebar/configs/bod";
 import StaffTopbar from "../StaffTopbar";
 import LoanNotificationBell from "../LoanNotificationBell";
 import Pagination from "../Pagination";
 import TableStateRow from "../TableStateRow";
 import {
   Brain,
-  RefreshCw,
   ArrowUpDown,
   X,
   AlertCircle,
@@ -118,14 +118,13 @@ const summarizeDrivers = (drivers) => {
 const accuracyRating = (auc) => (auc >= 0.8 ? "Strong" : auc >= 0.7 ? "Fair" : "Limited");
 
 const CreditRiskPage = ({ portal = "bookkeeper" }) => {
-  const portalLabel = portal === "manager" ? "Manager" : "Bookkeeper";
-  const navItems = portal === "manager" ? managerNav : bookkeeperNav;
+  const portalLabel = portal === "manager" ? "Manager" : portal === "bod" ? "BOD" : "Bookkeeper";
+  const navItems = portal === "manager" ? managerNav : portal === "bod" ? bodNav : bookkeeperNav;
 
   const [rows, setRows] = useState([]);
   const [modelInfo, setModelInfo] = useState(null);
   const [modelVersion, setModelVersion] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState("");
 
   const [search, setSearch] = useState("");
@@ -134,11 +133,12 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
   const [sortKey, setSortKey] = useState("risk_desc");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedLoan, setSelectedLoan] = useState(null);
+  const [attributionLoading, setAttributionLoading] = useState(false);
+  const [attributionError, setAttributionError] = useState("");
 
-  const fetchQueue = async ({ silent = false, refresh = false } = {}) => {
+  const fetchQueue = async ({ silent = false } = {}) => {
     try {
-      // refresh=true makes the backend skip its caches and re-score from current data.
-      const res = await fetch(`${API_BASE_URL}/api/credit-risk/queue${refresh ? "?refresh=true" : ""}`);
+      const res = await fetch(`${API_BASE_URL}/api/credit-risk/queue`);
       const json = await res.json();
       if (!res.ok || !json?.success) {
         throw new Error(json?.detail || "Failed to load credit risk queue.");
@@ -166,7 +166,6 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
       setLoadError(err?.message || "Unable to load credit risk data.");
     } finally {
       if (!silent) setLoading(false);
-      setRefreshing(false);
     }
   };
   useRealtimeRefetch(RT.LOANS, () => fetchQueue({ silent: true }));
@@ -232,9 +231,40 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
     return filteredRows.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredRows, currentPage]);
 
-  const handleRefresh = () => {
-    setRefreshing(true);
-    fetchQueue({ refresh: true });
+  const openLoanDetails = async (row) => {
+    setSelectedLoan(row);
+    setAttributionLoading(false);
+    setAttributionError("");
+    if (row.probability == null || row.drivers?.length) return;
+
+    setAttributionLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/risk/predict`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          loan_control_number: row.loan_id,
+          source: row.source || "loans",
+          attribution_only: true,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.detail || "Could not load the score explanation.");
+      }
+      if (payload?.attribution_available && Array.isArray(payload.drivers)) {
+        setSelectedLoan((current) =>
+          current?.loan_id === row.loan_id ? { ...current, ...payload } : current
+        );
+      } else {
+        setAttributionError(payload?.attribution_error || "An explanation matching this saved score is unavailable.");
+      }
+    } catch (error) {
+      console.error("Credit risk attribution load failed:", error);
+      setAttributionError(error?.message || "Could not load the score explanation.");
+    } finally {
+      setAttributionLoading(false);
+    }
   };
 
   const greenAmberThreshold = getModelThreshold(modelInfo, "green_amber");
@@ -264,7 +294,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                 Credit Risk Assessment
               </h1>
               <p className="text-sm text-gray-500 mt-0.5">
-                Loan applications currently under review, each with a risk score. A higher score means a higher chance of repayment trouble.
+                Applications remain visible through approval and disbursement, then leave the queue when released. New and in-review applications are scored automatically.
               </p>
               {/* The model's credentials, stated plainly. Accuracy and the
                   active operating point come from the model file itself, so
@@ -311,14 +341,6 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                 </p>
               )}
             </div>
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing || loading}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-            >
-              <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
-              Refresh
-            </button>
           </div>
 
           {loadError ? (
@@ -392,7 +414,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
               <div>
                 <h3 className="text-gray-800 font-bold text-lg">Applicant Queue</h3>
                 <p className="text-gray-400 text-xs">
-                  {filteredRows.length} applicant{filteredRows.length === 1 ? "" : "s"}
+                  {filteredRows.length} application{filteredRows.length === 1 ? "" : "s"}
                   {bandFilter !== "all" ? ` · filtered by ${bandFilter}` : ""}
                 </p>
               </div>
@@ -434,6 +456,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                   <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold text-left">Applicant</th>
                     <th className="p-5 font-bold text-left">Loan Type</th>
+                    <th className="p-5 font-bold text-left">Status</th>
                     <th className="p-5 font-bold text-right">Amount</th>
                     <th className="p-5 font-bold text-center">Applied</th>
                     <th className="p-5 font-bold">
@@ -445,17 +468,16 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <TableStateRow colSpan={5} variant="loading" label="Loading risk scores..." />
+                    <TableStateRow colSpan={6} variant="loading" label="Loading risk scores..." />
                   ) : pagedRows.length === 0 ? (
-                    <TableStateRow colSpan={5} variant="empty" icon={Inbox} label="No applicants match the current filters." />
+                    <TableStateRow colSpan={6} variant="empty" icon={Inbox} label="No applications match the current filters." />
                   ) : (
                     pagedRows.map((row) => {
                       const band = riskBand(row);
-                      const topDrivers = (row.drivers || []).slice(0, 3);
                       return (
                         <tr
                           key={row.loan_id}
-                          onClick={() => setSelectedLoan(row)}
+                          onClick={() => openLoanDetails(row)}
                           className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors cursor-pointer"
                         >
                           <td className="p-5">
@@ -464,6 +486,11 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                           </td>
                           <td className="p-5">
                             <span className="text-xs font-semibold text-gray-700">{row.loan_type || "—"}</span>
+                          </td>
+                          <td className="p-5">
+                            <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold capitalize text-gray-700">
+                              {String(row.application_status || "status unavailable").replaceAll("_", " ")}
+                            </span>
                           </td>
                           <td className="p-5 text-right font-semibold text-gray-800">
                             {formatPeso(row.loan_amount)}
@@ -616,7 +643,9 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                 return (
                   <div className="p-6">
                     <p className="text-sm text-gray-400 italic">
-                      {selectedLoan.error || "No attribution available for this applicant."}
+                      {attributionLoading
+                        ? "Loading score explanation..."
+                        : attributionError || selectedLoan.error || "No attribution available for this applicant."}
                     </p>
                   </div>
                 );
