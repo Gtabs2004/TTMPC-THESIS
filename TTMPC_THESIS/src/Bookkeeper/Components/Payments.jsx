@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import QuickReasons from "../../components/QuickReasons";
 import { QUICK_REASONS } from "../../utils/quickReasons";
@@ -97,7 +97,11 @@ const BookkeeperPayments = () => {
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [monitoringLoading, setMonitoringLoading] = useState(false);
+  const [monitoringLoaded, setMonitoringLoaded] = useState(false);
+  const [monitoringError, setMonitoringError] = useState("");
   const [workingPaymentId, setWorkingPaymentId] = useState("");
+  const monitoringRequestRef = useRef(null);
   const loanById = useMemo(() => {
     const map = new Map();
     loans.forEach((loan) => map.set(loan.loan_id, loan));
@@ -113,12 +117,12 @@ const BookkeeperPayments = () => {
 
     return [
       { key: "pending", label: "Pending Payments", count: pendingCount },
-      { key: "validated", label: "Validated Payments", count: validatedCount },
-      { key: "rejected", label: "Rejected Payments", count: rejectedCount },
-      { key: "active", label: "Active Loans", count: activeLoansCount },
-      { key: "fully_paid", label: "Fully Paid", count: fullyPaidCount },
+      { key: "validated", label: "Validated Payments", count: monitoringLoaded ? validatedCount : "—" },
+      { key: "rejected", label: "Rejected Payments", count: monitoringLoaded ? rejectedCount : "—" },
+      { key: "active", label: "Active Loans", count: monitoringLoaded ? activeLoansCount : "—" },
+      { key: "fully_paid", label: "Fully Paid", count: monitoringLoaded ? fullyPaidCount : "—" },
     ];
-  }, [payments, loans]);
+  }, [payments, loans, monitoringLoaded]);
 
   const dashboardStats = useMemo(() => {
     const totalActiveLoans = loans.filter((loan) => loan.remaining_balance > 0).length;
@@ -152,17 +156,18 @@ const BookkeeperPayments = () => {
       .filter((item) => item.confirmation_status === targetStatus)
       .filter((item) => {
         const loan = loanById.get(item.loan_id);
-        if (!loan) return true;
+        const loanTypeCode = loan?.loan_type_code || item.loan_type_code;
+        const memberType = loan?.member_type || item.member_type;
 
-        if (loanTypeFilter !== "all" && loan.loan_type_code !== loanTypeFilter) return false;
-        if (memberTypeFilter !== "all" && loan.member_type !== memberTypeFilter) return false;
+        if (loanTypeFilter !== "all" && loanTypeCode !== loanTypeFilter) return false;
+        if (memberTypeFilter !== "all" && memberType !== memberTypeFilter) return false;
 
         if (!normalizedSearch) return true;
 
         return (
           String(item.payment_id).toLowerCase().includes(normalizedSearch) ||
           String(item.loan_id).toLowerCase().includes(normalizedSearch) ||
-          String(loan.member_name).toLowerCase().includes(normalizedSearch)
+          String(loan?.member_name || item.member_name || "").toLowerCase().includes(normalizedSearch)
         );
       });
   }, [activeTab, payments, loanById, loanTypeFilter, memberTypeFilter, searchTerm]);
@@ -187,6 +192,8 @@ const BookkeeperPayments = () => {
   const activeRecordCount = activeTab === "active" || activeTab === "fully_paid"
     ? filteredLoanRows.length
     : filteredPaymentRows.length;
+  const activeTabNeedsMonitoring = activeTab !== "pending";
+  const activeTabLoading = loading || (activeTabNeedsMonitoring && monitoringLoading);
 
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -225,6 +232,10 @@ const BookkeeperPayments = () => {
           entered_by: row.entered_by || "Cashier",
           reference_no: row.reference_no || row.payment_id,
           confirmation_status: row.confirmation_status || "pending_bookkeeper",
+          member_name: loan.member_name || "Unknown Member",
+          loan_type: loan.loan_type || "N/A",
+          loan_type_code: loan.loan_type_code || "",
+          member_type: loan.member_type || "Member",
         });
       }
     }
@@ -235,28 +246,16 @@ const BookkeeperPayments = () => {
     if (!silent) setLoading(true);
 
     try {
-      const [pendingRes, loansRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/bookkeeper/payments/pending`, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        }),
-        fetch(`${API_BASE_URL}/api/bookkeeper/manage-loans`, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        }),
-      ]);
-
+      const pendingRes = await fetch(`${API_BASE_URL}/api/bookkeeper/payments/pending`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
       const pendingPayload = await pendingRes.json().catch(() => ({}));
-      const loansPayload = await loansRes.json().catch(() => ({}));
 
       if (!pendingRes.ok) {
         throw new Error(pendingPayload?.detail || "Failed to load pending payments queue.");
       }
-      if (!loansRes.ok) {
-        throw new Error(loansPayload?.detail || "Failed to load loan monitoring data.");
-      }
 
-      const loanRows = Array.isArray(loansPayload?.data?.rows) ? loansPayload.data.rows : [];
       const pendingRows = Array.isArray(pendingPayload?.data) ? pendingPayload.data : [];
 
       const queueRows = pendingRows.map((row) => ({
@@ -269,24 +268,86 @@ const BookkeeperPayments = () => {
         entered_by: row.entered_by || "Cashier",
         reference_no: row.transaction_reference || row.payment_id,
         confirmation_status: row.confirmation_status || "pending_bookkeeper",
+        member_name: row.member_name || "Unknown Member",
+        loan_type: row.loan_type || "N/A",
+        loan_type_code: row.loan_type_code || "",
+        member_type: row.member_type || "Member",
       }));
 
-      const historyRows = buildPaymentsFromLoanHistory(loanRows)
-        .filter((row) => ["validated", "rejected"].includes(String(row.confirmation_status || "").toLowerCase()));
-
-      setLoans(loanRows);
-      setPayments([...queueRows, ...historyRows]);
-      addNotification("Payment data synced successfully", "success");
+      setPayments((current) => [
+        ...queueRows,
+        ...current.filter((row) => ["validated", "rejected"].includes(String(row.confirmation_status || "").toLowerCase())),
+      ]);
     } catch (error) {
       if (silent) return;
-      setLoans([]);
-      setPayments([]);
       addNotification(error?.message || "Unable to sync payments queue.", "error");
     } finally {
       if (!silent) setLoading(false);
     }
   }
-  useRealtimeRefetch(RT.LOANS, () => fetchPendingPayments({ silent: true }));
+
+  async function fetchLoanMonitoring({ silent = false } = {}) {
+    if (monitoringRequestRef.current) return monitoringRequestRef.current;
+    if (!silent) {
+      setMonitoringLoading(true);
+      setMonitoringError("");
+    }
+
+    const request = (async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/bookkeeper/manage-loans`, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload?.detail || "Failed to load loan monitoring data.");
+        }
+
+        const loanRows = Array.isArray(payload?.data?.rows) ? payload.data.rows : [];
+        const historyRows = buildPaymentsFromLoanHistory(loanRows)
+          .filter((row) => ["validated", "rejected"].includes(String(row.confirmation_status || "").toLowerCase()));
+        setLoans(loanRows);
+        setPayments((current) => [
+          ...current.filter((row) => String(row.confirmation_status || "").toLowerCase() === "pending_bookkeeper"),
+          ...historyRows,
+        ]);
+        setMonitoringLoaded(true);
+        setMonitoringError("");
+        return loanRows;
+      } catch (error) {
+        if (!silent) {
+          const message = error?.message || "Unable to load loan monitoring data.";
+          setMonitoringError(message);
+          addNotification(message, "error");
+        }
+        return null;
+      } finally {
+        monitoringRequestRef.current = null;
+        if (!silent) setMonitoringLoading(false);
+      }
+    })();
+
+    monitoringRequestRef.current = request;
+    return request;
+  }
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    if (tab !== "pending" && !monitoringLoaded) {
+      void fetchLoanMonitoring();
+    }
+  };
+
+  const refreshPayments = async () => {
+    await fetchPendingPayments();
+    if (monitoringLoaded || activeTabNeedsMonitoring) await fetchLoanMonitoring();
+  };
+
+  useRealtimeRefetch(RT.LOANS, () => {
+    void fetchPendingPayments({ silent: true });
+    if (monitoringLoaded) void fetchLoanMonitoring({ silent: true });
+  });
 
   async function approvePayment(paymentId) {
     setWorkingPaymentId(paymentId);
@@ -308,7 +369,7 @@ const BookkeeperPayments = () => {
       }
 
       addNotification(`Payment ${paymentId} validated and confirmed. Ledger is now updated.`, "success");
-      await fetchPendingPayments();
+      await refreshPayments();
     } catch (error) {
       addNotification(error?.message || "Failed to validate payment.", "error");
     } finally {
@@ -335,7 +396,7 @@ const BookkeeperPayments = () => {
       }
 
       addNotification(`Payment ${paymentId} rejected.`, "warning");
-      await fetchPendingPayments();
+      await refreshPayments();
     } catch (error) {
       addNotification(error?.message || "Failed to reject payment.", "error");
     } finally {
@@ -372,9 +433,16 @@ const BookkeeperPayments = () => {
     setRejectReason("");
   };
 
-  const openLoanDetailsFromPayment = (payment) => {
-    const loan = loanById.get(payment.loan_id);
-    if (!loan) return;
+  const openLoanDetailsFromPayment = async (payment) => {
+    let loan = loanById.get(payment.loan_id);
+    if (!loan) {
+      const loanRows = await fetchLoanMonitoring();
+      loan = loanRows?.find((row) => String(row.loan_id) === String(payment.loan_id));
+    }
+    if (!loan) {
+      addNotification("Unable to load this loan's ledger details.", "error");
+      return;
+    }
     navigate(`/bookkeeper-loan-ledger/${loan.loan_id}`, { state: { loan } });
   };
 
@@ -402,7 +470,7 @@ const BookkeeperPayments = () => {
             <h1 className="text-2xl font-bold text-gray-900">Loan Payments Confirmation</h1>
             <button
               type="button"
-              onClick={fetchPendingPayments}
+              onClick={refreshPayments}
               className="px-4 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700"
             >
               Refresh
@@ -410,18 +478,20 @@ const BookkeeperPayments = () => {
           </div>
 
           <StatCardRow cols={3}>
-            <StatCard label="Total Active Loans" value={dashboardStats.totalActiveLoans} icon={CreditCard} iconColor="text-blue-600" />
-            <StatCard label="Outstanding Balance" value={formatCurrency(dashboardStats.totalOutstanding)} icon={Wallet} iconColor="text-amber-600" />
-            <StatCard label="Collected This Month" value={formatCurrency(dashboardStats.collectedThisMonth)} icon={Coins} iconColor="text-green-600" />
+            <StatCard label="Total Active Loans" value={monitoringLoaded ? dashboardStats.totalActiveLoans : "—"} icon={CreditCard} iconColor="text-blue-600" />
+            <StatCard label="Outstanding Balance" value={monitoringLoaded ? formatCurrency(dashboardStats.totalOutstanding) : "—"} icon={Wallet} iconColor="text-amber-600" />
+            <StatCard label="Collected This Month" value={monitoringLoaded ? formatCurrency(dashboardStats.collectedThisMonth) : "—"} icon={Coins} iconColor="text-green-600" />
           </StatCardRow>
 
           <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden enhanced-table">
             <TableToolbar
               title="Payment Records"
-              subtitle={`Showing ${(activeTab === "active" || activeTab === "fully_paid" ? paginatedLoanRows.length : paginatedPaymentRows.length)} of ${activeRecordCount} records`}
+              subtitle={activeTabNeedsMonitoring && !monitoringLoaded
+                ? "Loan history loads when you open a history tab"
+                : `Showing ${(activeTab === "active" || activeTab === "fully_paid" ? paginatedLoanRows.length : paginatedPaymentRows.length)} of ${activeRecordCount} records`}
               tabs={tabItems.map((tab) => ({ value: tab.key, label: tab.label, count: tab.count }))}
               activeTab={activeTab}
-              onTabChange={setActiveTab}
+              onTabChange={handleTabChange}
             >
               <select
                 value={loanTypeFilter}
@@ -461,9 +531,17 @@ const BookkeeperPayments = () => {
             <div className="px-6 py-3">
               
 
-              {loading && (
+              {activeTabLoading && (
                 <div className="mt-3 rounded border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                  Syncing payment queue and loan ledger data...
+                  {activeTab === "pending" ? "Loading pending payments..." : "Loading loan and payment history..."}
+                </div>
+              )}
+              {monitoringError && activeTabNeedsMonitoring && (
+                <div className="mt-3 flex items-center justify-between gap-3 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  <span>{monitoringError}</span>
+                  <button type="button" onClick={() => void fetchLoanMonitoring()} className="font-semibold underline">
+                    Retry
+                  </button>
                 </div>
               )}
             </div>
@@ -496,8 +574,10 @@ const BookkeeperPayments = () => {
                 )}
               </thead>
               <tbody>
-                {loading ? (
+                {activeTabLoading ? (
                   <TableStateRow colSpan={8} variant="loading" label="Loading..." />
+                ) : activeTabNeedsMonitoring && !monitoringLoaded && monitoringError ? (
+                  <TableStateRow colSpan={8} variant="empty" icon={Eye} label="Loan history could not be loaded" />
                 ) : activeRecordCount === 0 ? (
                   <TableStateRow
                     colSpan={8}
@@ -566,12 +646,12 @@ const BookkeeperPayments = () => {
                     return (
                       <tr key={item.payment_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                         <td className="p-5 text-xs font-mono font-bold text-green-700 whitespace-nowrap">{item.payment_id}</td>
-                        <td className="p-5 text-xs text-gray-800 font-semibold">{loan?.member_name || "Unknown Member"}</td>
+                        <td className="p-5 text-xs text-gray-800 font-semibold">{loan?.member_name || item.member_name || "Unknown Member"}</td>
                         <td className="p-5">
                           <div className="text-[10px] text-gray-500 mb-1 whitespace-nowrap">Loan ID: {item.loan_id}</div>
                           <div>
-                            <span className={`badge-animated ${getLoanTypeStyle(loan?.loan_type_code)}`}>
-                              {loan?.loan_type || "N/A"}
+                            <span className={`badge-animated ${getLoanTypeStyle(loan?.loan_type_code || item.loan_type_code)}`}>
+                              {loan?.loan_type || item.loan_type || "N/A"}
                             </span>
                           </div>
                         </td>
@@ -668,8 +748,5 @@ const BookkeeperPayments = () => {
 };
 
 export default BookkeeperPayments;
-
-
-
 
 
