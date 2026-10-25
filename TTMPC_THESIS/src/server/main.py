@@ -21968,10 +21968,13 @@ async def get_bookkeeper_reports():
 
     Returns:
       - kpi: total_loan_portfolio, total_share_capital, total_savings, active_members,
-             fully_paid_count, active_loan_count, delinquency_rate, total_penalties_collected
+             fully_paid_count, active_loan_count, overdue-schedule delinquency_rate,
+             total_penalties_collected
       - loan_type_distribution: count & portfolio value per loan type
-      - monthly_collections: last 12 months of validated payment totals
-      - membership_growth: last 12 months of new member registrations
+      - monthly_collections: current calendar year's validated payment totals
+      - monthly_collections_by_year: monthly validated payment totals for each payment year
+      - membership_growth: current calendar year's new member registrations
+      - membership_growth_by_year: monthly new member registrations by year
       - payment_status_breakdown: validated / pending / rejected counts
       - migs_distribution: MIGS vs Non-MIGS member counts
     """
@@ -21997,27 +22000,38 @@ async def get_bookkeeper_reports():
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to load loans: {exc}")
 
-    # Collect loan_ids that have at least one outstanding schedule row (paginated).
+    # Collect active loans and loans with an elapsed unpaid installment (paginated).
     _active_schedule_ids: set[str] = set()
+    _past_due_schedule_ids: set[str] = set()
     try:
         _offset = 0
         _page = 1000
         while True:
             _batch = (
                 supabase.table("loan_schedules")
-                .select("loan_id")
-                .in_("schedule_status", ["Unpaid", "unpaid", "Pending", "pending", "Overdue", "overdue"])
+                .select("loan_id,due_date,schedule_status")
+                .in_(
+                    "schedule_status",
+                    ["Unpaid", "unpaid", "Pending", "pending", "Overdue", "overdue", "partially_paid"],
+                )
                 .range(_offset, _offset + _page - 1)
                 .execute()
             ).data or []
             for _r in _batch:
-                if _r.get("loan_id"):
-                    _active_schedule_ids.add(str(_r["loan_id"]))
+                _loan_id = str(_r.get("loan_id") or "").strip()
+                _status = str(_r.get("schedule_status") or "").strip().lower()
+                if not _loan_id:
+                    continue
+                if _status in {"unpaid", "pending", "overdue"}:
+                    _active_schedule_ids.add(_loan_id)
+                _due_date = parse_date_value(_r.get("due_date"))
+                if _status in {"unpaid", "pending", "overdue", "partially_paid"} and _due_date and _due_date < today:
+                    _past_due_schedule_ids.add(_loan_id)
             if len(_batch) < _page:
                 break
             _offset += _page
-    except Exception:
-        _active_schedule_ids = set()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to load loan schedules: {exc}")
 
     # Also include loans whose loan_status marks them as in-pipeline (not yet
     # on a schedule but not cancelled/rejected either).
@@ -22113,13 +22127,8 @@ async def get_bookkeeper_reports():
 
     total_penalties = sum(float(p.get("penalties") or 0) for p in validated_payments)
 
-    # Monthly collections — last 12 months of validated payments
-    monthly_collections: dict[str, float] = {}
-    for i in range(11, -1, -1):
-        ref = date(today.year, today.month, 1) - timedelta(days=i * 30)
-        label = ref.strftime("%b %Y")
-        monthly_collections[label] = 0.0
-
+    # Keep collections grouped by payment year so reports can show full calendar years.
+    collection_totals_by_year: dict[int, dict[int, float]] = {today.year: {}}
     for p in validated_payments:
         raw_date = str(p.get("payment_date") or "").strip()
         if not raw_date:
@@ -22128,14 +22137,20 @@ async def get_bookkeeper_reports():
             pd_date = datetime.fromisoformat(raw_date).date()
         except ValueError:
             continue
-        label = pd_date.strftime("%b %Y")
-        if label in monthly_collections:
-            monthly_collections[label] += float(p.get("amount_paid") or 0)
+        if pd_date > today:
+            continue
+        year_totals = collection_totals_by_year.setdefault(pd_date.year, {})
+        year_totals[pd_date.month] = year_totals.get(pd_date.month, 0.0) + float(p.get("amount_paid") or 0)
 
-    monthly_collections_list = [
-        {"month": k, "collections": round(v, 2)}
-        for k, v in monthly_collections.items()
-    ]
+    month_labels = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+    monthly_collections_by_year = {
+        str(year): [
+            {"month": f"{month_labels[month - 1]} {year}", "collections": round(totals.get(month, 0.0), 2)}
+            for month in range(1, today.month + 1 if year == today.year else 13)
+        ]
+        for year, totals in sorted(collection_totals_by_year.items())
+    }
+    monthly_collections_list = monthly_collections_by_year[str(today.year)]
 
     # Payment status breakdown
     payment_status_breakdown = {
@@ -22144,23 +22159,19 @@ async def get_bookkeeper_reports():
         "rejected": len(rejected_payments),
     }
 
-    # Delinquency — loans with no validated payment in last 90 days and still active
-    active_loan_ids = {str(r.get("control_number") or "") for r in active_loans}
-    recent_cutoff = today - timedelta(days=90)
-    recently_paid_ids: set[str] = set()
-    for p in validated_payments:
-        raw_date = str(p.get("payment_date") or "").strip()
-        if not raw_date:
-            continue
-        try:
-            pd_date = datetime.fromisoformat(raw_date).date()
-        except ValueError:
-            continue
-        if pd_date >= recent_cutoff:
-            recently_paid_ids.add(str(p.get("loan_id") or "").strip())
-
-    delinquent_ids = active_loan_ids - recently_paid_ids
-    delinquency_rate = (len(delinquent_ids) / len(active_loan_ids) * 100) if active_loan_ids else 0.0
+    # A loan is delinquent only when an unpaid installment is past its due date.
+    # Recent payment activity alone is not sufficient: legacy payments may live
+    # in a separate table, and a current loan can be paid less than every 90 days.
+    collectible_loan_ids = {
+        str(r.get("control_number") or "").strip()
+        for r in active_loans
+        if str(r.get("control_number") or "").strip() in _active_schedule_ids
+        and str(r.get("loan_status") or "").strip().lower() not in _pipeline_statuses
+        and str(r.get("loan_status") or "").strip().lower() not in _excluded_statuses
+        and str(r.get("loan_status") or "").strip().lower() not in _done_statuses
+    }
+    delinquent_ids = collectible_loan_ids & _past_due_schedule_ids
+    delinquency_rate = (len(delinquent_ids) / len(collectible_loan_ids) * 100) if collectible_loan_ids else 0.0
 
     # ── 3. Members ──────────────────────────────────────────────────────────
     try:
@@ -22219,13 +22230,8 @@ async def get_bookkeeper_reports():
         non_migs_count = total_members - migs_count
         unscored_count = 0
 
-    # Membership growth — new registrations last 12 months
-    membership_growth: dict[str, int] = {}
-    for i in range(11, -1, -1):
-        ref = date(today.year, today.month, 1) - timedelta(days=i * 30)
-        label = ref.strftime("%b %Y")
-        membership_growth[label] = 0
-
+    # Group new member registrations by calendar year.
+    membership_totals_by_year: dict[int, dict[int, int]] = {today.year: {}}
     for m in all_members:
         raw_date = str(m.get("created_at") or "").strip()
         if not raw_date:
@@ -22234,14 +22240,19 @@ async def get_bookkeeper_reports():
             m_date = datetime.fromisoformat(raw_date).date()
         except ValueError:
             continue
-        label = m_date.strftime("%b %Y")
-        if label in membership_growth:
-            membership_growth[label] += 1
+        if m_date > today:
+            continue
+        year_totals = membership_totals_by_year.setdefault(m_date.year, {})
+        year_totals[m_date.month] = year_totals.get(m_date.month, 0) + 1
 
-    membership_growth_list = [
-        {"month": k, "new_members": v}
-        for k, v in membership_growth.items()
-    ]
+    membership_growth_by_year = {
+        str(year): [
+            {"month": f"{month_labels[month - 1]} {year}", "new_members": totals.get(month, 0)}
+            for month in range(1, today.month + 1 if year == today.year else 13)
+        ]
+        for year, totals in sorted(membership_totals_by_year.items())
+    }
+    membership_growth_list = membership_growth_by_year[str(today.year)]
 
     # ── 4. Share Capital ────────────────────────────────────────────────────
     # Same figure as the dashboards: each member's current CBU balance
@@ -22283,7 +22294,9 @@ async def get_bookkeeper_reports():
         },
         "loan_type_distribution": loan_type_distribution,
         "monthly_collections": monthly_collections_list,
+        "monthly_collections_by_year": monthly_collections_by_year,
         "membership_growth": membership_growth_list,
+        "membership_growth_by_year": membership_growth_by_year,
         "payment_status_breakdown": payment_status_breakdown,
         "migs_distribution": {
             "migs": migs_count,

@@ -103,7 +103,12 @@ const CONSOL_FILTERS = [
 ];
 
 // Fixed per gender (not by slice order) so each always keeps its color.
-const GENDER_SLICE_COLORS = { Male: GREEN.dark, Female: '#ea580c' };
+const GENDER_SLICE_COLORS = {
+  Male: GREEN.dark,
+  Female: '#ea580c',
+  Other: '#64748b',
+  'Not recorded': '#9ca3af',
+};
 
 const formatCurrency = (v) => `₱${Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const formatDateShort = (v) => {
@@ -118,8 +123,24 @@ const monthKey = (d) => d.toLocaleDateString('en-US', { month: 'short' });
 // small dependent lookup). Lives outside the component so TanStack Query can
 // cache it under BOD_DASHBOARD_QUERY_KEY across navigation.
 const BOD_DASHBOARD_QUERY_KEY = ['dashboard', 'bod'];
+async function fetchAllRows(table, columns) {
+  const rows = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase
+      .from(table)
+      .select(columns)
+      .range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) return rows;
+  }
+}
+
 async function fetchBodDashboard() {
   const now = new Date();
+  const yearStart = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
+  const nextYearStart = new Date(now.getFullYear() + 1, 0, 1).toISOString().slice(0, 10);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
   const sixMoStart = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().slice(0, 10);
 
@@ -172,13 +193,14 @@ async function fetchBodDashboard() {
     supabase
       .from('loans')
       .select('disbursal_date, loan_status, loan_amount, principal_amount, loan_types:loan_type_id(name)')
-      .gte('disbursal_date', sixMoStart)
+      .gte('disbursal_date', yearStart)
+      .lt('disbursal_date', nextYearStart)
       .in('loan_status', ['released', 'partially paid', 'fully paid'])
       .limit(20000),
-    supabase
-      .from('personal_data_sheet')
-      .select('gender')
-      .limit(20000),
+    Promise.all([
+      fetchAllRows('member', 'membership_id'),
+      fetchAllRows('personal_data_sheet', 'membership_number_id, gender'),
+    ]),
     supabase
       .from('loan_payments')
       .select('id, loan_id, amount_paid, payment_date, confirmation_status, payment_reference')
@@ -224,7 +246,7 @@ async function fetchBodDashboard() {
   const allDisbursed = allDisbursedRes?.data || [];
   const overdueSched = overdueSchedRes?.data || [];
   const approvedRows = approvedTrendRes?.data || [];
-  const genderRows = gendersRes?.data || [];
+  const [memberRows, genderRows] = gendersRes || [[], []];
   const recentPayments = recentPaymentsRes?.data || [];
   const recentDisbursals = recentDisbursalRes?.data || [];
   const recentApplications = recentApplicationsRes?.data || [];
@@ -251,12 +273,11 @@ async function fetchBodDashboard() {
 
   const kpis = { totalLoansCount, latePaymentsCount, activeLoansCount, approvedThisMonth };
 
-  // Approved-per-month trend, broken down by loan type (via
-  // loan_types.name on each disbursed loan).
+  // Calendar-year disbursals, broken down by loan type (via loan_types.name).
   const approvedBuckets = new Map();
-  for (let i = 5; i >= 0; i -= 1) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    approvedBuckets.set(monthKey(d), {
+  for (let month = 0; month < 12; month += 1) {
+    const d = new Date(now.getFullYear(), month, 1);
+    approvedBuckets.set(month, {
       month: monthKey(d),
       ...Object.fromEntries(APPROVED_LOAN_TYPE_LABELS.map((label) => [label, 0])),
       [CONSOL_ABOVE]: 0,
@@ -267,7 +288,9 @@ async function fetchBodDashboard() {
     if (!r.disbursal_date) return;
     const label = resolveApprovedLoanTypeLabel(r.loan_types?.name);
     if (!label) return;
-    const slot = approvedBuckets.get(monthKey(new Date(r.disbursal_date)));
+    const disbursalDate = new Date(r.disbursal_date);
+    const slot = approvedBuckets.get(disbursalDate.getMonth());
+    if (disbursalDate.getFullYear() !== now.getFullYear()) return;
     if (!slot) return;
     slot[label] += 1;
     if (label === 'Consolidated Loan') {
@@ -277,18 +300,50 @@ async function fetchBodDashboard() {
   });
   const approvedTrend = [...approvedBuckets.values()];
 
+  const annualDisbursementByType = new Map(
+    APPROVED_LOAN_TYPE_LABELS.map((name) => [
+      name,
+      { name, count: 0, amount: 0, color: APPROVED_LOAN_TYPE_COLORS[name] },
+    ])
+  );
+  approvedRows.forEach((row) => {
+    if (!row.disbursal_date) return;
+    const disbursalDate = new Date(row.disbursal_date);
+    if (disbursalDate.getFullYear() !== now.getFullYear()) return;
+    const typeName = resolveApprovedLoanTypeLabel(row.loan_types?.name);
+    if (!typeName) return;
+    const summary = annualDisbursementByType.get(typeName);
+    const amount = Number(row.loan_amount ?? row.principal_amount ?? 0);
+    summary.count += 1;
+    summary.amount += Number.isFinite(amount) ? amount : 0;
+  });
+  const annualDisbursement = [...annualDisbursementByType.values()].reduce(
+    (summary, type) => ({
+      count: summary.count + type.count,
+      amount: summary.amount + type.amount,
+      byType: [...summary.byType, type],
+    }),
+    { count: 0, amount: 0, byType: [] }
+  );
+
   // Gender distribution
+  const genderByMembershipId = new Map(
+    genderRows
+      .filter((row) => row.membership_number_id)
+      .map((row) => [String(row.membership_number_id).trim(), row.gender])
+  );
   const genderCounts = new Map();
-  genderRows.forEach((r) => {
-    const raw = String(r.gender || '').trim();
-    if (!raw) return;
-    const norm = raw.toLowerCase().startsWith('f') ? 'Female'
-      : raw.toLowerCase().startsWith('m') ? 'Male'
-      : 'Other';
+  memberRows.forEach((member) => {
+    const membershipId = String(member.membership_id || '').trim();
+    const raw = String(genderByMembershipId.get(membershipId) || '').trim();
+    const norm = !raw ? 'Not recorded'
+      : raw.toLowerCase().startsWith('f') ? 'Female'
+        : raw.toLowerCase().startsWith('m') ? 'Male'
+          : 'Other';
     genderCounts.set(norm, (genderCounts.get(norm) || 0) + 1);
   });
   const genderArr = [...genderCounts.entries()].map(([name, value]) => ({ name, value }));
-  const genderTotal = genderArr.reduce((s, g) => s + g.value, 0);
+  const genderTotal = memberRows.length;
 
   // Recent transactions — every transaction type the system records,
   // not just loan disbursements/payments (CLAUDE.md's loan lifecycle
@@ -454,6 +509,7 @@ async function fetchBodDashboard() {
   return {
     kpis,
     approvedTrend,
+    annualDisbursement,
     genderData: genderArr,
     genderTotal,
     recentTxns: txnRows.slice(0, 10),
@@ -474,6 +530,7 @@ const Dashboard_BOD = () => {
   const {
     kpis = { totalLoansCount: 0, latePaymentsCount: 0, activeLoansCount: 0, approvedThisMonth: 0 },
     approvedTrend = [],
+    annualDisbursement = { count: 0, amount: 0, byType: [] },
     genderData = [],
     genderTotal = 0,
     recentTxns = [],
@@ -582,15 +639,15 @@ const Dashboard_BOD = () => {
           </StatCardRow>
 
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 min-w-0">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-w-0">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 min-w-0">
+            <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-w-0">
               <h3 className="text-lg font-bold text-gray-800 mb-1">Approved Loans per Month</h3>
               <p className="text-sm text-gray-500 mb-4">
                 {approvedTab === 'all'
-                  ? 'Disbursed loans over the last 6 months, by loan type'
+                  ? `Disbursed loans in ${new Date().getFullYear()}, by loan type`
                   : approvedTab === 'Consolidated Loan'
-                    ? 'Disbursed Consolidated loans over the last 6 months, by amount (> ₱500K requires BOD approval)'
-                    : `Disbursed ${approvedTab.replace(' Loan', '')} loans over the last 6 months`}
+                    ? `Disbursed Consolidated loans in ${new Date().getFullYear()}, by amount (> ₱500K requires BOD approval)`
+                    : `Disbursed ${approvedTab.replace(' Loan', '')} loans in ${new Date().getFullYear()}`}
               </p>
               <div className="flex flex-wrap items-center gap-2 mb-4">
                 <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5" role="tablist" aria-label="Loan type">
@@ -642,7 +699,8 @@ const Dashboard_BOD = () => {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col items-center min-w-0">
+            <div className="self-start flex min-w-0 flex-col gap-4">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 min-w-0">
               <div className="w-full flex justify-between items-center mb-4">
                 <div>
                   <h3 className="text-sm font-bold text-gray-800">Gender Distribution</h3>
@@ -650,25 +708,120 @@ const Dashboard_BOD = () => {
                 </div>
                 {loading ? <Skeleton className="h-6 w-24 rounded-lg" /> : <span className="text-xs font-medium bg-green-50 text-green-700 px-3 py-1 rounded-lg">{genderTotal} Members</span>}
               </div>
-              <div className="h-48 w-full">
-                {loading ? <SkeletonDonut /> : chartsReady && genderData.length > 0 ? <ResponsiveContainer debounce={200} width="100%" height="100%" minWidth={0} minHeight={160}>
-                  <PieChart>
-                    <Pie
-                      data={genderData}
-                      innerRadius={50}
-                      outerRadius={70}
-                      paddingAngle={3}
-                      dataKey="value"
-                      stroke="white"
-                      strokeWidth={2}
-                    >
-                      {genderData.map((entry, index) => <Cell key={`cell-${index}`} fill={GENDER_SLICE_COLORS[entry.name] || GENDER_COLORS[index % GENDER_COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#FFFFFF', padding: '12px' }} formatter={(value) => `${value} members`} />
-                    <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ paddingTop: '16px' }} />
-                  </PieChart>
-                </ResponsiveContainer> : <div className="h-full w-full rounded-lg bg-gray-50 flex items-center justify-center text-xs text-gray-400">No gender data available</div>}
+              {loading ? (
+                <div className="h-36 w-full"><SkeletonDonut /></div>
+              ) : chartsReady && genderData.length > 0 ? (
+                <div className="flex w-full items-center gap-3">
+                  <div className="relative h-36 w-36 shrink-0" role="img" aria-label={`Gender distribution among ${genderTotal} members`}>
+                    <ResponsiveContainer debounce={200} width="100%" height="100%" minWidth={120} minHeight={120}>
+                      <PieChart>
+                        <Pie
+                          data={genderData}
+                          innerRadius={38}
+                          outerRadius={54}
+                          paddingAngle={3}
+                          dataKey="value"
+                          stroke="white"
+                          strokeWidth={2}
+                        >
+                          {genderData.map((entry, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={GENDER_SLICE_COLORS[entry.name] || GENDER_COLORS[index % GENDER_COLORS.length]}
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{
+                            borderRadius: '12px',
+                            border: '1px solid #E5E7EB',
+                            boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)',
+                            backgroundColor: '#FFFFFF',
+                            padding: '12px',
+                          }}
+                          formatter={(value) => `${value} members`}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-lg font-bold tabular-nums text-gray-900">{genderTotal.toLocaleString()}</span>
+                      <span className="text-[10px] text-gray-500">members</span>
+                    </div>
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-2">
+                    {genderData.map((entry, index) => {
+                      const color = GENDER_SLICE_COLORS[entry.name] || GENDER_COLORS[index % GENDER_COLORS.length];
+                      const share = genderTotal ? (entry.value / genderTotal) * 100 : 0;
+                      return (
+                        <div key={entry.name} className="flex min-w-0 items-center justify-between gap-2 text-xs">
+                          <span className="flex min-w-0 items-center gap-1.5 text-gray-600">
+                            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+                            <span className="truncate">{entry.name}</span>
+                          </span>
+                          <span className="shrink-0 text-right font-semibold tabular-nums text-gray-900">
+                            {entry.value.toLocaleString()} <span className="font-normal text-gray-500">({share.toFixed(1)}%)</span>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex h-36 w-full items-center justify-center rounded-lg bg-gray-50 text-xs text-gray-500">
+                  No member data available
+                </div>
+              )}
+            </div>
+            <section
+              aria-labelledby="bod-disbursement-summary-title"
+              className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 min-w-0"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 id="bod-disbursement-summary-title" className="text-sm font-bold text-gray-800">
+                    Loan Release ({new Date().getFullYear()})
+                  </h3>
+                  <p className="mt-0.5 text-xs text-gray-500">Member loans · {new Date().getFullYear()}</p>
+                </div>
+                {!loading && (
+                  <span className="shrink-0 rounded-md bg-green-50 px-2 py-1 text-xs font-semibold tabular-nums text-green-800">
+                    {annualDisbursement.count.toLocaleString()} loans
+                  </span>
+                )}
               </div>
+              {loading ? (
+                <div className="mt-4 space-y-3" aria-label="Loading disbursement summary">
+                  <Skeleton className="h-7 w-36" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-4/5" />
+                </div>
+              ) : (
+                <>
+                  <p className="mt-4 text-2xl font-bold tabular-nums text-gray-900">
+                    {formatCurrency(annualDisbursement.amount)}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-gray-500">Total amount disbursed</p>
+                  <div className="mt-3 divide-y divide-gray-100">
+                    {annualDisbursement.byType.map((type) => (
+                      <div key={type.name} className="flex items-center justify-between gap-3 py-2 text-xs">
+                        <span className="flex min-w-0 items-center gap-2 text-gray-600">
+                          <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: type.color }} />
+                          <span className="truncate">{type.name.replace(' Loan', '')}</span>
+                          <span className="shrink-0 text-gray-500">({type.count})</span>
+                        </span>
+                        <span className="shrink-0 font-semibold tabular-nums text-gray-800">
+                          {formatCurrency(type.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-1 text-[10px] leading-relaxed text-gray-500">
+                    Based on loan amounts at disbursement; excludes non-member loans.
+                  </p>
+                </>
+              )}
+            </section>
             </div>
           </div>
 

@@ -121,7 +121,7 @@ const CountTooltip = ({ active, payload, label }) => {
 };
 
 // ─── PDF generation ──────────────────────────────────────────────────────────
-function generateExecutivePDF(data, generatedAt) {
+function generateExecutivePDF(data, generatedAt, collectionsYear) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const margin = 14;
@@ -265,10 +265,12 @@ function generateExecutivePDF(data, generatedAt) {
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(22, 101, 52);
-  doc.text("MONTHLY COLLECTIONS (LAST 12 MONTHS)", margin, y);
+  doc.text(`MONTHLY COLLECTIONS (${collectionsYear})`, margin, y);
   y += 4;
 
-  const mcRows = (data.monthly_collections || []).map((m) => [
+  const collectionsByYear = data.monthly_collections_by_year || {};
+  const selectedCollections = collectionsByYear[String(collectionsYear)] || data.monthly_collections || [];
+  const mcRows = selectedCollections.map((m) => [
     m.month,
     fmtPdf(m.collections),
   ]);
@@ -301,7 +303,7 @@ function generateExecutivePDF(data, generatedAt) {
   }
 
   const today = new Date().toISOString().split("T")[0];
-  doc.save(`TTMPC_Bookkeeper_Report_${today}.pdf`);
+  doc.save(`TTMPC_Bookkeeper_Report_${collectionsYear}_${today}.pdf`);
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -312,6 +314,8 @@ const Reports = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [generatedAt, setGeneratedAt] = useState(null);
+  const [collectionsYear, setCollectionsYear] = useState(String(new Date().getFullYear()));
+  const [membershipYear, setMembershipYear] = useState(String(new Date().getFullYear()));
 
   const fetchReports = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -336,13 +340,25 @@ const Reports = () => {
 
   const kpi = reportData?.kpi || {};
   const loanDist = reportData?.loan_type_distribution || [];
-  const monthlyCollections = reportData?.monthly_collections || [];
-  const membershipGrowth = reportData?.membership_growth || [];
+  const monthlyCollectionsByYear = reportData?.monthly_collections_by_year || {};
+  const collectionYears = Array.from(
+    new Set([String(new Date().getFullYear()), ...Object.keys(monthlyCollectionsByYear)])
+  ).sort((a, b) => Number(b) - Number(a));
+  const monthlyCollections =
+    monthlyCollectionsByYear[collectionsYear] ||
+    (collectionsYear === String(new Date().getFullYear()) ? reportData?.monthly_collections || [] : []);
+  const membershipGrowthByYear = reportData?.membership_growth_by_year || {};
+  const membershipYears = Array.from(
+    new Set([String(new Date().getFullYear()), ...Object.keys(membershipGrowthByYear)])
+  ).sort((a, b) => Number(b) - Number(a));
+  const membershipGrowth =
+    membershipGrowthByYear[membershipYear] ||
+    (membershipYear === String(new Date().getFullYear()) ? reportData?.membership_growth || [] : []);
   const psb = reportData?.payment_status_breakdown || {};
   const migs = reportData?.migs_distribution || {};
 
-  // Pie data: loan type dist
-  const pieData = loanDist.map((d, i) => ({
+  // Bar data: loan type dist
+  const loanDistributionData = loanDist.map((d, i) => ({
     name: d.name,
     value: d.count,
     color: getLoanTypeColor(d.name, i),
@@ -426,7 +442,7 @@ const Reports = () => {
                 Refresh
               </button>
               <button
-                onClick={() => reportData && generateExecutivePDF(reportData, generatedAt)}
+                onClick={() => reportData && generateExecutivePDF(reportData, generatedAt, collectionsYear)}
                 disabled={loading || !reportData}
                 className="action-button action-button-standard action-button-primary"
               >
@@ -487,14 +503,29 @@ const Reports = () => {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                 {/* Monthly Collections Bar */}
                 <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-                  <div className="flex justify-between items-start mb-5">
+                  <div className="flex flex-wrap justify-between items-start gap-3 mb-5">
                     <div>
                       <h2 className="text-base font-bold text-gray-900">Monthly Collections</h2>
-                      <p className="text-xs text-gray-400">Validated payments — last 12 months</p>
+                      <p className="text-xs text-gray-400">Validated payments by calendar year</p>
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                      <div className="w-2.5 h-2.5 rounded-full bg-[#166534]" />
-                      Collections
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label htmlFor="collections-year" className="text-xs font-medium text-gray-600">
+                        Year
+                      </label>
+                      <select
+                        id="collections-year"
+                        value={collectionsYear}
+                        onChange={(event) => setCollectionsYear(event.target.value)}
+                        className="rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-700/30"
+                      >
+                        {collectionYears.map((year) => (
+                          <option key={year} value={year}>{year}</option>
+                        ))}
+                      </select>
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                        <div className="w-2.5 h-2.5 rounded-full bg-[#166534]" />
+                        Collections
+                      </div>
                     </div>
                   </div>
                   <ResponsiveContainer debounce={200} width="100%" height={200}>
@@ -513,46 +544,54 @@ const Reports = () => {
                   </ResponsiveContainer>
                 </div>
 
-                {/* Loan Type Donut */}
+                {/* Loan Type Bar Chart */}
                 <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm flex flex-col">
-                  <h2 className="text-base font-bold text-gray-900 mb-1">Loan Distribution</h2>
-                  <p className="text-xs text-gray-400 mb-4">Active loans by type</p>
-                  <div className="flex-1 flex items-center justify-center h-36 relative">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-base font-bold text-gray-900 mb-1">Loan Distribution</h2>
+                      <p className="text-xs text-gray-400">Active loans by type</p>
+                    </div>
+                    <span className="shrink-0 text-xs font-bold tabular-nums text-gray-700">
+                      {kpi.active_loan_count ?? 0} active
+                    </span>
+                  </div>
+                  <div className="mt-4 h-44">
                     <ResponsiveContainer debounce={200} width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={pieData} innerRadius={42} outerRadius={60} paddingAngle={2} dataKey="value" stroke="none">
-                          {pieData.map((entry, i) => (
-                            <Cell key={i} fill={entry.color} />
-                          ))}
-                        </Pie>
+                      <BarChart
+                        data={loanDistributionData}
+                        layout="vertical"
+                        margin={{ top: 2, right: 22, bottom: 2, left: 0 }}
+                      >
+                        <XAxis type="number" hide allowDecimals={false} />
+                        <YAxis
+                          type="category"
+                          dataKey="name"
+                          width={126}
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fontSize: 10, fill: "#4b5563" }}
+                        />
                         <Tooltip
+                          cursor={{ fill: "#f3f4f6" }}
                           content={({ active, payload }) => {
                             if (!active || !payload?.length) return null;
                             return (
                               <div className="bg-white border border-gray-100 shadow-lg rounded-lg px-3 py-2 text-xs">
-                                <p className="font-bold" style={{ color: payload[0].payload.color }}>{payload[0].name}</p>
+                                <p className="font-bold" style={{ color: payload[0].payload.color }}>
+                                  {payload[0].payload.name}
+                                </p>
                                 <p className="text-gray-600">{payload[0].value} loans</p>
                               </div>
                             );
                           }}
                         />
-                      </PieChart>
+                        <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={18}>
+                          {loanDistributionData.map((entry, i) => (
+                            <Cell key={i} fill={entry.color} />
+                          ))}
+                        </Bar>
+                      </BarChart>
                     </ResponsiveContainer>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                      <span className="text-lg font-black text-gray-900">{kpi.active_loan_count ?? 0}</span>
-                      <span className="text-[10px] text-gray-400 font-medium">Active</span>
-                    </div>
-                  </div>
-                  <div className="mt-4 flex flex-col gap-1.5">
-                    {pieData.map((item, i) => (
-                      <div key={i} className="flex justify-between items-center text-xs">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
-                          <span className="text-gray-600 font-medium">{item.name}</span>
-                        </div>
-                        <span className="font-bold text-gray-900">{item.value}</span>
-                      </div>
-                    ))}
                   </div>
                 </div>
               </div>
@@ -561,14 +600,29 @@ const Reports = () => {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                 {/* Membership Growth */}
                 <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-                  <div className="flex justify-between items-start mb-5">
+                  <div className="flex flex-wrap justify-between items-start gap-3 mb-5">
                     <div>
                       <h2 className="text-base font-bold text-gray-900">Membership Growth</h2>
-                      <p className="text-xs text-gray-400">New registrations — last 12 months</p>
+                      <p className="text-xs text-gray-400">New registrations by calendar year</p>
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                      <div className="w-4 h-0.5 bg-[#166534]" />
-                      New Members
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label htmlFor="membership-year" className="text-xs font-medium text-gray-600">
+                        Year
+                      </label>
+                      <select
+                        id="membership-year"
+                        value={membershipYear}
+                        onChange={(event) => setMembershipYear(event.target.value)}
+                        className="rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-700/30"
+                      >
+                        {membershipYears.map((year) => (
+                          <option key={year} value={year}>{year}</option>
+                        ))}
+                      </select>
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                        <div className="w-4 h-0.5 bg-[#166534]" />
+                        New Members
+                      </div>
                     </div>
                   </div>
                   <ResponsiveContainer debounce={200} width="100%" height={200}>
