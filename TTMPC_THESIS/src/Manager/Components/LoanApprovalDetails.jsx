@@ -1425,6 +1425,7 @@ const LoanApprovalDetails = () => {
         nextStatus = 'recommended for approval';
       }
     }
+    if (isBookkeeperFlow && modalType === 'revise') nextStatus = 'revision_requested';
     if (!isBookkeeperFlow && modalType === 'proceed') nextStatus = 'to be disbursed';
     if (!isBookkeeperFlow && modalType === 'reject') nextStatus = 'rejected';
     if (!isBookkeeperFlow && modalType === 'revise') nextStatus = 'revision_requested';
@@ -1469,6 +1470,29 @@ const LoanApprovalDetails = () => {
         };
       }
 
+      if (isBookkeeperFlow && modalType === 'revise') {
+        const { data: { user } = {} } = await supabase.auth.getUser();
+        const existingRawPayload = loanDetails.rawPayload && typeof loanDetails.rawPayload === 'object'
+          ? loanDetails.rawPayload
+          : {};
+        const existingOptionalFields = existingRawPayload.optionalFields && typeof existingRawPayload.optionalFields === 'object'
+          ? existingRawPayload.optionalFields
+          : {};
+
+        updatePayload.raw_payload = {
+          ...existingRawPayload,
+          optionalFields: {
+            ...existingOptionalFields,
+            loan_revision_details: {
+              requested_by_role: 'bookkeeper',
+              remarks: remarks.trim(),
+              requested_at: new Date().toISOString(),
+              requested_by: user?.id || null,
+            },
+          },
+        };
+      }
+
       if (!isBookkeeperFlow && (modalType === 'reject' || modalType === 'revise' || modalType === 'proceed')) {
         const { data: { user } = {} } = await supabase.auth.getUser();
         const existingRawPayload = loanDetails.rawPayload && typeof loanDetails.rawPayload === 'object'
@@ -1488,6 +1512,14 @@ const LoanApprovalDetails = () => {
               reviewed_at: new Date().toISOString(),
               reviewed_by: user?.id || null,
             },
+            ...(modalType === 'revise' ? {
+              loan_revision_details: {
+                requested_by_role: 'manager',
+                remarks: remarks.trim(),
+                requested_at: new Date().toISOString(),
+                requested_by: user?.id || null,
+              },
+            } : {}),
           },
         };
       }
@@ -1591,6 +1623,13 @@ const LoanApprovalDetails = () => {
             overrideMemberEmail: loanDetails?.summary?.memberEmail || null,
           });
         }
+      } else if (isBookkeeperFlow && modalType === 'revise' && sendEmail !== false) {
+        dispatchLoanEmail({
+          stage: 'bookkeeper',
+          action: 'revise',
+          remarks: remarks.trim(),
+          overrideMemberEmail: loanDetails?.summary?.memberEmail || null,
+        });
       }
     } catch (err) {
       const message = err.message || 'Unable to update loan application status.';
@@ -2856,23 +2895,36 @@ const LoanApprovalDetails = () => {
                   <FileEdit className="w-4 h-4 mr-2" /> Waiting for member to revise and resubmit
                 </div>
               ) : (
-                <button
-                  onClick={() => {
-                    setBookkeeperInternalRemarks(loanDetails?.summary?.bookkeeperInternalRemarks === 'No internal remarks submitted.' ? '' : (loanDetails?.summary?.bookkeeperInternalRemarks || ''));
-                    setActiveModal('recommend');
-                  }}
-                  className="flex items-center px-5 py-2 rounded-lg bg-member-green text-white hover:bg-[#154718] font-bold text-sm transition-colors"
-                >
-                  <Check className="w-4 h-4 mr-2" /> {(() => {
-                    const isConsolidatedHigh =
-                      String(loanDetails?.summary?.loanType || '').toLowerCase().includes('consolidated')
-                      && Number(loanDetails?.summary?.recommendedAmountRaw || 0) > 500000;
-                    const nextStage = isConsolidatedHigh ? 'BOD' : 'Manager';
-                    return String(loanDetails?.status || '').toLowerCase().replace(/\s+/g, '_') === 'revised_submitted'
-                      ? `Resubmit to ${nextStage}`
-                      : `Recommend for ${nextStage} Approval`;
-                  })()}
-                </button>
+                <>
+                  {!isNonMemberSource && (
+                    <button
+                      onClick={() => {
+                        setRemarks(loanDetails?.rawPayload?.optionalFields?.loan_revision_details?.remarks || '');
+                        setActiveModal('revise');
+                      }}
+                      className="flex items-center px-4 py-2 rounded-lg border border-yellow-200 text-yellow-700 bg-[#FEF9C3] hover:bg-yellow-200 font-bold text-sm transition-colors"
+                    >
+                      <FileEdit className="w-4 h-4 mr-2" /> Request Revision
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setBookkeeperInternalRemarks(loanDetails?.summary?.bookkeeperInternalRemarks === 'No internal remarks submitted.' ? '' : (loanDetails?.summary?.bookkeeperInternalRemarks || ''));
+                      setActiveModal('recommend');
+                    }}
+                    className="flex items-center px-5 py-2 rounded-lg bg-member-green text-white hover:bg-[#154718] font-bold text-sm transition-colors"
+                  >
+                    <Check className="w-4 h-4 mr-2" /> {(() => {
+                      const isConsolidatedHigh =
+                        String(loanDetails?.summary?.loanType || '').toLowerCase().includes('consolidated')
+                        && Number(loanDetails?.summary?.recommendedAmountRaw || 0) > 500000;
+                      const nextStage = isConsolidatedHigh ? 'BOD' : 'Manager';
+                      return String(loanDetails?.status || '').toLowerCase().replace(/\s+/g, '_') === 'revised_submitted'
+                        ? `Resubmit to ${nextStage}`
+                        : `Recommend for ${nextStage} Approval`;
+                    })()}
+                  </button>
+                </>
               )
             ) : isBodFlow ? (
               <>

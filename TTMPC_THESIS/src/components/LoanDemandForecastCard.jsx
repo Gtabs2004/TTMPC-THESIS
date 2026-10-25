@@ -441,7 +441,7 @@ const LoanDemandForecastCard = ({ className = "" }) => {
         <p className="font-bold text-gray-800 text-sm mb-2">{row.fullLabel}</p>
         <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 gap-y-1.5 items-center">
           <span />
-          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 text-right">Planned</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 text-right">Forecasted</span>
           <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 text-right">Actual</span>
 
           <span className="flex items-center gap-1.5 text-gray-700 font-medium">

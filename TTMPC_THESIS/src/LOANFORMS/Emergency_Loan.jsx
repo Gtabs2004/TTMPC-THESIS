@@ -647,7 +647,9 @@ function Emergency_Loan() {
           payment_start_date: loanRow.payment_start_date || prev.payment_start_date,
         }));
         setRevisionRemarks(
-          loanRow.raw_payload?.optionalFields?.manager_review_details?.remarks || ''
+          loanRow.raw_payload?.optionalFields?.loan_revision_details?.remarks
+            || loanRow.raw_payload?.optionalFields?.manager_review_details?.remarks
+            || ''
         );
       } catch (err) {
         addNotification(err.message || 'Unable to load your loan application for editing.', 'error');

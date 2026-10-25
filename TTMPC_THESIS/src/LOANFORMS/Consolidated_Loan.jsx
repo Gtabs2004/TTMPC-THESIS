@@ -907,7 +907,9 @@ function Consolidated_Loan() {
           source_of_income: loanRow.source_of_income || prev.source_of_income,
         }));
         setRevisionRemarks(
-          loanRow.raw_payload?.optionalFields?.manager_review_details?.remarks || ''
+          loanRow.raw_payload?.optionalFields?.loan_revision_details?.remarks
+            || loanRow.raw_payload?.optionalFields?.manager_review_details?.remarks
+            || ''
         );
       } catch (err) {
         addNotification(err.message || 'Unable to load your loan application for editing.', 'error');

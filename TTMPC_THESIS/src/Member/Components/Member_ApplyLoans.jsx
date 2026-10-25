@@ -482,7 +482,7 @@ const Member_ApplyLoans = () => {
                     {bucket?.open_application_status === "revision_requested" && (
                       <div className="mt-3 w-full border-t border-slate-100 pt-3 text-center dark:border-mdark-border">
                         <p className="mb-1.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
-                          The Manager requested revisions on this application.
+                          The loan review team requested revisions on this application.
                         </p>
                         <button
                           type="button"
