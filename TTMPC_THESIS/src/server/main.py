@@ -10735,6 +10735,182 @@ async def get_personal_datasheet_record_by_membership(membership_number_id: str)
         raise HTTPException(status_code=500, detail=f"Failed to load personal data sheet details: {err}")
 
 
+def _require_member_record_viewer(current_user: dict) -> None:
+    """Manager, Bookkeeper and BOD all open the shared member record page
+    (member_details.jsx). Role comes from the verified JWT via
+    _resolve_staff_role, never from the URL."""
+    role = _resolve_staff_role(current_user["id"], current_user.get("email") or "")
+    if role not in ("manager", "bookkeeper", "bod"):
+        raise HTTPException(status_code=403, detail="Only the Manager, Bookkeeper or BOD can view this member record.")
+
+
+# ---------------------------------------------------------------------------
+# Member record: financial summary (read-only)
+#
+# Feeds the tabs on the shared member record page (Bookkeeper, Manager and BOD
+# open the same page). One call returns share capital, savings, time deposits,
+# grocery, income and classification points for one member. Staff only: the
+# caller's role comes from the verified JWT via _require_member_record_viewer,
+# never from the URL. Each section is fetched on its own so one failing table
+# leaves the rest of the page intact; failures are listed in "errors".
+# ---------------------------------------------------------------------------
+@app.get("/api/members/{membership_id}/financial-summary")
+def get_member_financial_summary(membership_id: str, current_user: dict = _Depends(_get_current_user)):
+    _require_member_record_viewer(current_user)
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    key = str(membership_id or "").strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="membership_id is required.")
+
+    member_rows = (
+        supabase.table("member")
+        .select("id,membership_id,member_status,membership_date,share_capital_amount,number_of_shares")
+        .eq("membership_id", key)
+        .limit(1)
+        .execute()
+        .data
+        or []
+    )
+    if not member_rows:
+        raise HTTPException(status_code=404, detail="Member not found.")
+    member = member_rows[0]
+    mid = member["id"]
+
+    errors: list[str] = []
+
+    def section(name: str, fn, default):
+        try:
+            return fn()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[member financial summary] %s failed: %s", name, exc)
+            errors.append(name)
+            return default
+
+    def _capital():
+        rows = (
+            supabase.table("capital_build_up")
+            .select("transaction_date,capital_added,ending_share_capital,deposit_account,cbu_deposit_id")
+            .eq("member_id", mid)
+            .lte("transaction_date", _cooperative_today().isoformat())
+            .order("transaction_date", desc=True)
+            .limit(25)
+            .execute()
+            .data
+            or []
+        )
+        return rows
+
+    def _savings():
+        accounts = (
+            supabase.table("savings_accounts")
+            .select("account_number,account_name,account_kind,balance,status")
+            .eq("member_id", mid)
+            .order("account_number")
+            .execute()
+            .data
+            or []
+        )
+        numbers = [a["account_number"] for a in accounts if a.get("account_number")]
+        ledger: list[dict] = []
+        if numbers:
+            ledger = (
+                supabase.table("savings_ledger")
+                .select("account_number,entry_type,amount,running_balance,posted_at,remarks")
+                .in_("account_number", numbers)
+                .order("posted_at", desc=True)
+                .limit(25)
+                .execute()
+                .data
+                or []
+            )
+        return {"accounts": accounts, "ledger": ledger}
+
+    def _time_deposits():
+        return (
+            supabase.table("time_deposits")
+            .select("certificate_number,placement_date,maturity_date,principal,term_days,annual_rate,expected_interest,expected_maturity_value,status")
+            .eq("member_id", mid)
+            .order("placement_date", desc=True)
+            .limit(25)
+            .execute()
+            .data
+            or []
+        )
+
+    def _grocery():
+        now_iso = datetime.now(timezone.utc).isoformat()
+        rows = (
+            supabase.table("GROCERY_TRANSACTIONS")
+            .select("TransactionDate,GroceryAmount,Status,balance_due")
+            .eq("membership_number_id", mid)
+            .lte("TransactionDate", now_iso)
+            .order("TransactionDate", desc=True)
+            .limit(25)
+            .execute()
+            .data
+            or []
+        )
+        totals = (
+            supabase.table("member_grocery_totals")
+            .select("total_grocery_amount,transaction_count,last_transaction_at")
+            .eq("membership_number_id", mid)
+            .limit(1)
+            .execute()
+            .data
+            or [None]
+        )[0]
+        return {"totals": totals, "recent": rows}
+
+    def _income():
+        profile = (
+            supabase.table("member_profile")
+            .select("latest_net_pay,net_income,employment_status,years_in_service,housing_status,civil_status")
+            .eq("membership_number_id", mid)
+            .limit(1)
+            .execute()
+            .data
+            or [None]
+        )[0]
+        pds = (
+            supabase.table("personal_data_sheet")
+            .select("employer_name,salary,annual_income,other_income,income_source,number_of_dependents,DependentCount,spouse_name,spouse_occupation,gsis_number")
+            .eq("membership_number_id", key)
+            .limit(1)
+            .execute()
+            .data
+            or [None]
+        )[0]
+        return {"profile": profile, "pds": pds}
+
+    def _classification():
+        return (
+            supabase.table("member_classification_temporal")
+            .select("accrual_date,cbu_points,loan_points,savings_points,payment_points,grocery_points,pli_points,attendance_points,total_score,final_status")
+            .eq("membership_number_id", mid)
+            .order("accrual_date", desc=True)
+            .limit(1)
+            .execute()
+            .data
+            or [None]
+        )[0]
+
+    return {
+        "success": True,
+        "data": {
+            "member": member,
+            "capital": section("capital", _capital, []),
+            "savings": section("savings", _savings, {"accounts": [], "ledger": []}),
+            "time_deposits": section("time_deposits", _time_deposits, []),
+            "grocery": section("grocery", _grocery, {"totals": None, "recent": []}),
+            "income": section("income", _income, {"profile": None, "pds": None}),
+            "classification": section("classification", _classification, None),
+            "errors": errors,
+        },
+    }
+
+
 # ============================================================================
 # SECTION: Savings — Transactions, Accounts, Deposits & Withdrawals
 # General savings endpoints plus cashier-specific savings deposit/withdraw
