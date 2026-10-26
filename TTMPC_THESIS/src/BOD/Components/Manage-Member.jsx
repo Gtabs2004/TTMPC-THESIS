@@ -41,7 +41,8 @@ const BOD_Manage_Member = () => {
     const navigate = useNavigate();
   const { addNotification } = useNotification();
   const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(false);
+    const [loadError, setLoadError] = useState("");
+    const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [loanSummaryByMemberId, setLoanSummaryByMemberId] = useState({});
@@ -58,6 +59,7 @@ const BOD_Manage_Member = () => {
     rtSeen.current = rtVersion;
     async function loadData() {
       if (!silent) setLoading(true);
+      setLoadError("");
 
       try {
         // member-loan-summary returns only {activeCount, paidCount} per
@@ -74,17 +76,35 @@ const BOD_Manage_Member = () => {
           fetch(`${API_BASE_URL}/api/bod/terminated-members`, { method: "GET", headers: { Accept: "application/json" } }),
         ]);
 
-        const memberPayload = await memberRes.json().catch(() => ({}));
-        const loanSummaryPayload = await loanSummaryRes.json().catch(() => ({}));
-        const terminatedPayload = await terminatedRes.json().catch(() => ({}));
+        const [memberPayload, loanSummaryPayload, terminatedPayload] = await Promise.all([
+          memberRes.json().catch(() => null),
+          loanSummaryRes.json().catch(() => null),
+          terminatedRes.json().catch(() => null),
+        ]);
+        const requirePayload = (response, payload, label) => {
+          if (!response.ok || !payload?.success) {
+            const detail = payload?.detail || payload?.message || `request failed (${response.status})`;
+            throw new Error(`${label}: ${detail}`);
+          }
+          return payload;
+        };
+        const memberData = requirePayload(memberRes, memberPayload, "Member list");
+        const loanSummaryData = requirePayload(loanSummaryRes, loanSummaryPayload, "Loan summary");
+        const terminatedData = requirePayload(terminatedRes, terminatedPayload, "Terminated members");
 
-        if (!memberRes.ok || !memberPayload?.success) {
-          throw new Error(memberPayload?.detail || memberPayload?.message || "Failed to load personal datasheet.");
+        if (!Array.isArray(memberData.data)) {
+          throw new Error("Member list: the server returned an invalid data format.");
+        }
+        if (!loanSummaryData.data || typeof loanSummaryData.data !== "object" || Array.isArray(loanSummaryData.data)) {
+          throw new Error("Loan summary: the server returned an invalid data format.");
+        }
+        if (!terminatedData.data || typeof terminatedData.data !== "object" || Array.isArray(terminatedData.data)) {
+          throw new Error("Terminated members: the server returned an invalid data format.");
         }
 
-        const memberRows = Array.isArray(memberPayload.data) ? memberPayload.data : [];
-        const loanSummaryByMember = loanSummaryPayload?.success && loanSummaryPayload?.data ? loanSummaryPayload.data : {};
-        const terminatedByMember = terminatedPayload?.success && terminatedPayload?.data ? terminatedPayload.data : {};
+        const memberRows = memberData.data;
+        const loanSummaryByMember = loanSummaryData.data;
+        const terminatedByMember = terminatedData.data;
 
         const nextSummary = {};
         Object.entries(loanSummaryByMember).forEach(([memberId, counts]) => {
@@ -97,13 +117,12 @@ const BOD_Manage_Member = () => {
         setRows(memberRows);
         setLoanSummaryByMemberId(nextSummary);
         setTerminatedByMemberId(terminatedByMember);
+        setLoadError("");
         addNotification("Member data loaded successfully", "success");
       } catch (err) {
-        if (silent) return;
-        addNotification(err?.message || "Unable to load personal datasheet.", "error");
-        setRows([]);
-        setLoanSummaryByMemberId({});
-        setTerminatedByMemberId({});
+        const message = err?.message || "Unable to load Manage Member data.";
+        setLoadError(message);
+        if (!silent) addNotification(message, "error");
       } finally {
         if (!silent) setLoading(false);
       }
@@ -171,6 +190,12 @@ const BOD_Manage_Member = () => {
 
         <main className="animate-page-in flex-1 overflow-y-auto p-8">
           <h1 className="font-bold text-2xl mb-6">Manage Member</h1>
+          {loadError && (
+            <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              Could not refresh member data: {loadError}
+              {rows.length > 0 && " Previously loaded data is still displayed."}
+            </div>
+          )}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <TableToolbar
               title="Active Members"
@@ -205,6 +230,8 @@ const BOD_Manage_Member = () => {
               <tbody>
                 {loading ? (
                   <TableStateRow colSpan={9} variant="loading" label="Loading members..." />
+                ) : loadError && rows.length === 0 ? (
+                  <TableStateRow colSpan={9} variant="empty" icon={AlertTriangle} label="Unable to load member records." sublabel={loadError} />
                 ) : filtered.length === 0 ? (
                   <TableStateRow colSpan={9} variant="empty" icon={Users} label="No personal datasheet records found." />
                 ) : (
@@ -279,6 +306,8 @@ const BOD_Manage_Member = () => {
               <tbody>
                 {loading ? (
                   <TableStateRow colSpan={8} variant="loading" label="Loading members..." />
+                ) : loadError && rows.length === 0 ? (
+                  <TableStateRow colSpan={8} variant="empty" icon={AlertTriangle} label="Unable to load terminated members." sublabel={loadError} />
                 ) : filteredTerminated.length === 0 ? (
                   <TableStateRow colSpan={8} variant="empty" icon={Users} label="No terminated members." />
                 ) : (

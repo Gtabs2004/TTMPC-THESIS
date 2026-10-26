@@ -207,13 +207,13 @@ const Treasurer_Dashboard = () => {
                 label="Consolidated"
                 value={consolidatedQuery.data == null ? "—" : PHP_COMPACT(consolidatedQuery.data)}
                 loading={consolidatedQuery.isPending}
-                sub={consolidatedQuery.error ? "Forecast service unavailable" : `SARIMAX · ${target.label}`}
+                sub={consolidatedQuery.error ? "Forecast service unavailable" : `MA - 12 · ${target.label}`}
               />
               <ForecastTile
                 label="Emergency"
                 value={emergencyQuery.data == null ? "—" : PHP_COMPACT(emergencyQuery.data)}
                 loading={emergencyQuery.isPending}
-                sub={emergencyQuery.error ? "Forecast service unavailable" : `SARIMAX · ${target.label}`}
+                sub={emergencyQuery.error ? "Forecast service unavailable" : `MA - 12  · ${target.label}`}
               />
               <ForecastTile
                 label="Bonus"
@@ -225,7 +225,7 @@ const Treasurer_Dashboard = () => {
                     ? "No Bonus cycle this month (May/Nov only)"
                     : bonusQuery.error
                     ? "Forecast service unavailable"
-                    : `Seasonal · ${target.label}`
+                    : `Seasonal Naive· ${target.label}`
                 }
               />
             </div>
