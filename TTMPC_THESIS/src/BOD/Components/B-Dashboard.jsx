@@ -20,6 +20,8 @@ import {
   TrendingUp,
   AlertCircle,
   CreditCard,
+  Landmark,
+  PiggyBank,
   CheckCircle2,
   Clock,
   ArrowUpRight,
@@ -690,55 +692,41 @@ const Dashboard_BOD = () => {
             />
           </StatCardRow>
 
-          <section aria-label="Financial overview" className="mb-8 overflow-hidden rounded-xl border border-gray-200 bg-white">
-            <div className="grid grid-cols-1 divide-y divide-gray-100 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-              <div className="min-w-0 px-5 py-4 sm:px-6">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Total CBU</p>
-                {loading ? (
-                  <Skeleton className="mt-2 h-7 w-32" />
-                ) : (
-                  <p className="mt-1 text-xl font-bold tabular-nums text-gray-900">
-                    {financialUnavailable ? 'Unavailable' : formatCurrency(financialBalances.total_cbu)}
-                  </p>
-                )}
-                <p className="mt-1 text-xs text-gray-500">Current member share capital</p>
-              </div>
-              <div className="min-w-0 px-5 py-4 sm:px-6">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Loans{annualFinancial ? ` · ${annualFinancial.year}` : ''}
-                </p>
-                {loading ? (
-                  <Skeleton className="mt-2 h-7 w-48" />
-                ) : financialUnavailable ? (
-                  <p className="mt-1 text-xl font-bold text-gray-900">Unavailable</p>
-                ) : (
-                  <div className="mt-1 grid grid-cols-2 gap-4">
-                    <div className="min-w-0">
-                      <p className="truncate text-xl font-bold tabular-nums text-gray-900">{formatCurrency(financialAnnual.loan_releases)}</p>
-                      <p className="mt-1 text-xs text-gray-500">Released (money out)</p>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-xl font-bold tabular-nums text-gray-900">{formatCurrency(financialAnnual.loan_collections)}</p>
-                      <p className="mt-1 text-xs text-gray-500">Collected (payments in)</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="min-w-0 px-5 py-4 sm:px-6">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Savings + Time Deposits</p>
-                {loading ? (
-                  <Skeleton className="mt-2 h-7 w-32" />
-                ) : (
-                  <p className="mt-1 text-xl font-bold tabular-nums text-gray-900">
-                    {financialUnavailable ? 'Unavailable' : formatCurrency(financialBalances.total_deposits)}
-                  </p>
-                )}
-                <p className="mt-1 text-xs text-gray-500">
-                  {financialUnavailable ? 'Balance breakdown unavailable' : `${formatCurrency(financialBalances.savings)} savings · ${formatCurrency(financialBalances.time_deposits)} time deposits`}
-                </p>
-              </div>
-            </div>
-          </section>
+          {/* ROW 2: FINANCIAL OVERVIEW */}
+          <StatCardRow cols={4}>
+            <StatCard
+              label="Total CBU"
+              value={financialUnavailable ? 'Unavailable' : formatCurrency(financialBalances.total_cbu)}
+              loading={loading}
+              icon={Landmark}
+              iconColor="text-[#2C7A3F]"
+              subtext="Current share capital of all members"
+            />
+            <StatCard
+              label={`Loans Released${annualFinancial ? ` · ${annualFinancial.year}` : ''}`}
+              value={financialUnavailable ? 'Unavailable' : formatCurrency(financialAnnual.loan_releases)}
+              loading={loading}
+              icon={ArrowUpRight}
+              iconColor="text-red-500"
+              subtext="Loan funds released to members"
+            />
+            <StatCard
+              label={`Loans Collected${annualFinancial ? ` · ${annualFinancial.year}` : ''}`}
+              value={financialUnavailable ? 'Unavailable' : formatCurrency(financialAnnual.loan_collections)}
+              loading={loading}
+              icon={ArrowDownRight}
+              iconColor="text-[#2C7A3F]"
+              subtext="Loan payments received from members"
+            />
+            <StatCard
+              label="Savings + Time Deposits"
+              value={financialUnavailable ? 'Unavailable' : formatCurrency(financialBalances.total_deposits)}
+              loading={loading}
+              icon={PiggyBank}
+              iconColor="text-blue-500"
+              subtext="Combined savings and Time Deposit balances"
+            />
+          </StatCardRow>
 
           <section aria-labelledby="bod-yearly-collection-title" className="mb-8">
             <div className="mb-4 flex flex-wrap items-end justify-between gap-2">

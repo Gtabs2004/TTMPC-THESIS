@@ -753,7 +753,7 @@ const Secretary_Attendance = () => {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
-                    <th className="p-5 font-bold">Member Name</th>
+                    <th className="p-5 font-bold">Applicant Name</th>
                     <th className="p-5 font-bold">
                       {activeTab === "Reschedule Training" ? "New Training Schedule" : "Training Schedule"}
                     </th>
@@ -960,7 +960,7 @@ const Secretary_Attendance = () => {
               {/* Info Row */}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 mb-6">
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 min-w-0">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Member Name</p>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Applicant Name</p>
                   <p className="font-bold text-gray-800 font-sm break-words">{selectedMember.name}</p>
                   <p className="text-sm text-gray-500 mt-1 break-all">{selectedMember.email}</p>
                 </div>
