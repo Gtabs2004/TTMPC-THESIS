@@ -43,6 +43,8 @@ import {
   PieChart,
   Pie,
   Cell,
+  Tooltip,
+  ReferenceDot,
 } from "recharts";
 import { SERIES_PRIMARY, getLoanTypeColor } from "../../lib/chartColors";
 
@@ -61,6 +63,57 @@ const formatTime = (iso) => {
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 };
+
+const localDayKey = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+// Transactions per day for the `days` days ending on endDate (YYYY-MM-DD,
+// inclusive). Counts the same five sources as the KPI card, timestamps only.
+async function fetchDailyTrend(endDate, days) {
+  const [y, m, d] = endDate.split("-").map(Number);
+  const rangeStart = new Date(y, m - 1, d - (days - 1), 0, 0, 0, 0);
+  const rangeEnd = new Date(y, m - 1, d + 1, 0, 0, 0, 0);
+  const isoStart = rangeStart.toISOString();
+  const isoEnd = rangeEnd.toISOString();
+
+  const counts = new Map();
+  const labels = [];
+  for (let i = 0; i < days; i += 1) {
+    const day = new Date(y, m - 1, d - (days - 1) + i);
+    const key = localDayKey(day);
+    counts.set(key, 0);
+    labels.push({
+      key,
+      name: day.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      full: day.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }),
+    });
+  }
+
+  const sources = [
+    ["loan_payments", "payment_date"],
+    ["loans", "disbursal_date"],
+    ["membership_payments", "payment_date"],
+    ["capital_build_up", "transaction_date"],
+    ["savings_ledger", "posted_at"],
+  ];
+  const results = await Promise.all(
+    sources.map(([table, col]) =>
+      supabase.from(table).select(col).gte(col, isoStart).lt(col, isoEnd).limit(10000)
+    )
+  );
+
+  results.forEach((res, i) => {
+    const col = sources[i][1];
+    (res?.data || []).forEach((row) => {
+      const t = new Date(row[col]);
+      if (Number.isNaN(t.getTime())) return;
+      const key = localDayKey(t);
+      if (counts.has(key)) counts.set(key, counts.get(key) + 1);
+    });
+  });
+
+  return labels.map(({ key, name, full }) => ({ name, full, iso: key, value: counts.get(key) }));
+}
 
 // Everything the dashboard shows for one day (YYYY-MM-DD), fetched in one
 // parallel batch. Lives outside the component so TanStack Query can cache
@@ -302,9 +355,6 @@ const Cashier_Dashboard = () => {
     return toIso(nd);
   };
   const todayIso = useMemo(() => toIso(new Date()), []);
-  const yesterdayIso = useMemo(() => shiftDays(todayIso, -1), [todayIso]);
-  const weekAgoIso = useMemo(() => shiftDays(todayIso, -7), [todayIso]);
-  const monthAgoIso = useMemo(() => shiftDays(todayIso, -30), [todayIso]);
 
   const [selectedDate, setSelectedDate] = useState(todayIso);
   // Month calendar opened by clicking the date (or "Pick") above the chart.
@@ -326,13 +376,6 @@ const Cashier_Dashboard = () => {
     [selectedDateObj]
   );
 
-  const presetKey =
-    selectedDate === todayIso ? "today"
-    : selectedDate === yesterdayIso ? "yesterday"
-    : selectedDate === weekAgoIso ? "week"
-    : selectedDate === monthAgoIso ? "month"
-    : "custom";
-
   // Cached per selected day: coming back to the dashboard renders the last
   // result instantly and refreshes it in the background. `loading` is only
   // true when there's nothing cached yet for that day.
@@ -340,9 +383,16 @@ const Cashier_Dashboard = () => {
     queryKey: ['dashboard', 'cashier', selectedDate],
     queryFn: () => fetchCashierDashboard(selectedDate),
   });
+  const trendDays = 7;
+  const { data: trendData = [], isPending: trendLoading } = useQuery({
+    queryKey: ['dashboard', 'cashier', 'daily-trend', todayIso, trendDays],
+    queryFn: () => fetchDailyTrend(todayIso, trendDays),
+  });
+  const trendTotal = trendData.reduce((sum, r) => sum + r.value, 0);
+  const trendBusiest = trendData.reduce((best, r) => (!best || r.value > best.value ? r : best), null);
+  const selectedTrendPoint = trendData.find((r) => r.iso === selectedDate);
   const {
     kpis = { totalTransactions: 0, cashReceived: 0, cashReleased: 0, pendingPayouts: 0, membersServed: 0 },
-    trendData = [],
     distributionData = [],
     recentActivity = [],
   } = data || {};
@@ -419,24 +469,8 @@ const Cashier_Dashboard = () => {
               <div className="mb-6 space-y-3">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-gray-800 font-bold text-lg leading-tight">Transaction Volume</h3>
-                    <button
-                      type="button"
-                      data-calendar-trigger
-                      onClick={() => setCalendarOpen((open) => !open)}
-                      aria-haspopup="dialog"
-                      aria-expanded={calendarOpen}
-                      title="Pick a day"
-                      className="mt-0.5 -ml-1 inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 text-xs text-gray-500 transition-colors hover:bg-green-50 hover:text-green-800"
-                    >
-                      <Calendar size={13} className="text-green-600" aria-hidden="true" />
-                      <span className="font-semibold text-gray-700">{selectedWeekday}</span>
-                      <span className="text-gray-300">·</span>
-                      <span>{selectedDateLabel}</span>
-                      {isViewingToday && (
-                        <span className="ml-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-700">Today</span>
-                      )}
-                    </button>
+                    <h3 className="text-gray-800 font-bold text-lg leading-tight">Daily Transactions</h3>
+                    <p className="text-xs text-gray-400">Transactions in the last 7 days.</p>
                   </div>
 
                   {/* Date picker: the calendar opens right under this button */}
@@ -465,44 +499,34 @@ const Cashier_Dashboard = () => {
                     />
                   </div>
                 </div>
-
-                {/* Preset chips */}
-                <div className="flex flex-wrap gap-2">
-                  {[
-                      { key: "today",     label: "Today",       iso: todayIso }, 
-                        {key: "yesterday", label: "Yesterday",   iso: yesterdayIso },
-                           { key: "week",      label: "7 days ago",  iso: weekAgoIso },
-                    { key: "month",     label: "30 days ago", iso: monthAgoIso },
-                  
-                   
-                    
-                  ].map((preset) => {
-                    const active = presetKey === preset.key;
-                    return (
-                      <button
-                        key={preset.key}
-                        type="button"
-                        onClick={() => setSelectedDate(preset.iso)}
-                        className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                          active
-                            ? "bg-green-600 text-white shadow-sm"
-                            : "border border-gray-200 bg-white text-gray-600 hover:border-green-500 hover:text-green-700"
-                        }`}
-                      >
-                        {preset.label}
-                      </button>
-                    );
-                  })}
-                  {presetKey === "custom" && (
-                    <span className="rounded-full bg-green-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
-                      Custom · {selectedDateLabel}
-                    </span>
-                  )}
-                </div>
               </div>
+              {!trendLoading && trendData.length > 0 && (
+                <div className="mb-4 grid grid-cols-3 gap-3 text-center">
+                  <div className="rounded-lg bg-gray-50 px-3 py-2">
+                    <div className="text-lg font-bold text-gray-800">{trendTotal}</div>
+                    <div className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Total</div>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 px-3 py-2">
+                    <div className="text-lg font-bold text-gray-800">{(trendTotal / trendData.length).toFixed(1)}</div>
+                    <div className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Daily average</div>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 px-3 py-2">
+                    <div className="text-lg font-bold text-gray-800">{trendBusiest && trendBusiest.value > 0 ? trendBusiest.name : "—"}</div>
+                    <div className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Busiest day</div>
+                  </div>
+                </div>
+              )}
               <div className="h-64">
-                {loading ? <SkeletonChart /> : <ResponsiveContainer debounce={200} width="100%" height="100%" minWidth={0} minHeight={1}>
-                  <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                {trendLoading ? <SkeletonChart /> : <ResponsiveContainer debounce={200} width="100%" height="100%" minWidth={0} minHeight={1}>
+                  <AreaChart
+                    data={trendData}
+                    margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+                    style={{ cursor: "pointer" }}
+                    onClick={(state) => {
+                      const iso = state?.activePayload?.[0]?.payload?.iso;
+                      if (iso) setSelectedDate(iso);
+                    }}
+                  >
                     <defs>
                       <linearGradient id="colorTxn" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor={SERIES_PRIMARY} stopOpacity={0.2} />
@@ -515,13 +539,31 @@ const Cashier_Dashboard = () => {
                       axisLine={false}
                       tickLine={false}
                       tick={{ fill: "#9ca3af", fontSize: 12 }}
+                     
                       dy={10}
                     />
                     <YAxis
                       axisLine={false}
                       tickLine={false}
+                      allowDecimals={false}
                       tick={{ fill: "#9ca3af", fontSize: 12 }}
                     />
+                    <Tooltip
+                      cursor={{ stroke: SERIES_PRIMARY, strokeDasharray: "4 4" }}
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const row = payload[0].payload;
+                        return (
+                          <div className="rounded-lg border border-gray-100 bg-white px-3 py-2 text-xs shadow-md">
+                            <div className="font-semibold text-gray-800">{row.full}</div>
+                            <div className="text-gray-600">{row.value} transaction{row.value === 1 ? "" : "s"}</div>
+                          </div>
+                        );
+                      }}
+                    />
+                    {selectedTrendPoint && (
+                      <ReferenceDot x={selectedTrendPoint.name} y={selectedTrendPoint.value} r={9} fill={SERIES_PRIMARY} fillOpacity={0.15} stroke={SERIES_PRIMARY} strokeWidth={2} />
+                    )}
                     <Area
                       type="monotone"
                       dataKey="value"
