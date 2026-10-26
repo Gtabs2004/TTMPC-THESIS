@@ -54,7 +54,7 @@ function MemberLogin() {
               id="email"
               name="email"
               type="email"
-              placeholder="you@example.com"
+              placeholder="Enter your Email"
               autoComplete="email"
               required
               disabled={loading}

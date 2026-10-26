@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { UserAuth } from '../contex/AuthContext';
 import { Mail, Lock, User, ChevronDown } from 'lucide-react';
@@ -110,7 +110,7 @@ function Login() {
               id="email"
               name="email"
               type="email"
-              placeholder="you@example.com"
+              placeholder="Enter your Email"
               autoComplete="email"
               required
               disabled={loading}
