@@ -12,7 +12,6 @@ import { supabase } from "../../supabaseClient";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton, SkeletonChart, SkeletonDonut } from "../../components/Skeleton";
 import TableStateRow from "../../components/TableStateRow";
-import MonthDayPicker from "../../components/MonthDayPicker";
 import Pagination from "../../components/Pagination";
 import {
   LayoutDashboard,
@@ -386,8 +385,6 @@ const Cashier_Dashboard = () => {
   const todayIso = useMemo(() => toIso(new Date()), []);
 
   const [selectedDate, setSelectedDate] = useState(todayIso);
-  // Month calendar opened by clicking the date (or "Pick") above the chart.
-  const [calendarOpen, setCalendarOpen] = useState(false);
   const isViewingToday = selectedDate === todayIso;
   const selectedDateObj = useMemo(() => {
     const [y, m, d] = selectedDate.split("-").map(Number);
@@ -502,32 +499,6 @@ const Cashier_Dashboard = () => {
                   <div>
                     <h3 className="text-gray-800 font-bold text-lg leading-tight">Daily Transactions</h3>
                     <p className="text-xs text-gray-400">Transactions in the last 7 days.</p>
-                  </div>
-
-                  {/* Date picker: the calendar opens right under this button */}
-                  <div className="relative">
-                    <button
-                      type="button"
-                      data-calendar-trigger
-                      onClick={() => setCalendarOpen((open) => !open)}
-                      aria-haspopup="dialog"
-                      aria-expanded={calendarOpen}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-                    >
-                      <Calendar size={14} className="text-gray-500" aria-hidden="true" />
-                      <span>Pick</span>
-                    </button>
-                    <MonthDayPicker
-                      open={calendarOpen}
-                      onClose={() => setCalendarOpen(false)}
-                      value={selectedDate}
-                      onChange={(iso) => {
-                        setSelectedDate(iso);
-                        setCalendarOpen(false);
-                      }}
-                      maxIso={todayIso}
-                      align="right"
-                    />
                   </div>
                 </div>
               </div>
