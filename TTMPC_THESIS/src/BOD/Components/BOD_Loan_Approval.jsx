@@ -24,7 +24,6 @@ import {
   ShieldCheck,
   UserPlus,
   ClipboardList,
-  BadgeCheck,
   History,
 } from "lucide-react";
 import NotificationBell from "../../components/NotificationBell";
@@ -127,7 +126,7 @@ const BOD_Loan_Approval = () => {
 
         <main className="animate-page-in p-8 flex-1">
           <h1 className="text-2xl font-bold text-gray-900 mb-6">Loan Approvals</h1>
-          <StatCardRow cols={3}>
+          <StatCardRow cols={2}>
             <StatCard label="Pending Loan Applications" value={loans.length} icon={UserPlus} iconColor="text-[#2C7A3F]" />
             <StatCard
               label="Avg. Loan Applications / Month"
@@ -136,7 +135,6 @@ const BOD_Loan_Approval = () => {
               iconColor="text-[#D97706]"
               subtext={`Consolidated > ₱500K, last ${AVG_WINDOW_MONTHS} months`}
             />
-            <StatCard label="Loan Type" value="Consolidated" icon={BadgeCheck} iconColor="text-[#2C7A3F]" />
           </StatCardRow>
 
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
@@ -169,7 +167,7 @@ const BOD_Loan_Approval = () => {
                       <td className="p-5 text-sm text-gray-500 font-medium">{loan.control_number}</td>
                       <td className="p-5 text-sm font-bold text-gray-800">{memberName}</td>
                       <td className="p-5 text-sm">
-                        <span className="px-3 py-1.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
+                        <span className="px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
                           {loan.loan_types?.name || "Consolidated"}
                         </span>
                       </td>

@@ -426,8 +426,6 @@ const Manager_Manage_Loans = () => {
                                   state: { loan: parent, readOnly: true, renewals },
                                 })
                               }
-                              icon={Eye}
-                              variant="neutral"
                             >
                               View
                             </TableActionButton>
