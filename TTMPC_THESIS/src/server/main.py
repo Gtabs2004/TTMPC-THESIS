@@ -5265,12 +5265,16 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
                 .execute()
             )
         has_existing_schedule = bool(existing_schedule_response.data)
+        schedule_ready = has_existing_schedule
 
         if has_existing_schedule:
             try:
                 schedules_response = (
                     supabase.table("loan_schedules")
-                    .select("id,due_date,schedule_status")
+                    .select(
+                        "id,schedule_id,installment_no,due_date,schedule_status,"
+                        "expected_amount,expected_principal,expected_interest,applied_credit"
+                    )
                     .eq("loan_id", clean_loan_id)
                     .order("due_date")
                     .execute()
@@ -5284,6 +5288,7 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
                         break
                 if schedules and not next_sched:
                     next_sched = schedules[0]
+                schedule_ready = bool(next_sched)
 
                 if next_sched:
                     current_due = parse_date_value(next_sched.get("due_date"))
@@ -5294,8 +5299,62 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
                             .eq("id", next_sched.get("id"))
                             .execute()
                         )
-            except Exception:
-                pass
+
+                    # Older release paths could leave an unpaid zero-value
+                    # placeholder behind. Since the mere presence of that row
+                    # suppresses schedule creation, repair it from the loan's
+                    # actual release terms before treating the schedule as ready.
+                    installment_no = int(next_sched.get("installment_no") or 0)
+                    is_empty_first_installment = (
+                        installment_no == 1
+                        and Decimal(str(next_sched.get("expected_amount") or 0)) <= 0
+                        and Decimal(str(next_sched.get("expected_principal") or 0)) <= 0
+                        and Decimal(str(next_sched.get("expected_interest") or 0)) <= 0
+                        and Decimal(str(next_sched.get("applied_credit") or 0)) <= 0
+                    )
+                    if (
+                        is_empty_first_installment
+                        and str(next_sched.get("schedule_status") or "").strip().lower()
+                        in {"unpaid", "pending", "overdue", ""}
+                    ):
+                        existing_payments = (
+                            supabase.table("loan_payments")
+                            .select("id")
+                            .eq("schedule_id", next_sched.get("id"))
+                            .limit(1)
+                            .execute()
+                        ).data or []
+                        if not existing_payments:
+                            replacement = build_single_schedule_row(
+                                loan_type=normalized_loan_type,
+                                principal=principal_amount,
+                                term_months=term_months,
+                                monthly_rate_decimal=monthly_rate_decimal,
+                                due_date=first_due_date,
+                                loan_id=clean_loan_id,
+                                installment_no=1,
+                                remaining_principal_before=principal_amount,
+                                start_sequence_number=1,
+                            )
+                            replacement.pop("schedule_id", None)
+                            replacement.pop("loan_id", None)
+                            replacement.pop("installment_no", None)
+                            replacement.pop("_leftover_credit", None)
+                            (
+                                supabase.table("loan_schedules")
+                                .update(replacement)
+                                .eq("id", next_sched.get("id"))
+                                .execute()
+                            )
+                        else:
+                            schedule_ready = False
+            except Exception as schedule_err:
+                schedule_ready = False
+                logger.warning(
+                    "Could not verify or repair schedule for released loan %s: %s",
+                    clean_loan_id,
+                    schedule_err,
+                )
 
         created_schedules = []
         if not has_existing_schedule:
@@ -5318,7 +5377,37 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
             try:
                 insert_schedule_response = supabase.table("loan_schedules").insert(next_due_row).execute()
                 created_schedules = insert_schedule_response.data or []
-            except Exception:
+            except Exception as insert_err:
+                logger.warning(
+                    "Full schedule insert failed for loan %s; retrying compatibility payload: %s",
+                    clean_loan_id,
+                    insert_err,
+                )
+                compatibility_schedule_row = {
+                    "loan_id": next_due_row["loan_id"],
+                    "installment_no": next_due_row["installment_no"],
+                    "due_date": next_due_row["due_date"],
+                    "expected_amount": next_due_row["expected_amount"],
+                    "expected_principal": next_due_row["expected_principal"],
+                    "expected_interest": next_due_row["expected_interest"],
+                    "principal_component": next_due_row["principal_component"],
+                    "interest_component": next_due_row["interest_component"],
+                    "remaining_principal": next_due_row["remaining_principal"],
+                    "schedule_status": "Unpaid",
+                }
+                try:
+                    insert_schedule_response = (
+                        supabase.table("loan_schedules")
+                        .insert(compatibility_schedule_row)
+                        .execute()
+                    )
+                    created_schedules = insert_schedule_response.data or []
+                except Exception as compatibility_err:
+                    logger.warning(
+                        "Compatibility schedule insert failed for loan %s; retrying legacy payload: %s",
+                        clean_loan_id,
+                        compatibility_err,
+                    )
                 legacy_schedule_row = {
                     "loan_id": next_due_row["loan_id"],
                     "installment_no": next_due_row["installment_no"],
@@ -5328,8 +5417,12 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
                     "interest_component": next_due_row["interest_component"],
                     "schedule_status": "Unpaid",
                 }
-                insert_schedule_response = supabase.table("loan_schedules").insert(legacy_schedule_row).execute()
-                created_schedules = insert_schedule_response.data or []
+                if not created_schedules:
+                    insert_schedule_response = (
+                        supabase.table("loan_schedules").insert(legacy_schedule_row).execute()
+                    )
+                    created_schedules = insert_schedule_response.data or []
+            schedule_ready = bool(created_schedules)
 
         update_payload = {
             "loan_status": "released",
@@ -5510,7 +5603,7 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
                 str((updated_loan or {}).get("loan_status") or "").strip().lower() == "released"
                 and bool((updated_loan or {}).get("disbursal_date"))
             ),
-            "schedule_ready": has_existing_schedule or bool(created_schedules),
+            "schedule_ready": schedule_ready,
             "confirmation_saved": confirmation_saved,
             "cbu_retention_credited": bool(cbu_credit_row),
             "cbu_retention_amount": (

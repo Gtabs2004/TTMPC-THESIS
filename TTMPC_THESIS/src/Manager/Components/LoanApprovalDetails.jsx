@@ -157,6 +157,7 @@ const LoanApprovalDetails = () => {
   const [riskLoading, setRiskLoading] = useState(false);
   const [riskError, setRiskError] = useState('');
   const riskScoreAttemptedForLoan = useRef(null);
+  const coMakerEditedRef = useRef(false);
   const [showRiskDetail, setShowRiskDetail] = useState(true);
   const [revisionResetDone, setRevisionResetDone] = useState(false);
   const [printing, setPrinting] = useState(false);
@@ -436,6 +437,7 @@ const LoanApprovalDetails = () => {
       try {
         if (!silent) setLoading(true);
         if (!silent) setLoadError('');
+        if (!silent) coMakerEditedRef.current = false;
 
         let data = null;
         let tableName = 'loans';
@@ -747,7 +749,12 @@ const LoanApprovalDetails = () => {
         if (isMounted) {
           setLoanDetails(mapped);
           setBorrowerMemberId(mapped.borrowerMemberId || null);
-          setCoMakerDetails(normalizedCoMakers);
+          // Realtime-triggered silent refetches must not clobber co-maker
+          // fields the bookkeeper is actively editing (e.g. while the risk
+          // predict call writes a risk_assessments row and bumps rtVersion).
+          if (!(silent && coMakerEditedRef.current)) {
+            setCoMakerDetails(normalizedCoMakers);
+          }
           setSupportingDocs(normalizeSupportingDocuments(mapped.rawPayload || {}));
           const savedVerifiedAmount = data.verified_bonus_amount;
           setVerifiedBonusAmountSaved(savedVerifiedAmount === null || savedVerifiedAmount === undefined ? null : Number(savedVerifiedAmount));
@@ -1152,6 +1159,7 @@ const LoanApprovalDetails = () => {
   };
 
   const updateCoMakerField = (index, field, value) => {
+    coMakerEditedRef.current = true;
     setCoMakerDetails((prev) => prev.map((item, i) => (i === index ? { ...item, [field]: value } : item)));
     if (isBookkeeperFlow && !revisionResetDone && String(loanDetails?.status || '').toLowerCase().includes('revision')) {
       setRevisionResetDone(true);
@@ -1204,6 +1212,7 @@ const LoanApprovalDetails = () => {
   );
 
   const handleCoMakerMemberSelect = async (index, membershipNumberId) => {
+    coMakerEditedRef.current = true;
     const selected = coMakerMemberOptions.find((item) => item.membership_number_id === membershipNumberId);
     setCoMakerSearch((prev) => prev.map((value, i) => (i === index ? '' : value)));
     setCoMakerSearchOpenIndex(null);
