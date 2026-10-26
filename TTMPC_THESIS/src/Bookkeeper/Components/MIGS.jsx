@@ -1,6 +1,6 @@
-﻿import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
-import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
+import { useQuery } from "@tanstack/react-query";
 import { RT } from "../../lib/realtimeSync";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
@@ -37,6 +37,7 @@ import {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const ITEMS_PER_PAGE = 10;
+const EMPTY_ROWS = [];
 
 // The MIGS pass mark (migs_engine.py MIGS_THRESHOLD). Used only to tint the
 // score meter -- the classification itself still comes from migs_status off
@@ -52,8 +53,6 @@ const MIGS = () => {
     const navigate = useNavigate();
   const { addNotification } = useNotification();
   const confirm = useConfirm();
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("All Status");
@@ -61,39 +60,43 @@ const MIGS = () => {
   const [sortBy, setSortBy] = useState("Name A-Z");
   const [computing, setComputing] = useState(false);
   const [lastComputeRun, setLastComputeRun] = useState(null);
-  const rtVersion = useRealtimeVersion([...RT.MEMBERS, ...RT.LOANS, ...RT.CBU]);
-  const rtSeen = useRef(rtVersion);
-  useEffect(() => {
-    const silent = rtSeen.current !== rtVersion;
-    rtSeen.current = rtVersion;
-    const fetchMigsMembers = async () => {
-      if (!silent) setLoading(true);
-      try {
-        const response = await fetch(
-          `${API_BASE_URL}/api/migs/members?year=${encodeURIComponent(yearFilter)}`
-        );
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || !result?.success) {
-          throw new Error(result?.detail || "Failed to load MIGS members.");
-        }
-        setRows(Array.isArray(result.data) ? result.data : []);
-        addNotification(
-          `Loaded ${result.count || 0} member classification records.`,
-          "success"
-        );
-      } catch (err) {
-        if (silent) return;
-        setRows([]);
-        addNotification(err?.message || "Unable to fetch MIGS members.", "error");
-      } finally {
-        if (!silent) setLoading(false);
+  const {
+    data: membersResult,
+    isPending: loading,
+    error: loadError,
+    isFetching,
+    refetch,
+  } = useQuery({
+    queryKey: ["migs-members", yearFilter],
+    queryFn: async () => {
+      const response = await fetch(
+        `${API_BASE_URL}/api/migs/members?year=${encodeURIComponent(yearFilter)}`
+      );
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.detail || "Failed to load MIGS members.");
       }
-    };
-    fetchMigsMembers();
-  }, [yearFilter, rtVersion]);
+      return result;
+    },
+    staleTime: 30_000,
+    retry: 0,
+    meta: {
+      realtimeEntities: [
+        ...RT.MEMBERS,
+        ...RT.LOANS,
+        ...RT.SAVINGS,
+        ...RT.CBU,
+        ...RT.GROCERY,
+        ...RT.ATTENDANCE,
+        "time_deposits",
+        "migs_outside_loan_declaration",
+      ],
+    },
+  });
+  const rows = Array.isArray(membersResult?.data) ? membersResult.data : EMPTY_ROWS;
 
   const filtered = useMemo(() => {
-    let result = rows;
+    let result = [...rows];
 
     // Search filter
     const key = String(query || "").trim().toLowerCase();
@@ -125,7 +128,7 @@ const MIGS = () => {
     }
 
     return result;
-  }, [query, rows, statusFilter, yearFilter, sortBy]);
+  }, [query, rows, statusFilter, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const paginatedRows = useMemo(() => {
@@ -306,6 +309,27 @@ const MIGS = () => {
               </div>
             </div>
 
+            {loadError ? (
+              <div
+                role="alert"
+                className="px-5 py-3 border-b border-amber-200 bg-amber-50 text-sm text-amber-900 flex flex-wrap items-center justify-between gap-3"
+              >
+                <span>
+                  {rows.length
+                    ? "Could not refresh member classifications. Showing the last loaded data."
+                    : loadError.message || "Unable to load member classifications."}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => refetch()}
+                  disabled={isFetching}
+                  className="font-semibold underline disabled:opacity-50"
+                >
+                  {isFetching ? "Retrying..." : "Retry"}
+                </button>
+              </div>
+            ) : null}
+
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -326,6 +350,12 @@ const MIGS = () => {
                 <tbody>
                   {loading ? (
                     <TableStateRow colSpan={8} variant="loading" label="Loading..." />
+                  ) : loadError && rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-5 py-10 text-center text-sm text-red-700">
+                        Could not load member classifications. Use Retry above to try again.
+                      </td>
+                    </tr>
                   ) : filtered.length === 0 ? (
                     <TableStateRow
                       colSpan={8}
@@ -409,4 +439,3 @@ const MIGS = () => {
 };
 
 export default MIGS;
-

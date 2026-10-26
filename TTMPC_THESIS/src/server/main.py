@@ -14462,44 +14462,27 @@ async def _get_migs_member_detail(member_key: str, year: int | None = None):
         )
         scored = result_to_dict(result)
 
-        # --- Persist snapshot into member_classification_temporal --------
-        # Snap to the most recent Saturday (same keying as recompute-all).
-        _snap_today = datetime.utcnow().date()
-        _days_since_sat = (_snap_today.weekday() - 5) % 7
-        _accrual_date = (_snap_today - timedelta(days=_days_since_sat)).isoformat()
-
-        try:
-            levels_resp = (
-                supabase.table("classification_level")
-                .select("classification_level_id,code")
-                .in_("code", ["migs", "non_migs"])
-                .execute()
-            )
-            levels = {row["code"]: row["classification_level_id"] for row in levels_resp.data or []}
-            if levels:
-                bp = {c["criterion"]: c["score"] for c in (scored.get("breakdown") or [])}
-                _in_first_week = _snap_today.day <= 7
-                _payload = {
-                    "membership_number_id": mid,
-                    "classification_level_id": levels.get("migs" if result.status == "MIGS Qualified" else "non_migs"),
-                    "accrual_date": _accrual_date,
-                    "cbu_points":        bp.get("Capital Build-Up", 0),
-                    "loan_points":       bp.get("Loan Availed", 0),
-                    "savings_points":    bp.get("Savings / Time Deposit", 0),
-                    "payment_points":    bp.get("Payment Record (late count)", 0),
-                    "grocery_points":    bp.get("Groceries Availed", 0),
-                    "pli_points":        bp.get("Loans from Other PLIs", 0),
-                    "attendance_points": bp.get("Assembly Attendance", 0),
-                    "final_status": result.status if _in_first_week else None,
-                }
-                # One row per member per week, saved as a single atomic upsert: the old
-                # delete-then-insert raced when the page loaded twice at once (initial load
-                # + realtime refetch) and tripped the unique key.
-                supabase.table("member_classification_temporal").upsert(
-                    _payload, on_conflict="membership_number_id,accrual_date"
-                ).execute()
-        except Exception as _persist_err:
-            print(f"[migs detail] snapshot persist failed (non-fatal): {_persist_err}")
+        # Evaluating a member is read-only. Weekly snapshots are persisted by
+        # /api/migs/recompute-all, not as a side effect of opening this page.
+        snapshot_recorded = None
+        if membership_id:
+            try:
+                snapshot_response = (
+                    supabase.table("member_classification_temporal")
+                    .select("accrual_date")
+                    .eq("membership_number_id", membership_id)
+                    .order("accrual_date", desc=True)
+                    .limit(1)
+                    .execute()
+                )
+                snapshot = (snapshot_response.data or [None])[0]
+                snapshot_recorded = snapshot.get("accrual_date") if snapshot else None
+            except Exception as snapshot_err:
+                logger.warning(
+                    "Could not load MIGS snapshot date for member %s: %s",
+                    membership_id,
+                    snapshot_err,
+                )
 
         return {
             "success": True,
@@ -14524,7 +14507,7 @@ async def _get_migs_member_detail(member_key: str, year: int | None = None):
                 "loan_multiplier": scored["loan_multiplier"],
                 "can_vote": scored["can_vote"],
                 "scoring_breakdown": scored["breakdown"],
-                "snapshot_recorded": _accrual_date,
+                "snapshot_recorded": snapshot_recorded,
             },
         }
     except HTTPException as err:
