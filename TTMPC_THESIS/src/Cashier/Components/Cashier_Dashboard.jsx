@@ -13,6 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Skeleton, SkeletonChart, SkeletonDonut } from "../../components/Skeleton";
 import TableStateRow from "../../components/TableStateRow";
 import MonthDayPicker from "../../components/MonthDayPicker";
+import Pagination from "../../components/Pagination";
 import {
   LayoutDashboard,
   Search,
@@ -273,21 +274,53 @@ async function fetchCashierDashboard(selectedDate) {
     { name: "Withdrawals",       count: breakdown.withdrawals },
   ].map((r, i) => ({ ...r, color: getLoanTypeColor(r.name, i), value: Math.round((r.count / total) * 100) }));
 
-  // Recent activity: merge all transaction sources, sort newest first, take top 6.
-  const memberLookup = new Map();
-  disbursals.forEach((d) => {
-    if (d.member) {
-      const name = `${d.member.first_name || ""} ${d.member.last_name || ""}`.trim();
-      memberLookup.set(d.control_number, name || "Member");
-    }
-  });
+  // Recent activity: merge all transaction sources, newest first. Every row
+  // gets a real member name (looked up below) and the same reference shape.
+  const fullName = (r) =>
+    [r?.first_name, r?.middle_name, r?.surname || r?.last_name].filter(Boolean).join(" ").trim();
+  const shortRef = (prefix, id) => `#${prefix}-${String(id || "").replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 
+  const loanOwner = new Map();
+  disbursals.forEach((d) => {
+    if (d.member) loanOwner.set(d.control_number, fullName(d.member));
+  });
+  const otherLoanIds = [...new Set(payments.map((p) => p.loan_id).filter((id) => id && !loanOwner.has(id)))];
+  const savingsNumbers = [...new Set(ledger.map((l) => l.account_number).filter(Boolean))];
+  const applicationIds = [...new Set(memberships.map((m) => m.application_id).filter(Boolean))];
+
+  const [loansRes, savingsAcctRes, applicationsRes] = await Promise.all([
+    otherLoanIds.length
+      ? supabase.from("loans").select("control_number, member:member_id(first_name, last_name)").in("control_number", otherLoanIds)
+      : { data: [] },
+    savingsNumbers.length
+      ? supabase.from("savings_accounts").select("account_number, account_name, member_id").in("account_number", savingsNumbers)
+      : { data: [] },
+    applicationIds.length
+      ? supabase.from("member_applications").select("application_id, first_name, middle_name, surname").in("application_id", applicationIds)
+      : { data: [] },
+  ]);
+  (loansRes?.data || []).forEach((l) => {
+    if (l.member) loanOwner.set(l.control_number, fullName(l.member));
+  });
+  const savingsAccounts = new Map((savingsAcctRes?.data || []).map((a) => [a.account_number, a]));
+  const applicantName = new Map((applicationsRes?.data || []).map((a) => [a.application_id, fullName(a)]));
+
+  const memberIds = [...new Set([
+    ...cbus.map((c) => c.member_id),
+    ...(savingsAcctRes?.data || []).map((a) => a.member_id),
+  ].filter(Boolean))];
+  const membersRes = memberIds.length
+    ? await supabase.from("member").select("id, first_name, last_name").in("id", memberIds)
+    : { data: [] };
+  const memberName = new Map((membersRes?.data || []).map((m) => [m.id, fullName(m)]));
+
+  const UNKNOWN = "Unknown member";
   const activity = [];
   payments.forEach((p) => activity.push({
     id: `pmt-${p.id}`,
-    name: memberLookup.get(p.loan_id) || p.loan_id || "Member",
+    name: loanOwner.get(p.loan_id) || UNKNOWN,
     desc: "Loan Payment",
-    ref: `#${p.payment_reference || `PMT-${p.id}`}`,
+    ref: p.payment_reference ? `#${p.payment_reference}` : shortRef("PMT", p.id),
     amount: PHP(p.amount_paid),
     time: formatTime(p.payment_date),
     ts: p.payment_date,
@@ -295,8 +328,8 @@ async function fetchCashierDashboard(selectedDate) {
   }));
   disbursals.forEach((d) => activity.push({
     id: `dsb-${d.control_number}`,
-    name: memberLookup.get(d.control_number) || "Member",
-    desc: `${d.loan_types?.name || "Loan"} Disbursement`,
+    name: loanOwner.get(d.control_number) || UNKNOWN,
+    desc: d.loan_types?.name ? `${d.loan_types.name} Loan Disbursement` : "Loan Disbursement",
     ref: `#${d.control_number}`,
     amount: PHP(d.loan_amount),
     time: formatTime(d.disbursal_date),
@@ -305,9 +338,9 @@ async function fetchCashierDashboard(selectedDate) {
   }));
   memberships.forEach((m) => activity.push({
     id: `mem-${m.id}`,
-    name: m.application_id || "Applicant",
-    desc: `Membership ${m.payment_type || "Payment"}`,
-    ref: `#MEM-${m.id}`,
+    name: applicantName.get(m.application_id) || m.application_id || UNKNOWN,
+    desc: m.payment_type ? `Membership ${m.payment_type}` : "Membership Payment",
+    ref: shortRef("MEM", m.id),
     amount: PHP(m.amount),
     time: formatTime(m.payment_date),
     ts: m.payment_date,
@@ -315,9 +348,9 @@ async function fetchCashierDashboard(selectedDate) {
   }));
   cbus.forEach((c) => activity.push({
     id: `cbu-${c.id}`,
-    name: c.member_id || "Member",
+    name: memberName.get(c.member_id) || UNKNOWN,
     desc: "CBU Contribution",
-    ref: `#CBU-${c.id}`,
+    ref: shortRef("CBU", c.id),
     amount: PHP(c.capital_added),
     time: formatTime(c.transaction_date),
     ts: c.transaction_date,
@@ -325,11 +358,12 @@ async function fetchCashierDashboard(selectedDate) {
   }));
   ledger.forEach((l) => {
     const isWithdrawal = String(l.entry_type || "").toLowerCase().includes("withdraw");
+    const acct = savingsAccounts.get(l.account_number);
     activity.push({
       id: `sav-${l.id}`,
-      name: l.account_number || "Savings",
+      name: memberName.get(acct?.member_id) || acct?.account_name || UNKNOWN,
       desc: isWithdrawal ? "Savings Withdrawal" : "Savings Deposit",
-      ref: `#${l.reference || `SAV-${l.id}`}`,
+      ref: l.reference ? `#${l.reference}` : shortRef("SAV", l.id),
       amount: PHP(l.amount),
       time: formatTime(l.posted_at),
       ts: l.posted_at,
@@ -337,7 +371,7 @@ async function fetchCashierDashboard(selectedDate) {
     });
   });
   activity.sort((a, b) => new Date(b.ts || 0) - new Date(a.ts || 0));
-  return { kpis, trendData, distributionData: distRows, recentActivity: activity.slice(0, 6) };
+  return { kpis, trendData, distributionData: distRows, recentActivity: activity };
 }
 
 const Cashier_Dashboard = () => {
@@ -349,11 +383,6 @@ const Cashier_Dashboard = () => {
   // native <input type="date"> format) to avoid timezone drift.
   const toIso = (d) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const shiftDays = (isoStr, delta) => {
-    const [y, m, d] = isoStr.split("-").map(Number);
-    const nd = new Date(y, m - 1, d + delta);
-    return toIso(nd);
-  };
   const todayIso = useMemo(() => toIso(new Date()), []);
 
   const [selectedDate, setSelectedDate] = useState(todayIso);
@@ -371,15 +400,11 @@ const Cashier_Dashboard = () => {
       }),
     [selectedDateObj]
   );
-  const selectedWeekday = useMemo(
-    () => selectedDateObj.toLocaleDateString("en-US", { weekday: "long" }),
-    [selectedDateObj]
-  );
 
   // Cached per selected day: coming back to the dashboard renders the last
   // result instantly and refreshes it in the background. `loading` is only
   // true when there's nothing cached yet for that day.
-  const { data, isPending: loading, error } = useQuery({
+  const { data, isPending: loading, error, dataUpdatedAt } = useQuery({
     queryKey: ['dashboard', 'cashier', selectedDate],
     queryFn: () => fetchCashierDashboard(selectedDate),
   });
@@ -388,6 +413,9 @@ const Cashier_Dashboard = () => {
     queryKey: ['dashboard', 'cashier', 'daily-trend', todayIso, trendDays],
     queryFn: () => fetchDailyTrend(todayIso, trendDays),
   });
+  const ACTIVITY_PAGE_SIZE = 6;
+  const [activityPage, setActivityPage] = useState(1);
+  useEffect(() => setActivityPage(1), [selectedDate]);
   const trendTotal = trendData.reduce((sum, r) => sum + r.value, 0);
   const trendBusiest = trendData.reduce((best, r) => (!best || r.value > best.value ? r : best), null);
   const selectedTrendPoint = trendData.find((r) => r.iso === selectedDate);
@@ -396,6 +424,9 @@ const Cashier_Dashboard = () => {
     distributionData = [],
     recentActivity = [],
   } = data || {};
+  const activityPages = Math.max(1, Math.ceil(recentActivity.length / ACTIVITY_PAGE_SIZE));
+  const activityStart = (Math.min(activityPage, activityPages) - 1) * ACTIVITY_PAGE_SIZE;
+  const pagedActivity = recentActivity.slice(activityStart, activityStart + ACTIVITY_PAGE_SIZE);
   useEffect(() => {
     if (error) addNotification(error?.message || "Failed to load dashboard data.", "error");
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -626,7 +657,7 @@ const Cashier_Dashboard = () => {
             <div className="p-6 flex justify-between items-center border-b border-gray-100">
               <div>
                 <h3 className="text-gray-800 font-bold text-lg">Recent Activity</h3>
-                <p className="text-xs text-gray-400 mt-1">Last updated: 3 mins ago</p>
+                <p className="text-xs text-gray-400 mt-1">{dataUpdatedAt ? `Last updated: ${formatTime(new Date(dataUpdatedAt).toISOString())}` : " "}</p>
               </div>
             </div>
 
@@ -639,7 +670,7 @@ const Cashier_Dashboard = () => {
                     <th className="p-5 font-bold">Reference</th>
                     <th className="p-5 font-bold">Amount</th>
                     <th className="p-5 font-bold">Time</th>
-                    <th className="p-5 font-bold">Type</th>
+                    <th className="p-5 font-bold">Cash Flow</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -652,7 +683,7 @@ const Cashier_Dashboard = () => {
                       icon={FileText}
                       label="No transactions recorded today."
                     />
-                  ) : recentActivity.map((row) => (
+                  ) : pagedActivity.map((row) => (
                     <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                       <td className="p-5 text-sm font-bold text-gray-800">{row.name}</td>
                       <td className="p-5 text-sm text-gray-500">{row.desc}</td>
@@ -676,13 +707,7 @@ const Cashier_Dashboard = () => {
               </table>
             </div>
 
-            <div className="p-4 px-6 border-t border-gray-50 flex justify-between items-center text-xs text-gray-400 font-medium">
-              <span>Showing {recentActivity.length} of {kpis.totalTransactions} transactions {isViewingToday ? "today" : `on ${selectedDateLabel}`}</span>
-              <div className="flex gap-2">
-                <button className="px-3 py-1 border border-gray-200 rounded-md hover:bg-gray-50">Previous</button>
-                <button className="px-3 py-1 border border-gray-200 rounded-md hover:bg-gray-50 text-gray-600">Next</button>
-              </div>
-            </div>
+            <Pagination page={activityPage} totalPages={activityPages} onChange={setActivityPage} />
           </div>
 
 
