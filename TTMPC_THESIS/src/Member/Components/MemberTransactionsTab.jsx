@@ -27,14 +27,12 @@ const CATEGORY_LABEL = { cbu: "CBU", membership: "MEMBERSHIP", grocery: "GROCERY
 const STATUS_OPTIONS = [
   { value: "all", label: "All statuses" },
   { value: "completed", label: "Completed" },
-  { value: "on_credit", label: "On credit" },
   { value: "pending", label: "Pending" },
   { value: "rejected", label: "Rejected" },
 ];
 
 const STATUS_CHIP = {
   completed: { label: "Completed", className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" },
-  on_credit: { label: "On credit", className: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" },
   pending: { label: "Pending", className: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" },
   rejected: { label: "Rejected", className: "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300" },
 };
@@ -71,12 +69,6 @@ function StatusChip({ status }) {
 
 // What a row without a receipt says when it's opened.
 function noteFor(row) {
-  if (row.status === "on_credit") {
-    return {
-      title: "Grocery purchase on credit",
-      text: `This purchase was added to your account. Balance due: ${formatPeso(row.balance_due)}.`,
-    };
-  }
   if (row.status === "pending") {
     return {
       title: "Waiting for validation",
@@ -103,7 +95,7 @@ const labelClass =
 export default function MemberTransactionsTab({ initialReceiptNo = "", initialOpenId = "", onInitialHandled }) {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
-  const [groceryTotals, setGroceryTotals] = useState({ purchaseAmount: 0, balanceDue: 0 });
+  const [groceryPurchaseAmount, setGroceryPurchaseAmount] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -144,10 +136,7 @@ export default function MemberTransactionsTab({ initialReceiptNo = "", initialOp
       if (!res.ok) throw new Error(payload?.detail || "Couldn't load your transactions.");
       setRows(payload.rows || []);
       setTotal(payload.total || 0);
-      setGroceryTotals({
-        purchaseAmount: Number(payload.totals?.grocery_purchase_amount || 0),
-        balanceDue: Number(payload.totals?.grocery_balance_due || 0),
-      });
+      setGroceryPurchaseAmount(Number(payload.totals?.grocery_purchase_amount || 0));
     } catch (e) {
       if (!silent) setError(e.message || "Couldn't load your transactions.");
     } finally {
@@ -194,11 +183,7 @@ export default function MemberTransactionsTab({ initialReceiptNo = "", initialOp
       <dl className="mb-5 flex flex-wrap gap-x-8 gap-y-2 rounded-xl border border-gray-100 bg-white px-4 py-3 dark:border-mdark-border dark:bg-mdark-card">
         <div className="flex items-baseline gap-2">
           <dt className="text-xs font-semibold text-gray-600 dark:text-mdark-text-secondary">Grocery purchases · all time</dt>
-          <dd className="text-sm font-bold tabular-nums text-gray-900 dark:text-mdark-text">{formatPeso(groceryTotals.purchaseAmount)}</dd>
-        </div>
-        <div className="flex items-baseline gap-2">
-          <dt className="text-xs font-semibold text-gray-600 dark:text-mdark-text-secondary">Grocery balance due</dt>
-          <dd className="text-sm font-bold tabular-nums text-amber-700 dark:text-amber-300">{formatPeso(groceryTotals.balanceDue)}</dd>
+          <dd className="text-sm font-bold tabular-nums text-gray-900 dark:text-mdark-text">{formatPeso(groceryPurchaseAmount)}</dd>
         </div>
       </dl>
 
@@ -286,11 +271,6 @@ export default function MemberTransactionsTab({ initialReceiptNo = "", initialOp
                           <p className="mt-0.5 font-mono text-xs text-gray-600 dark:text-mdark-text-secondary">
                             {row.receipt_no || (row.status === "pending" ? "Awaiting validation" : row.status === "rejected" ? "Not posted" : row.reference)}
                           </p>
-                          {row.status === "on_credit" && Number(row.balance_due) > 0 ? (
-                            <p className="mt-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
-                              Balance due: {formatPeso(row.balance_due)}
-                            </p>
-                          ) : null}
                         </td>
                         <td className="p-5">
                           <span className="rounded bg-gray-100 px-2 py-1 text-[9px] font-extrabold tracking-wider text-gray-700 dark:bg-mdark-elevated dark:text-mdark-text-secondary">
@@ -333,11 +313,6 @@ export default function MemberTransactionsTab({ initialReceiptNo = "", initialOp
                         <StatusChip status={row.status} />
                         {formatDay(row.day)}
                       </span>
-                      {row.status === "on_credit" && Number(row.balance_due) > 0 ? (
-                        <span className="mt-1 block text-xs font-semibold text-amber-700 dark:text-amber-300">
-                          Balance due: {formatPeso(row.balance_due)}
-                        </span>
-                      ) : null}
                     </span>
                     <span className={`shrink-0 text-sm font-bold tabular-nums ${row.direction === "credit" ? "text-member-green dark:text-mdark-accent" : "text-gray-900 dark:text-mdark-text"}`}>
                       {formatAmount(row)}

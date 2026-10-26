@@ -99,10 +99,8 @@ const Grocery = () => {
   }, [activeTab, searchQuery, month]);
 
   const totals = useMemo(() => {
-    const paid = rows.filter((r) => r.rawStatus === "Completed").length;
-    const credit = rows.filter((r) => r.rawStatus === "On Credit").length;
     const sum = rows.reduce((total, row) => total + row.amount, 0);
-    return { count: rows.length, paid, credit, sum };
+    return { count: rows.length, sum };
   }, [rows]);
 
   const hasFilters = searchQuery || month || activeTab !== "All";
@@ -116,7 +114,7 @@ const Grocery = () => {
 
   // Helper component for the status badges
   const StatusBadge = ({ text }) => {
-    const isSuccess = text === 'Completed' || text === 'Paid';
+    const isSuccess = text === 'Cash' || text === 'Completed' || text === 'Paid';
     return (
       <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${
         isSuccess 
@@ -148,11 +146,9 @@ const Grocery = () => {
           <h1 className="text-2xl font-bold text-gray-900 mb-6">Grocery</h1>
 
           {/* Summary Cards */}
-          <StatCardRow cols={4}>
+          <StatCardRow cols={2}>
             <StatCard label="Total Transactions" value={totals.count} icon={ShoppingCart} iconColor="text-green-600" />
-            <StatCard label="Total Amount" value={`₱${totals.sum.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} icon={Coins} iconColor="text-green-600" />
-            <StatCard label="Paid" value={totals.paid} icon={CheckCircle2} iconColor="text-green-600" />
-            <StatCard label="On Credit" value={totals.credit} icon={AlertCircle} iconColor="text-orange-500" />
+            <StatCard label="Cash Sales" value={`₱${totals.sum.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} icon={Coins} iconColor="text-green-600" />
           </StatCardRow>
 
           {/* Main Data Table Area */}
@@ -163,8 +159,7 @@ const Grocery = () => {
               subtitle={`Showing ${filteredRows.length ? (page - 1) * PAGE_SIZE + 1 : 0}-${Math.min(page * PAGE_SIZE, filteredRows.length)} of ${filteredRows.length} matching transactions`}
               tabs={[
                 { value: "All", label: "All", count: totals.count },
-                { value: "Paid", label: "Paid", count: totals.paid },
-                { value: "On Credit", label: "On Credit", count: totals.credit },
+                { value: "Cash", label: "Cash", count: totals.count },
               ]}
               activeTab={activeTab}
               onTabChange={(tab) => { setActiveTab(tab); setPage(1); }}
@@ -223,18 +218,17 @@ const Grocery = () => {
                     <th className="p-5 font-bold">POS Event ID</th>
                     <th className="p-5 font-bold">Transaction Date</th>
                     <th className="p-5 font-bold">Amount</th>
-                    <th className="p-5 font-bold" title="Paid: the member settled this purchase at the till. On Credit: it was charged to the member's account and the Balance is still owed.">Payment</th>
-                    <th className="p-5 font-bold">Balance</th>
+                    <th className="p-5 font-bold">Payment</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <TableStateRow colSpan={7} variant="loading" label="Loading..." />
+                    <TableStateRow colSpan={6} variant="loading" label="Loading..." />
                   ) : loadError ? (
-                    <TableStateRow colSpan={7} variant="empty" icon={AlertCircle} label="Could not load grocery transactions" sublabel={loadError} />
+                    <TableStateRow colSpan={6} variant="empty" icon={AlertCircle} label="Could not load grocery transactions" sublabel={loadError} />
                   ) : filteredRows.length === 0 ? (
                     <TableStateRow
-                      colSpan={7}
+                      colSpan={6}
                       variant="empty"
                       icon={ShoppingCart}
                       label={rows.length ? "No transactions match these filters." : "No transactions yet."}
@@ -251,9 +245,6 @@ const Grocery = () => {
                       <td className="p-5 text-sm font-medium text-gray-900">₱{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td className="p-5 text-sm">
                          <StatusBadge text={tx.payment} />
-                      </td>
-                      <td className={`p-5 text-sm font-semibold ${tx.balance > 0 ? 'text-red-500' : 'text-gray-900'}`}>
-                        ₱{tx.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                     </tr>
                   ))}

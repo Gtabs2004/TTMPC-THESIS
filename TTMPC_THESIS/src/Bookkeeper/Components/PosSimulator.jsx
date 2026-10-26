@@ -10,7 +10,6 @@ export default function PosSimulator() {
   const [members, setMembers] = useState([]);
   const [membershipId, setMembershipId] = useState("");
   const [amount, setAmount] = useState("");
-  const [status, setStatus] = useState("Completed");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [recent, setRecent] = useState([]);
@@ -32,6 +31,7 @@ export default function PosSimulator() {
     const { data, error: e } = await supabase
       .from("GROCERY_TRANSACTIONS")
       .select("*")
+      .eq("Status", "Completed")
       .order("created_at", { ascending: false })
       .limit(5);
     if (!e) setRecent(data || []);
@@ -59,7 +59,7 @@ export default function PosSimulator() {
         body: JSON.stringify({
           membership_id: membershipId,
           amount: parseFloat(amount),
-          status,
+          status: "Completed",
         }),
       });
       const body = await res.json();
@@ -121,16 +121,11 @@ export default function PosSimulator() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Payment Status
+                Payment
               </label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="w-full border border-gray-300 rounded-md p-2 text-sm"
-              >
-                <option value="Completed">Completed (cash)</option>
-                <option value="On Credit">On Credit (utang)</option>
-              </select>
+              <p className="w-full rounded-md border border-gray-300 bg-gray-50 p-2 text-sm text-gray-700">
+                Cash
+              </p>
             </div>
           </div>
 
@@ -155,7 +150,7 @@ export default function PosSimulator() {
                   <div>
                     <p className="font-semibold">Grocery transaction successful</p>
                     <p className="text-xs text-green-700 mt-0.5">
-                      Recorded ₱{Number(amount).toLocaleString()} for {membershipId} ({status}).
+                      Recorded ₱{Number(amount).toLocaleString()} for {membershipId} (cash).
                     </p>
                   </div>
                 </div>
@@ -185,7 +180,7 @@ export default function PosSimulator() {
                 <th className="p-5 font-bold">Grocery ID</th>
                 <th className="p-5 font-bold">Member Ref</th>
                 <th className="p-5 font-bold">Amount</th>
-                <th className="p-5 font-bold">Status</th>
+                <th className="p-5 font-bold">Payment</th>
                 <th className="p-5 font-bold">When</th>
               </tr>
             </thead>
@@ -207,7 +202,7 @@ export default function PosSimulator() {
                     <td className="p-5 text-sm">
                       ₱{Number(r.GroceryAmount).toLocaleString()}
                     </td>
-                    <td className="p-5 text-sm">{r.Status}</td>
+                    <td className="p-5 text-sm">Cash</td>
                     <td className="p-5 text-sm text-gray-500">
                       {new Date(r.TransactionDate).toLocaleString()}
                     </td>

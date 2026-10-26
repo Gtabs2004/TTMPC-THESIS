@@ -1,14 +1,15 @@
 import { supabase } from "../supabaseClient";
 
 const GROCERY_COLUMNS =
-  "GroceryID,event_id,pos_member_ref,TransactionDate,GroceryAmount,Status,balance_due";
+  "GroceryID,event_id,pos_member_ref,TransactionDate,GroceryAmount,Status";
 const FETCH_PAGE_SIZE = 1000;
 const FETCH_CONCURRENCY = 4;
 
 export async function fetchGroceryTransactions() {
   const { count, error: countError } = await supabase
     .from("GROCERY_TRANSACTIONS")
-    .select("GroceryID", { count: "exact", head: true });
+    .select("GroceryID", { count: "exact", head: true })
+    .eq("Status", "Completed");
 
   if (countError) throw countError;
   if (!count) return [];
@@ -27,6 +28,7 @@ export async function fetchGroceryTransactions() {
         supabase
           .from("GROCERY_TRANSACTIONS")
           .select(GROCERY_COLUMNS)
+          .eq("Status", "Completed")
           .order("TransactionDate", { ascending: false })
           .range(start, Math.min(start + FETCH_PAGE_SIZE - 1, count - 1))
       );
@@ -83,9 +85,7 @@ export function toGroceryRow(transaction, memberLookup = {}) {
       ? parsedDate.toLocaleString()
       : "—",
     amount: Number(transaction.GroceryAmount || 0),
-    payment: transaction.Status === "Completed" ? "Paid" : "On Credit",
-    balance: Number(transaction.balance_due || 0),
-    rawStatus: transaction.Status,
+    payment: "Cash",
   };
 }
 
@@ -94,8 +94,7 @@ const normalizeSearch = (value) => String(value || "").trim().toLocaleLowerCase(
 export function filterGroceryRows(rows, { activeTab, search, month }) {
   const query = normalizeSearch(search);
   return rows.filter((row) => {
-    if (activeTab === "Paid" && row.rawStatus !== "Completed") return false;
-    if (activeTab === "On Credit" && row.rawStatus !== "On Credit") return false;
+    if (activeTab === "Cash" && row.payment !== "Cash") return false;
     if (month && (!row.dateKey || row.dateKey.slice(0, 7) !== month)) return false;
     if (!query) return true;
 
@@ -119,7 +118,6 @@ export function downloadGroceryCsv(rows) {
     "Transaction Date",
     "Amount",
     "Payment",
-    "Balance Due",
   ];
   const csv = [
     headers,
@@ -131,7 +129,6 @@ export function downloadGroceryCsv(rows) {
       row.transactionDate,
       row.amount,
       row.payment,
-      row.balance,
     ]),
   ]
     .map((record) => record.map(csvCell).join(","))

@@ -286,7 +286,8 @@ async function fetchBodDashboard() {
     // Grocery/POS purchases charged to member accounts.
     supabase
       .from('GROCERY_TRANSACTIONS')
-      .select('GroceryID, membership_number_id, TransactionDate, GroceryAmount, Status, balance_due, member:membership_number_id(first_name, last_name, membership_id)')
+      .select('GroceryID, membership_number_id, TransactionDate, GroceryAmount, Status, member:membership_number_id(first_name, last_name, membership_id)')
+      .eq('Status', 'Completed')
       .order('TransactionDate', { ascending: false })
       .limit(5),
     fetchBodFinancialSummary(),
@@ -532,12 +533,6 @@ async function fetchBodDashboard() {
     });
   });
   recentGrocery.forEach((g) => {
-    // Grocery is the one non-loan type where "Completed" is still the
-    // right word — a purchase with no balance left owing genuinely has
-    // been fully paid, matching the same rule that reserves
-    // "Completed" for a loan paid off in full rather than any generic
-    // success.
-    const isSettled = String(g.Status || '').toLowerCase() === 'completed';
     txnRows.push({
       id: g.GroceryID,
       member: g.member ? memberName(g.member) : 'Member',
@@ -546,12 +541,10 @@ async function fetchBodDashboard() {
       detail: '',
       amountValue: Number(g.GroceryAmount || 0),
       date: g.TransactionDate,
-      status: isSettled ? 'Completed' : 'Pending',
+      status: 'Completed',
       isCredit: true,
       clickType: 'modal',
-      modalDetails: [
-        ['Balance Due', formatCurrency(g.balance_due || 0)],
-      ],
+      modalDetails: [],
     });
   });
 

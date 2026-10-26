@@ -562,7 +562,6 @@ const Member_Details = () => {
               columns={[
                 { label: 'Date', render: (r) => formatDay(r.TransactionDate) },
                 { label: 'Amount', align: 'right', render: (r) => formatPeso(r.GroceryAmount) },
-                { label: 'Balance Due', align: 'right', render: (r) => formatPeso(r.balance_due) },
                 { label: 'Status', render: (r) => r.Status || '—' },
               ]}
             />

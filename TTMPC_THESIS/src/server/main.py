@@ -9343,6 +9343,7 @@ def _fetch_recent_activity(limit: int = 8) -> list[dict]:
     grocery_resp = (
         supabase.table("GROCERY_TRANSACTIONS")
         .select("GroceryID,membership_number_id,TransactionDate,GroceryAmount,Status")
+        .eq("Status", "Completed")
         .lte("TransactionDate", now_iso)
         .order("TransactionDate", desc=True)
         .limit(limit)
@@ -11280,8 +11281,9 @@ def get_member_financial_summary(membership_id: str, current_user: dict = _Depen
         now_iso = datetime.now(timezone.utc).isoformat()
         rows = (
             supabase.table("GROCERY_TRANSACTIONS")
-            .select("TransactionDate,GroceryAmount,Status,balance_due")
+            .select("TransactionDate,GroceryAmount,Status")
             .eq("membership_number_id", mid)
+            .eq("Status", "Completed")
             .lte("TransactionDate", now_iso)
             .order("TransactionDate", desc=True)
             .limit(25)
@@ -13716,7 +13718,7 @@ async def _list_migs_members(year: int | None = None):
                 .execute()
             )
             for row in grocery_response.data or []:
-                if str(row.get("Status") or "") not in {"Completed", "On Credit"}:
+                if str(row.get("Status") or "") != "Completed":
                     continue
                 mid = row.get("membership_number_id")
                 if mid:
@@ -14439,7 +14441,7 @@ async def _get_migs_member_detail(member_key: str, year: int | None = None):
                 .execute()
             )
             for row in grocery_response.data or []:
-                if str(row.get("Status") or "") in {"Completed", "On Credit"}:
+                if str(row.get("Status") or "") == "Completed":
                     groceries += float(row.get("GroceryAmount") or 0)
         except Exception as exc:  # noqa: BLE001
             print(f"[migs detail] grocery lookup failed: {exc}")
@@ -22202,8 +22204,7 @@ def _pos_webhook_config():
 class PosSimulateRequest(BaseModel):
     membership_id: str = Field(..., description="member.membership_id, e.g. TTMPC-001")
     amount: float = Field(..., gt=0)
-    status: Literal["Completed", "On Credit"] = "Completed"
-    balance_due: float | None = None
+    status: Literal["Completed"] = "Completed"
     event_type: Literal["sale", "return", "void"] = "sale"
 
 
@@ -22232,10 +22233,6 @@ def dev_simulate_pos_event(req: PosSimulateRequest):
     event_id = f"evt_sim_{_uuid.uuid4().hex[:16]}"
     grocery_id = f"GR-SIM-{_uuid.uuid4().hex[:10].upper()}"
     event_time = _dt.now(_tz.utc).isoformat().replace("+00:00", "Z")
-    balance = req.balance_due if req.balance_due is not None else (
-        0.0 if req.status == "Completed" else req.amount
-    )
-
     payload = {
         "event_id": event_id,
         "event_type": req.event_type,
@@ -22244,7 +22241,7 @@ def dev_simulate_pos_event(req: PosSimulateRequest):
         "member_id": req.membership_id,
         "amount_total": round(req.amount, 2),
         "payment_status": req.status,
-        "balance_due": round(balance, 2),
+        "balance_due": 0,
     }
 
     body_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
@@ -23124,8 +23121,7 @@ def list_receipts(
 # receipt number. Feeds the dashboard's Recent Transaction (page_size=6) and the
 # Transactions tab in Statement of Account. Identity comes from the token only;
 # these tables are readable by any login (Step 0), so the member's rows are
-# picked here, not in the browser. Grocery purchases include both Completed and
-# On Credit entries; the response also carries member-wide POS purchase totals.
+# picked here, not in the browser. Only cash-paid grocery purchases are included.
 
 _MANILA_TZ = timezone(timedelta(hours=8))
 _PAYMENT_DONE = {"validated", "confirmed", "bookkeeper_confirmed", "approved"}
@@ -23235,8 +23231,8 @@ def member_transactions(
         "id,interest_amount,settlement,settled_at"
     ).eq("member_id", member_id).in_("settlement", ["capitalised", "cash"]))
     groceries = fetch_all_pages(lambda: supabase.table("GROCERY_TRANSACTIONS").select(
-        "GroceryID,TransactionDate,GroceryAmount,Status,balance_due"
-    ).eq("membership_number_id", member_id).order("TransactionDate").order("GroceryID"))
+        "GroceryID,TransactionDate,GroceryAmount,Status"
+    ).eq("membership_number_id", member_id).eq("Status", "Completed").order("TransactionDate").order("GroceryID"))
     cbu_rows = fetch(lambda: supabase.table("capital_build_up").select(
         "id,cbu_deposit_id,transaction_date,capital_added,deposit_account,source_loan_id,source_payment_id,source_isc_id,source_backfill_id"
     ).eq("member_id", member_id).gt("capital_added", 0))
@@ -23364,25 +23360,19 @@ def member_transactions(
         })
     grocery_rows = [
         g for g in groceries
-        if str(g.get("Status") or "").strip().lower() in {"completed", "on credit"}
+        if str(g.get("Status") or "").strip().lower() == "completed"
     ]
     grocery_purchase_total = sum(
         (Decimal(str(g.get("GroceryAmount") or 0)) for g in grocery_rows),
         Decimal("0"),
     )
-    grocery_balance_due_total = sum(
-        (Decimal(str(g.get("balance_due") or 0)) for g in grocery_rows),
-        Decimal("0"),
-    )
     for g in grocery_rows:
-        status = "completed" if str(g.get("Status") or "").strip().lower() == "completed" else "on_credit"
         when, day = _feed_when(g.get("TransactionDate"))
         rows.append({
             "source_type": "grocery", "source_id": str(g["GroceryID"]), "category": "grocery",
             "description": "Grocery Purchase",
             "amount": decimal_to_float(Decimal(str(g.get("GroceryAmount") or 0))),
-            "balance_due": decimal_to_float(Decimal(str(g.get("balance_due") or 0))),
-            "direction": "debit", "status": status, "reference": str(g["GroceryID"]),
+            "direction": "debit", "status": "completed", "reference": str(g["GroceryID"]),
             "when": when, "day": day,
         })
 
@@ -23415,6 +23405,5 @@ def member_transactions(
         "page_size": page_size,
         "totals": {
             "grocery_purchase_amount": decimal_to_float(grocery_purchase_total),
-            "grocery_balance_due": decimal_to_float(grocery_balance_due_total),
         },
     }

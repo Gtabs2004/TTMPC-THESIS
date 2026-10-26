@@ -108,7 +108,7 @@ Reason: sets the minimum data needed for MIGS totals.
 - grocery_id (receipt/transaction ID)
 - member_id (or null if no member)
 - amount_total
-- payment_status: Completed | On Credit
+- payment_status: Completed
 - balance_due
 
 8) Required fields (plain meaning)
@@ -119,13 +119,12 @@ Reason: avoids confusion about each field.
 - grocery_id: POS receipt/transaction number.
 - member_id: member number linked to purchase (or null).
 - amount_total: total purchase amount.
-- payment_status: completed in cash or on credit.
-- balance_due: remaining amount if on credit.
+- payment_status: the cash sale is completed.
+- balance_due: always 0 for cash sales.
 
 9) Status values we use
 Reason: standardizes payment states in our database.
 - Completed (cash)
-- On Credit (utang)
 
 10) Required field mapping (payload -> database)
 Reason: ensures incoming data fits the schema.
@@ -183,7 +182,7 @@ Reason: allows MIGS totals to include older purchases.
 
 15) Database (needed for MIGS totals)
 Reason: we must store events to compute member totals.
-- We must store all grocery transactions so we can compute member totals.
+- Only completed cash purchases are included in grocery views and member totals.
 - Table created by DB developer: GROCERY_TRANSACTIONS
 
 GROCERY_TRANSACTIONS (table)
@@ -200,14 +199,18 @@ select
   sum(GroceryAmount) as total_grocery_amount,
   count(*) as transaction_count
 from GROCERY_TRANSACTIONS
-where Status in ('Completed', 'On Credit')
+where Status = 'Completed'
 group by membership_number_id;
+
+Apply `src/server/grocery_cash_only_migration.sql` to an existing database. It rejects new non-cash grocery transactions and cash sales with a nonzero balance, hides legacy On Credit rows from authenticated readers, and excludes them from member totals without deleting historical records.
 
 16) Setup checklist
 Reason: confirms everything is ready before go-live.
 - Secrets saved with correct names (POS_WEBHOOK_SECRET, POS_SUPABASE_URL, POS_SERVICE_ROLE_KEY).
 - Edge function deployed in Supabase (Pos-webhook, exact case).
 - POS has the correct webhook URL and secret.
+- Cash sales use `payment_status: "Completed"` and `balance_due: 0`.
+- The cash-only grocery migration has been applied.
 - Test POST returns 200 OK.
 
 17) Readiness
@@ -223,7 +226,7 @@ Data integrity:
 - Do you include a unique event_id every time?
 - Can you replay data for a date range?
 Status and values:
-- Which payment status label will you send: Completed or Paid?
+- Can your POS send `Completed` for every cash-paid sale?
 - Do you have contact info (phone/email) for each member or only names?
 Security:
 - What signature/auth method do you support?
@@ -239,7 +242,7 @@ Field and data specifics:
 - Do you send the same event more than once? If yes, how do we detect duplicates?
 Event types and representations:
 - How do you represent returns or voids (negative amount or separate event_type)?
-- Can you provide a sample for each Status value (Completed, On Credit)?
+- Can you provide a sample cash-sale payload with `balance_due` set to 0?
 Delivery and retry:
 - What is the maximum webhook delivery delay we should expect?
 - What is your retry schedule and how many retries?
@@ -248,7 +251,7 @@ Signature and payload:
 - Do you sign the raw JSON body or a normalized version?
 - Do you include timezone in event_time?
 Status mapping:
-- If you use a different payment label than Completed, what exact value should we map it to in our system?
+- If you use a different cash payment label than Completed, what exact value should we map it to in our system?
 Historical data:
 - How will you provide backfill data for past purchases (API export or CSV)?
 - Can you send it via the webhook in replay mode or a separate export?

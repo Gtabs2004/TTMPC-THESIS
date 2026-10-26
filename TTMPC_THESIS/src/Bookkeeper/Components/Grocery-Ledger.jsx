@@ -65,70 +65,6 @@ import {
   Brain,
 } from "lucide-react";
 
-// Legacy mock kept only as fallback shape reference; real data is fetched from Supabase.
-const _UNUSED_MOCK = {
-  Daily: [
-    {
-      date: "Thursday, April 30, 2026",
-      memberCount: 6,
-      totalCash: "P3,145.00",
-      totalCredit: "P1,234.00",
-      totalAmount: "P4,379.00",
-      members: [
-        { id: 'd1', name: "Miguel Torres", memberId: "MEM-008", initial: "M", initialColor: "text-teal-600 bg-teal-50", txnText: "1 txn", cashAmount: "P560.00", creditAmount: "P0.00", totalAmount: "P560.00", transactions: [{ posId: "POS-ZJ66PD45", date: "Apr 30, 2026", type: "Cash", status: "Paid", amount: "P560.00" }] },
-        { id: 'd2', name: "Rosa Garcia", memberId: "MEM-003", initial: "R", initialColor: "text-green-600 bg-green-50", txnText: "2 txns", cashAmount: "P1,733.00", creditAmount: "P0.00", totalAmount: "P1,733.00" },
-        { id: 'd3', name: "Elena Cruz", memberId: "MEM-009", initial: "E", initialColor: "text-blue-600 bg-blue-50", txnText: "1 txn", cashAmount: "P712.00", creditAmount: "P0.00", totalAmount: "P712.00" },
-        { id: 'd4', name: "Pedro Reyes", memberId: "MEM-004", initial: "P", initialColor: "text-gray-600 bg-gray-100", txnText: "1 txn", cashAmount: "P0.00", creditAmount: "P565.00", totalAmount: "P565.00" },
-      ]
-    }
-  ],
-  Weekly: [
-    {
-      date: "Week 18, 2026",
-      memberCount: 10,
-      totalCash: "P9,182.00",
-      totalCredit: "P4,113.00",
-      totalAmount: "P13,295.00",
-      members: [
-        { id: 'w1', name: "Miguel Torres", memberId: "MEM-008", initial: "M", initialColor: "text-teal-600 bg-teal-50", txnText: "5 txns", cashAmount: "P1,592.00", creditAmount: "P1,150.00", totalAmount: "P2,742.00", transactions: [{ posId: "POS-WEEKLY", date: "Apr 28, 2026", type: "Cash", status: "Paid", amount: "P1,592.00" }] },
-        { id: 'w2', name: "Rosa Garcia", memberId: "MEM-003", initial: "R", initialColor: "text-green-600 bg-green-50", txnText: "6 txns", cashAmount: "P3,434.00", creditAmount: "P598.00", totalAmount: "P4,032.00" },
-        { id: 'w3', name: "Elena Cruz", memberId: "MEM-009", initial: "E", initialColor: "text-blue-600 bg-blue-50", txnText: "1 txn", cashAmount: "P712.00", creditAmount: "P0.00", totalAmount: "P712.00" },
-        { id: 'w4', name: "Pedro Reyes", memberId: "MEM-004", initial: "P", initialColor: "text-gray-600 bg-gray-100", txnText: "1 txn", cashAmount: "P0.00", creditAmount: "P565.00", totalAmount: "P565.00" },
-      ]
-    }
-  ],
-  Monthly: [
-    {
-      date: "April 2026",
-      memberCount: 10,
-      totalCash: "P50,343.00",
-      totalCredit: "P28,283.00",
-      totalAmount: "P78,626.00",
-      members: [
-        { id: 'm1', name: "Miguel Torres", memberId: "MEM-008", initial: "M", initialColor: "text-teal-600 bg-teal-50", txnText: "14 txns", cashAmount: "P5,029.00", creditAmount: "P2,965.00", totalAmount: "P7,994.00", transactions: [{ posId: "POS-MONTHLY", date: "Apr 15, 2026", type: "Mixed", status: "Paid", amount: "P7,994.00" }] },
-        { id: 'm2', name: "Rosa Garcia", memberId: "MEM-003", initial: "R", initialColor: "text-green-600 bg-green-50", txnText: "24 txns", cashAmount: "P10,950.00", creditAmount: "P3,983.00", totalAmount: "P14,933.00" },
-        { id: 'm3', name: "Elena Cruz", memberId: "MEM-009", initial: "E", initialColor: "text-blue-600 bg-blue-50", txnText: "11 txns", cashAmount: "P1,981.00", creditAmount: "P1,812.00", totalAmount: "P3,793.00" },
-        { id: 'm4', name: "Pedro Reyes", memberId: "MEM-004", initial: "P", initialColor: "text-gray-600 bg-gray-100", txnText: "17 txns", cashAmount: "P5,357.00", creditAmount: "P3,197.00", totalAmount: "P8,554.00" },
-      ]
-    }
-  ],
-  Yearly: [
-    {
-      date: "2026",
-      memberCount: 10,
-      totalCash: "P50,983.00",
-      totalCredit: "P28,473.00",
-      totalAmount: "P79,456.00",
-      members: [
-        { id: 'y1', name: "Miguel Torres", memberId: "MEM-008", initial: "M", initialColor: "text-teal-600 bg-teal-50", txnText: "14 txns", cashAmount: "P5,029.00", creditAmount: "P2,965.00", totalAmount: "P7,994.00", transactions: [{ posId: "POS-YEARLY", date: "Jan-Apr 2026", type: "Mixed", status: "Paid", amount: "P7,994.00" }] },
-        { id: 'y2', name: "Rosa Garcia", memberId: "MEM-003", initial: "R", initialColor: "text-green-600 bg-green-50", txnText: "25 txns", cashAmount: "P10,950.00", creditAmount: "P4,173.00", totalAmount: "P15,123.00" },
-        { id: 'y3', name: "Elena Cruz", memberId: "MEM-009", initial: "E", initialColor: "text-blue-600 bg-blue-50", txnText: "11 txns", cashAmount: "P1,981.00", creditAmount: "P1,812.00", totalAmount: "P3,793.00" },
-        { id: 'y4', name: "Pedro Reyes", memberId: "MEM-004", initial: "P", initialColor: "text-gray-600 bg-gray-100", txnText: "17 txns", cashAmount: "P5,357.00", creditAmount: "P3,197.00", totalAmount: "P8,554.00" },
-      ]
-    }
-  ]
-};
-
 const Grocery_Ledger = () => {
     const navigate = useNavigate();
   
@@ -150,6 +86,7 @@ const Grocery_Ledger = () => {
       const { data: txs } = await supabase
         .from("GROCERY_TRANSACTIONS")
         .select("*")
+        .eq("Status", "Completed")
         .order("TransactionDate", { ascending: false })
         .limit(2000);
       const { data: members } = await supabase
@@ -186,19 +123,19 @@ const Grocery_Ledger = () => {
           memberId: m?.membership_id || t.pos_member_ref || "—",
           initial: (name[0] || "?").toUpperCase(),
           initialColor: INITIAL_COLORS[Math.abs(memberKey.split("").reduce((s,c)=>s+c.charCodeAt(0),0)) % INITIAL_COLORS.length],
-          cash: 0, credit: 0, count: 0,
+          cash: 0, count: 0,
           transactions: [],
         });
       }
       const mm = g.members.get(memberKey);
       const amt = Number(t.GroceryAmount || 0);
-      if (t.Status === "Completed") mm.cash += amt; else mm.credit += amt;
+      mm.cash += amt;
       mm.count += 1;
       mm.transactions.push({
         posId: t.GroceryID,
         date: new Date(t.TransactionDate).toLocaleString(),
-        type: t.Status === "Completed" ? "Cash" : "Credit",
-        status: t.Status === "Completed" ? "Paid" : "On Credit",
+        type: "Cash",
+        status: "Paid",
         amount: peso(amt),
       });
     }
@@ -207,30 +144,24 @@ const Grocery_Ledger = () => {
         ...m,
         txnText: `${m.count} txn${m.count === 1 ? "" : "s"}`,
         cashAmount: peso(m.cash),
-        creditAmount: peso(m.credit),
-        totalAmount: peso(m.cash + m.credit),
       }));
       const totalCash = members.reduce((s, m) => s + m.cash, 0);
-      const totalCredit = members.reduce((s, m) => s + m.credit, 0);
       return {
         date: g.date,
         memberCount: members.length,
         totalCash: peso(totalCash),
-        totalCredit: peso(totalCredit),
-        totalAmount: peso(totalCash + totalCredit),
         members,
       };
     });
   }, [transactions, memberLookup, activeFilter]);
 
   const summary = useMemo(() => {
-    let cash = 0, credit = 0, paidCount = 0, creditCount = 0;
+    let cash = 0;
     for (const t of transactions) {
       const amt = Number(t.GroceryAmount || 0);
-      if (t.Status === "Completed") { cash += amt; paidCount += 1; }
-      else { credit += amt; creditCount += 1; }
+      cash += amt;
     }
-    return { cash, credit, gross: cash + credit, paidCount, creditCount, total: transactions.length };
+    return { cash, total: transactions.length };
   }, [transactions]);
 
   useEffect(() => {
@@ -296,12 +227,9 @@ const Grocery_Ledger = () => {
           </div>
 
           {/* Summary Cards */}
-          <StatCardRow cols={5}>
-            <StatCard label="Total Gross" value={peso(summary.gross)} />
+          <StatCardRow cols={2}>
             <StatCard label="Cash Sales" value={peso(summary.cash)} />
-            <StatCard label="On Credit Sales" value={peso(summary.credit)} />
-            <StatCard label="Paid Transactions" value={summary.paidCount} />
-            <StatCard label="On Credit Transactions" value={summary.creditCount} />
+            <StatCard label="Cash Transactions" value={summary.total} />
           </StatCardRow>
 
           {/* Transaction Ledger List */}
@@ -340,18 +268,10 @@ const Grocery_Ledger = () => {
                         <span className="text-sm text-gray-400">({group.memberCount} members)</span>
                       </div>
                       
-                      <div className="flex items-center gap-6 text-sm">
+                      <div className="flex items-center gap-2 text-sm">
                         <div className="flex items-center gap-1">
-                          <span className="text-gray-500">Cash</span>
+                          <span className="text-gray-500">Cash sales</span>
                           <span className="font-semibold text-green-700">{group.totalCash}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-gray-500">On Credit</span>
-                          <span className="font-semibold text-orange-600">{group.totalCredit}</span>
-                        </div>
-                        <div className="flex items-center gap-1 ml-4">
-                          <span className="text-gray-500">Total</span>
-                          <span className="font-bold text-gray-900">{group.totalAmount}</span>
                         </div>
                       </div>
                     </div>
@@ -385,14 +305,9 @@ const Grocery_Ledger = () => {
                                 </div>
 
                                 <div className="flex items-center gap-8">
-                                  {/* Cash / Credit Breakdown */}
                                   <div className="text-right hidden sm:block">
-                                    <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5">Cash / On Credit</p>
-                                    <div className="flex items-center gap-1 text-sm font-semibold">
-                                      <span className="text-green-600">{member.cashAmount}</span>
-                                      <span className="text-gray-300">/</span>
-                                      <span className="text-orange-500">{member.creditAmount}</span>
-                                    </div>
+                                    <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5">Cash</p>
+                                    <span className="text-sm font-semibold text-green-600">{member.cashAmount}</span>
                                   </div>
                                   
                                   {/* Total Amount */}

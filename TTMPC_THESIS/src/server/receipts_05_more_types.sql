@@ -16,8 +16,9 @@
 --   cbu_payout  cbu_payouts rows of kind 'payout' (cash handed to an exiting
 --               member). Loan offsets are not cash and get none.
 --   isc         isc_transactions line settled as 'capitalised' or 'cash'.
---   grocery     GROCERY_TRANSACTIONS 'Completed' and received from the POS
---               webhook (event_id present). 'On Credit' is left out for now.
+--   grocery     cash-paid GROCERY_TRANSACTIONS ('Completed') received from
+--               the POS webhook (event_id present); legacy On Credit rows
+--               are excluded.
 -- =============================================================================
 
 BEGIN;

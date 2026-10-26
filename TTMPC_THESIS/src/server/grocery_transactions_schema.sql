@@ -11,8 +11,8 @@ CREATE TABLE IF NOT EXISTS public."GROCERY_TRANSACTIONS" (
   pos_member_ref text,
   "TransactionDate" timestamptz NOT NULL,
   "GroceryAmount" numeric(12,2) NOT NULL,
-  "Status" text NOT NULL CHECK ("Status" IN ('Completed','On Credit')),
-  balance_due numeric(12,2) NOT NULL DEFAULT 0,
+  "Status" text NOT NULL CHECK ("Status" = 'Completed'),
+  balance_due numeric(12,2) NOT NULL DEFAULT 0 CHECK (balance_due = 0),
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -30,7 +30,7 @@ SELECT
   COUNT(*) AS transaction_count,
   MAX("TransactionDate") AS last_transaction_at
 FROM public."GROCERY_TRANSACTIONS"
-WHERE "Status" IN ('Completed','On Credit')
+WHERE "Status" = 'Completed'
   AND membership_number_id IS NOT NULL
 GROUP BY membership_number_id;
 
@@ -48,6 +48,6 @@ CREATE POLICY grocery_tx_authenticated_read
   ON public."GROCERY_TRANSACTIONS"
   FOR SELECT
   TO authenticated
-  USING (true);
+  USING ("Status" = 'Completed');
 
 COMMIT;
