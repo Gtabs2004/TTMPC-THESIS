@@ -20,6 +20,7 @@ import logging
 import re
 import time
 from functools import lru_cache
+from threading import Lock
 from uuid import UUID, uuid4
 from html import escape as _html_escape
 from contextlib import asynccontextmanager
@@ -227,7 +228,7 @@ async def _warm_manage_loans_cache():
         # loans-table scan for clustering, ~2-4s even once the connection is
         # warm). member-loan-summary needs no separate warm-up: it reuses
         # get_bookkeeper_manage_loans()'s cache, already warmed above.
-        await get_personal_datasheet_records()
+        get_personal_datasheet_records()
         logger.info("Personal datasheet cache warmed on startup.")
     except Exception as e:
         logger.warning(f"Personal datasheet cache warm-up failed (non-fatal): {e}")
@@ -287,6 +288,36 @@ def _pdf_template_path(filename: str) -> str:
 
 
 app = FastAPI(lifespan=_lifespan)
+
+
+@app.middleware("http")
+async def _time_manage_member_requests(request: Request, call_next):
+    timed_paths = {
+        "/api/personal_data_sheet",
+        "/api/bod/member-loan-summary",
+        "/api/bod/terminated-members",
+    }
+    if request.url.path not in timed_paths:
+        return await call_next(request)
+
+    started_at = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        logger.exception(
+            "Manage Member API %s failed after %.2fs",
+            request.url.path,
+            time.perf_counter() - started_at,
+        )
+        raise
+
+    logger.info(
+        "Manage Member API %s returned %s in %.2fs",
+        request.url.path,
+        response.status_code,
+        time.perf_counter() - started_at,
+    )
+    return response
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -8530,9 +8561,19 @@ async def get_member_debt_capacity(member_key: str):
 # up within half a minute; not worth wiring write-invalidation for a demo.
 _MANAGE_LOANS_CACHE: dict = {"payload": None, "expires_at": 0.0}
 _MANAGE_LOANS_CACHE_TTL_SECONDS = 120.0  # 2 min — payments show up within 2 min; avoids pile-up from multi-tab polling
+_MANAGE_LOANS_CACHE_LOCK = Lock()
 
 @app.get("/api/bookkeeper/manage-loans")
 async def get_bookkeeper_manage_loans():
+    return await run_in_threadpool(_load_bookkeeper_manage_loans)
+
+
+def _load_bookkeeper_manage_loans():
+    with _MANAGE_LOANS_CACHE_LOCK:
+        return _load_bookkeeper_manage_loans_locked()
+
+
+def _load_bookkeeper_manage_loans_locked():
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
@@ -9874,7 +9915,7 @@ async def get_bod_member_loan_summary():
 
 
 @app.get("/api/bod/terminated-members")
-async def get_bod_terminated_members():
+def get_bod_terminated_members():
     """Per-membership_id termination info — for BOD Manage Member, which needs
     to know which personal_data_sheet rows belong to terminated members so it
     can split them into a separate table instead of mixing them into the
@@ -10982,10 +11023,16 @@ def _load_member_clusters(membership_ids: list[str]) -> dict[str, str]:
 # response itself means only the first viewer in a 90s window pays that cost.
 _PERSONAL_DATA_SHEET_CACHE: dict = {"payload": None, "expires_at": 0.0}
 _PERSONAL_DATA_SHEET_CACHE_TTL_SECONDS = 90.0
+_PERSONAL_DATA_SHEET_CACHE_LOCK = Lock()
 
 
 @app.get("/api/personal_data_sheet")
-async def get_personal_datasheet_records():
+def get_personal_datasheet_records():
+    with _PERSONAL_DATA_SHEET_CACHE_LOCK:
+        return _load_personal_datasheet_records_locked()
+
+
+def _load_personal_datasheet_records_locked():
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
@@ -17988,7 +18035,7 @@ async def get_credit_risk_queue(refresh: bool = False):
         member_columns = (
             "control_number,member_id,loan_amount,principal_amount,monthly_amortization,"
             "term,interest_rate,application_status,loan_status,application_date,disbursal_date,"
-            "raw_payload,"
+            "raw_payload,applicant_full_name,"
             "member:member_id(first_name,last_name,membership_id,is_bona_fide),"
             "loan_type:loan_type_id(code,name)"
         )
@@ -18047,7 +18094,10 @@ async def get_credit_risk_queue(refresh: bool = False):
         member_name = (
             str(loan.get("full_name") or "").strip()
             if is_nonmember
-            else f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip()
+            else (
+                str(loan.get("applicant_full_name") or "").strip()
+                or f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip()
+            )
         ) or "Unknown"
         loan_type = (
             loan.get("application_type")
