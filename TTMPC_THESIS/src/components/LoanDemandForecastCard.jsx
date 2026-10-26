@@ -658,7 +658,7 @@ const LoanDemandForecastCard = ({ className = "" }) => {
                         tick={{ fontSize: 11, fill: "#6b7280" }}
                         tickFormatter={PHP_COMPACT}
                         width={56}
-                        domain={[0, "auto"]}
+                        domain={[0, (dataMax) => Math.ceil((dataMax || 0) * 1.2)]}
                       />
                       <Tooltip content={makeTooltip(t)} cursor={{ stroke: "#d1d5db", strokeDasharray: "3 3" }} />
                       {t.value !== "bonus" && transitionLabelByType[t.value] && (
