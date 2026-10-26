@@ -33,7 +33,7 @@ const LIFECYCLE_STAGES = [
   { id: "submitted", label: "Loan Submitted", icon: FileText, description: "Your application has been received." },
   { id: "review", label: "Under Review", icon: ClipboardCheck, description: "Bookkeeper is reviewing your documents." },
   { id: "manager_review", label: "Pending Approval", icon: ThumbsUp, description: "Bookkeeper has forwarded your loan to the Manager for approval." },
-  { id: "approved", label: "Approved", icon: ThumbsUp, description: "The Manager has approved your loan." },
+  { id: "approved", label: "Approved", icon: ThumbsUp, description: "The Manager has approved your loan. Awaiting Treasurer approval for release." },
   { id: "ready", label: "Ready for Release", icon: PackageCheck, description: "Awaiting cashier disbursement." },
   { id: "disbursed", label: "Disbursed", icon: Banknote, description: "Funds have been released to you." },
   { id: "ongoing", label: "Ongoing Payments", icon: Repeat, description: "You are actively paying this loan." },
@@ -47,8 +47,9 @@ const resolveStageIndex = (loan) => {
   if (status === "fully paid") return STAGE_INDEX.paid;
   if (status === "partially paid") return STAGE_INDEX.ongoing;
   if (status === "released") return STAGE_INDEX.disbursed;
-  if (status === "to be disbursed" || status === "ready for disbursement") return STAGE_INDEX.ready;
-  if (status === "approved") return STAGE_INDEX.approved;
+  if (status === "ready for disbursement") return STAGE_INDEX.ready;
+  // Manager-approved but the Treasurer hasn't approved the release yet.
+  if (status === "to be disbursed" || status === "approved") return STAGE_INDEX.approved;
   if (status === "recommended for approval" || status === "recommended for bod approval") return STAGE_INDEX.manager_review;
   if (status === "pending rescheduling") return STAGE_INDEX.review;
   if (status === "pending") return STAGE_INDEX.submitted;
