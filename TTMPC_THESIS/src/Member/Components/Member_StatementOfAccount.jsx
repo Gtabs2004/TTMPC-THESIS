@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, NavLink, useSearchParams } from "react-router-dom";
 import { useMemberSettings } from "../../contex/MemberSettingsContext";
 import { useRealtimeVersion, useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
@@ -147,7 +147,7 @@ const STATEMENT_TABS = [
   { key: "savings", label: "Savings" },
   { key: "time-deposits", label: "Time Deposits" },
   { key: "transactions", label: "Transactions" },
-  { key: "cbu", label: "Capital Build-Up" },
+  { key: "cbu", label: "Capital Build-Up", shortLabel: "CBU" },
 ];
 
 const tdProgress = (placement) => {
@@ -193,6 +193,18 @@ const Member_StatementOfAccount = () => {
   const [activeTab, setActiveTab] = useState(() =>
     STATEMENT_TABS.some((t) => t.key === searchParams.get("tab")) ? searchParams.get("tab") : "loan"
   );
+  // Sliding underline: measure the active tab and animate one indicator to it.
+  const tabRefs = useRef({});
+  const [tabIndicator, setTabIndicator] = useState(null);
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = tabRefs.current[activeTab];
+      if (el) setTabIndicator({ left: el.offsetLeft, width: el.offsetWidth });
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [activeTab]);
   const [initialReceiptNo] = useState(() => searchParams.get("receipt") || "");
   const [initialOpenId] = useState(() => searchParams.get("open") || "");
   // Read once, then drop them from the URL so a refresh doesn't reopen the receipt.
@@ -1051,21 +1063,36 @@ const Member_StatementOfAccount = () => {
           </p>
 
           {/* Statement Tabs */}
-          <div className="flex items-center gap-2 sm:gap-4 lg:gap-8 border-b border-gray-200 dark:border-mdark-border mb-8 overflow-x-auto">
+          <div className="flex items-center gap-5 lg:gap-8 border-b border-gray-200 dark:border-mdark-border relative mb-8 overflow-x-auto scrollbar-hidden">
             {STATEMENT_TABS.map((tab) => (
               <button
                 key={tab.key}
+                ref={(el) => { tabRefs.current[tab.key] = el; }}
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
-                className={`pb-3 -mb-px text-sm font-bold border-b-2 transition-colors ${
+                className={`shrink-0 whitespace-nowrap pb-3 text-sm font-bold transition-colors duration-300 ${
                   activeTab === tab.key
-                    ? "border-member-green text-member-green dark:text-mdark-accent"
-                    : "border-transparent text-gray-500 hover:text-gray-700 dark:text-mdark-text-secondary dark:hover:text-mdark-text"
+                    ? "text-member-green dark:text-mdark-accent"
+                    : "text-gray-500 hover:text-gray-700 dark:text-mdark-text-secondary dark:hover:text-mdark-text"
                 }`}
               >
-                {tab.label}
+                {tab.shortLabel ? (
+                  <>
+                    <span className="sm:hidden">{tab.shortLabel}</span>
+                    <span className="hidden sm:inline">{tab.label}</span>
+                  </>
+                ) : (
+                  tab.label
+                )}
               </button>
             ))}
+            {tabIndicator && (
+              <span
+                aria-hidden="true"
+                className="absolute bottom-0 left-0 h-0.5 rounded-full bg-member-green dark:bg-mdark-accent transition-[transform,width] duration-300 ease-out"
+                style={{ width: tabIndicator.width, transform: `translateX(${tabIndicator.left}px)` }}
+              />
+            )}
           </div>
 
           {activeTab === "loan" && (

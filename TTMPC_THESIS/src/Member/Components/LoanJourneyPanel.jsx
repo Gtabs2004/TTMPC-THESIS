@@ -32,7 +32,7 @@ import {
 const LIFECYCLE_STAGES = [
   { id: "submitted", label: "Loan Submitted", icon: FileText, description: "Your application has been received." },
   { id: "review", label: "Under Review", icon: ClipboardCheck, description: "Bookkeeper is reviewing your documents." },
-  { id: "manager_review", label: "With Manager", icon: ThumbsUp, description: "Bookkeeper has forwarded your loan to the Manager for approval." },
+  { id: "manager_review", label: "Pending Approval", icon: ThumbsUp, description: "Bookkeeper has forwarded your loan to the Manager for approval." },
   { id: "approved", label: "Approved", icon: ThumbsUp, description: "The Manager has approved your loan." },
   { id: "ready", label: "Ready for Release", icon: PackageCheck, description: "Awaiting cashier disbursement." },
   { id: "disbursed", label: "Disbursed", icon: Banknote, description: "Funds have been released to you." },

@@ -238,7 +238,7 @@ const LoanNotificationBell = ({
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
+        <div className="fixed inset-x-3 top-[4.5rem] sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-96 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <div>
               <h4 className="text-sm font-bold text-gray-800">Loan Workflow</h4>
@@ -265,7 +265,7 @@ const LoanNotificationBell = ({
             </div>
           </div>
 
-          <div className="max-h-96 overflow-y-auto divide-y divide-gray-50">
+          <div className="max-h-[60vh] sm:max-h-96 overflow-y-auto overscroll-contain divide-y divide-gray-50">
             {items.length === 0 ? (
               <div className="px-4 py-8 text-center text-gray-400 text-sm flex flex-col items-center gap-2">
                 <Inbox className="w-6 h-6" />
