@@ -18,10 +18,13 @@ import { QueryClient } from "@tanstack/react-query";
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 0,
-      gcTime: 10 * 60_000,
+      // Keep data fresh in memory for 2 minutes. Navigating back to a page
+      // renders instantly without showing any loading spinner.
+      staleTime: 2 * 60_000,
+      gcTime: 15 * 60_000,
       retry: 1,
-      refetchOnWindowFocus: true,
+      // Avoid jarring screen refetches when switching browser tabs during the defense.
+      refetchOnWindowFocus: false,
     },
   },
 });

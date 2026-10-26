@@ -1,7 +1,8 @@
-﻿import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
+import { cachedFetch, getCached, invalidateCache } from "../../utils/pageCache";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
@@ -308,22 +309,26 @@ function generateExecutivePDF(data, generatedAt, collectionsYear) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 const Reports = () => {
-    const navigate = useNavigate();
-  const { addNotification } = useNotification();
-  const [reportData, setReportData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const _navigate = useNavigate();
+  const { addNotification: _addNotification } = useNotification();
+  const [reportData, setReportData] = useState(() => getCached("bookkeeper_reports_summary"));
+  const [loading, setLoading] = useState(() => !getCached("bookkeeper_reports_summary"));
   const [error, setError] = useState(null);
-  const [generatedAt, setGeneratedAt] = useState(null);
+  const [generatedAt, setGeneratedAt] = useState(() => getCached("bookkeeper_reports_summary")?.generated_at || null);
   const [collectionsYear, setCollectionsYear] = useState(String(new Date().getFullYear()));
   const [membershipYear, setMembershipYear] = useState(String(new Date().getFullYear()));
 
-  const fetchReports = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) setLoading(true);
+  const fetchReports = useCallback(async ({ silent = false, force = false } = {}) => {
+    if (force) invalidateCache("bookkeeper_reports_summary");
+    const hasCache = !!getCached("bookkeeper_reports_summary");
+    if (!silent && !hasCache) setLoading(true);
     if (!silent) setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/bookkeeper/reports`);
-      if (!res.ok) throw new Error(`Server error ${res.status}`);
-      const json = await res.json();
+      const json = await cachedFetch("bookkeeper_reports_summary", async () => {
+        const res = await fetch(`${API_BASE}/api/bookkeeper/reports`);
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
+        return await res.json();
+      }, 120_000);
       setReportData(json);
       setGeneratedAt(json.generated_at);
     } catch (err) {
@@ -333,9 +338,11 @@ const Reports = () => {
       if (!silent) setLoading(false);
     }
   }, []);
-  useRealtimeRefetch([...RT.LOANS, ...RT.SAVINGS, ...RT.CBU, ...RT.MEMBERS, ...RT.VAULT], () => fetchReports({ silent: true }));
+  useRealtimeRefetch([...RT.LOANS, ...RT.SAVINGS, ...RT.CBU, ...RT.MEMBERS, ...RT.VAULT], () => fetchReports({ silent: true, force: true }));
 
-  useEffect(() => { fetchReports(); }, [fetchReports]);
+  useEffect(() => {
+    fetchReports({ silent: !!getCached("bookkeeper_reports_summary") });
+  }, [fetchReports]);
 
 
   const kpi = reportData?.kpi || {};
@@ -365,7 +372,7 @@ const Reports = () => {
   }));
 
   // Payment status pie
-  const paymentPieData = [
+  const _paymentPieData = [
     { name: "Validated", value: psb.validated || 0, color: BRAND.primary },
     { name: "Pending", value: psb.pending || 0, color: SEMANTIC_COLORS.warning },
     { name: "Rejected", value: psb.rejected || 0, color: SEMANTIC_COLORS.danger },
@@ -434,7 +441,7 @@ const Reports = () => {
             </div>
             <div className="flex items-center gap-3">
               <button
-                onClick={fetchReports}
+                onClick={() => fetchReports({ force: true })}
                 disabled={loading}
                 className="action-button action-button-standard action-button-secondary"
               >

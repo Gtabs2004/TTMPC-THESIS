@@ -1,7 +1,8 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
+import { cachedFetch, getCached } from "../../utils/pageCache";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { cashierNav } from "../../components/StaffSidebar/configs/cashier";
@@ -71,35 +72,50 @@ const getStatusStyle = (status) => {
 };
 
 const useSavingsAccounts = () => {
-  const [accounts, setAccounts] = useState([]);
-  const [status, setStatus] = useState("idle");
+  const [accounts, setAccounts] = useState(() => getCached("savings_accounts_master_list") || []);
+  const [status, setStatus] = useState(() => (getCached("savings_accounts_master_list") ? "ready" : "loading"));
   const [error, setError] = useState(null);
 
-  const fetchAccounts = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) setStatus("loading");
-    if (!silent) setError(null);
+  const fetchAccounts = useCallback(async ({ silent = false, force = false } = {}) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/savings/accounts`);
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result?.success) {
-        throw new Error(result?.detail || "Failed to load savings accounts.");
-      }
-      setAccounts(Array.isArray(result.data) ? result.data : []);
+      const data = await cachedFetch(
+        "savings_accounts_master_list",
+        async () => {
+          const response = await fetch(`${API_BASE_URL}/api/savings/accounts`);
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok || !result?.success) {
+            throw new Error(result?.detail || "Failed to load savings accounts.");
+          }
+          return Array.isArray(result.data) ? result.data : [];
+        },
+        { ttlMs: 120_000, force }
+      );
+      setAccounts(data);
       setStatus("ready");
+      setError(null);
     } catch (err) {
       if (silent) return;
       setError(err?.message || "Unable to fetch savings accounts.");
-      setAccounts([]);
+      if (!getCached("savings_accounts_master_list")) setAccounts([]);
       setStatus("error");
     }
   }, []);
-  useRealtimeRefetch([...RT.SAVINGS, "member"], () => fetchAccounts({ silent: true }));
+  useRealtimeRefetch([...RT.SAVINGS, "member"], () => fetchAccounts({ silent: true, force: true }));
 
   useEffect(() => {
-    fetchAccounts();
+    let ignore = false;
+    (async () => {
+      await Promise.resolve();
+      if (!ignore) {
+        fetchAccounts();
+      }
+    })();
+    return () => {
+      ignore = true;
+    };
   }, [fetchAccounts]);
 
-  return { accounts, status, error, refresh: fetchAccounts };
+  return { accounts, status, error, refresh: (opts) => fetchAccounts({ force: true, ...opts }) };
 };
 
 const useTimeDeposits = (enabled) => {

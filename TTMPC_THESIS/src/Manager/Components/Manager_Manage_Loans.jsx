@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
+import { cachedFetch, getCached, invalidateCache } from "../../utils/pageCache";
 import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
@@ -31,7 +32,6 @@ import {
   BarChart3,
   History,
 } from "lucide-react";
-import logo from "../../assets/img/ttmpc logo.png";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const ITEMS_PER_PAGE = 5;
@@ -58,12 +58,12 @@ const Manager_Manage_Loans = () => {
     const navigate = useNavigate();
   const { addNotification } = useNotification();
 
-  const [loans, setLoans] = useState([]);
+  const [loans, setLoans] = useState(() => getCached("manage_loans_master_rows")?.rows || []);
   const [activeTab, setActiveTab] = useState("active");
   const [searchTerm, setSearchTerm] = useState("");
   const [loanTypeFilter, setLoanTypeFilter] = useState("all");
   const [memberTypeFilter, setMemberTypeFilter] = useState("all");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(() => !getCached("manage_loans_master_rows"));
   const [loadError, setLoadError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pendingRequestIds, setPendingRequestIds] = useState(new Set());
@@ -205,17 +205,22 @@ const Manager_Manage_Loans = () => {
     return groupedLoans.slice(start, start + ITEMS_PER_PAGE);
   }, [groupedLoans, currentPage]);
 
-  async function fetchLoans({ silent = false } = {}) {
-    if (!silent) setLoading(true);
+  async function fetchLoans({ silent = false, force = false } = {}) {
+    if (force) invalidateCache("manage_loans_master_rows");
+    const hasCache = !!getCached("manage_loans_master_rows");
+    if (!silent && !hasCache) setLoading(true);
     if (!silent) setLoadError("");
     try {
-      const response = await fetch(`${API_BASE_URL}/api/bookkeeper/manage-loans`);
-      const result = await response.json();
-      if (!response.ok || !result?.success) {
-        throw new Error(result?.detail || "Failed to fetch loan data.");
-      }
-      const rows = Array.isArray(result?.data?.rows) ? result.data.rows : [];
-      setLoans(rows);
+      const data = await cachedFetch("manage_loans_master_rows", async () => {
+        const response = await fetch(`${API_BASE_URL}/api/bookkeeper/manage-loans`);
+        const result = await response.json();
+        if (!response.ok || !result?.success) {
+          throw new Error(result?.detail || "Failed to fetch loan data.");
+        }
+        return { rows: Array.isArray(result?.data?.rows) ? result.data.rows : [] };
+      }, 120_000);
+
+      setLoans(data.rows);
     } catch (error) {
       if (silent) return;
       addNotification(error?.message || "Unable to load loans.", "error");
@@ -225,10 +230,10 @@ const Manager_Manage_Loans = () => {
       if (!silent) setLoading(false);
     }
   }
-  useRealtimeRefetch(RT.LOANS, () => fetchLoans({ silent: true }));
+  useRealtimeRefetch(RT.LOANS, () => fetchLoans({ silent: true, force: true }));
 
   useEffect(() => {
-    fetchLoans();
+    fetchLoans({ silent: !!getCached("manage_loans_master_rows") });
     // Fetch all pending restructure requests so we can badge affected loans
     fetch(`${API_BASE_URL}/api/manager/restructure-requests?status=pending`)
       .then((r) => r.json())

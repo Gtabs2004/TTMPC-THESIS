@@ -7261,15 +7261,48 @@ async def get_bookkeeper_loan_approval_queue(current_user: dict = _Depends(_get_
             # tables have not been deployed yet.
             classifications = {}
 
+        control_numbers = [str(r.get("control_number")) for r in (loans_rows + non_member_rows) if r.get("control_number")]
+        risk_by_loan: dict[str, dict] = {}
+        if control_numbers:
+            try:
+                for start in range(0, len(control_numbers), 500):
+                    resp = (
+                        supabase.table("risk_assessments")
+                        .select("loan_control_number,risk_probability,risk_class")
+                        .in_("loan_control_number", control_numbers[start : start + 500])
+                        .execute()
+                    )
+                    for row in resp.data or []:
+                        risk_by_loan[str(row.get("loan_control_number"))] = row
+            except Exception:
+                pass
+
         def attach_migs_status(row: dict) -> dict:
             member = row.get("member") or {}
             membership_id = str(member.get("membership_id") or "").strip()
             code = classifications.get(membership_id, "unscored")
             label = {"migs": "MIGS", "non_migs": "NON-MIGS", "unscored": "Unscored"}.get(code, "Unscored")
-            return {**row, "source": "loans", "migs_status": label}
+            cn = str(row.get("control_number") or "")
+            risk_entry = risk_by_loan.get(cn) or {}
+            return {
+                **row,
+                "source": "loans",
+                "migs_status": label,
+                "risk_probability": risk_entry.get("risk_probability"),
+                "risk_class": risk_entry.get("risk_class"),
+            }
 
         rows = [attach_migs_status(row) for row in loans_rows if is_queue_row(row)]
-        rows.extend({**row, "source": "non_member"} for row in non_member_rows if is_queue_row(row))
+        for row in non_member_rows:
+            if is_queue_row(row):
+                cn = str(row.get("control_number") or "")
+                risk_entry = risk_by_loan.get(cn) or {}
+                rows.append({
+                    **row,
+                    "source": "non_member",
+                    "risk_probability": risk_entry.get("risk_probability"),
+                    "risk_class": risk_entry.get("risk_class"),
+                })
         rows.sort(key=lambda row: (
             str(row.get("application_date") or ""),
             str(row.get("control_number") or ""),
@@ -17867,6 +17900,7 @@ def _fetch_loan_for_scoring(control_number: str, source: str) -> dict:
         "control_number,member_id,loan_amount,principal_amount,term,"
         "interest_rate,monthly_amortization,application_date,disbursal_date,"
         "loan_status,application_status,raw_payload,"
+        "member:member_id(share_capital_amount),"
         "loan_type:loan_type_id(code,name)"
         if table == "loans"
         else "control_number,loan_amount,term,application_date,raw_payload"
@@ -18129,7 +18163,7 @@ async def get_credit_risk_queue(refresh: bool = False):
             "control_number,member_id,loan_amount,principal_amount,monthly_amortization,"
             "term,interest_rate,application_status,loan_status,application_date,disbursal_date,"
             "raw_payload,applicant_full_name,"
-            "member:member_id(first_name,last_name,membership_id,is_bona_fide),"
+            "member:member_id(first_name,last_name,membership_id,is_bona_fide,share_capital_amount),"
             "loan_type:loan_type_id(code,name)"
         )
         nonmember_columns = (
@@ -18210,6 +18244,7 @@ async def get_credit_risk_queue(refresh: bool = False):
             ),
             "loan_type": loan_type,
             "loan_amount": float(loan.get("loan_amount") or loan.get("principal_amount") or 0),
+            "share_capital_amount": float(member.get("share_capital_amount") or 0.0) if member else None,
             "term_months": int(loan.get("term") or 0),
             "application_date": loan.get("application_date"),
             "application_status": loan.get("loan_status") or loan.get("application_status") or "status unavailable",

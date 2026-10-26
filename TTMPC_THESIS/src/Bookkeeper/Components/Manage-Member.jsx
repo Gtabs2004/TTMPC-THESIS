@@ -1,7 +1,8 @@
-﻿import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
+import { cachedFetch, getCached, invalidateCache } from "../../utils/pageCache";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import { UserAuth } from "../../contex/AuthContext";
@@ -52,8 +53,8 @@ const CLUSTER_ORDER = [
 
 const Manage_Member = () => {
     const navigate = useNavigate();
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [rows, setRows] = useState(() => getCached("members_personal_data_sheet")?.data || []);
+  const [loading, setLoading] = useState(() => !getCached("members_personal_data_sheet"));
   const [error, setError] = useState("");
   
   // Filtering & Sorting State
@@ -100,27 +101,32 @@ const Manage_Member = () => {
   const rtVersion = useRealtimeVersion(RT.MEMBERS);
   const rtSeen = useRef(rtVersion);
   useEffect(() => {
-    const silent = rtSeen.current !== rtVersion;
+    const isRealtime = rtSeen.current !== rtVersion;
     rtSeen.current = rtVersion;
     async function loadData() {
-      if (!silent) setLoading(true);
-      if (!silent) setError("");
+      if (isRealtime) invalidateCache("members_personal_data_sheet");
+      const hasCache = !!getCached("members_personal_data_sheet");
+      if (!isRealtime && !hasCache) setLoading(true);
+      if (!isRealtime) setError("");
       try {
-        const response = await fetch(`${API_BASE_URL}/api/personal_data_sheet`, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok || !payload?.success) {
-          throw new Error(payload?.detail || payload?.message || "Failed to load personal datasheet.");
-        }
+        const payload = await cachedFetch("members_personal_data_sheet", async () => {
+          const response = await fetch(`${API_BASE_URL}/api/personal_data_sheet`, {
+            method: "GET",
+            headers: { Accept: "application/json" },
+          });
+          const pl = await response.json().catch(() => ({}));
+          if (!response.ok || !pl?.success) {
+            throw new Error(pl?.detail || pl?.message || "Failed to load personal datasheet.");
+          }
+          return pl;
+        }, 120_000);
         setRows(Array.isArray(payload.data) ? payload.data : []);
       } catch (err) {
-        if (silent) return;
+        if (isRealtime) return;
         setError(err?.message || "Unable to load personal datasheet.");
         setRows([]);
       } finally {
-        if (!silent) setLoading(false);
+        if (!isRealtime) setLoading(false);
       }
     }
     loadData();

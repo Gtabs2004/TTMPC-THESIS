@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
@@ -102,16 +102,50 @@ const Loan_Approval = () => {
         // Missing MIGS snapshots must remain visible as Unscored.
       }
 
-      const mappedNonMember = (nonMemberData || []).map((row) => ({
-        ...row,
-        source: "non_member",
-      }));
+      const controlNumbers = [
+        ...(loansData || []).map((l) => l.control_number),
+        ...(nonMemberData || []).map((l) => l.control_number),
+      ].filter(Boolean);
 
-      const mappedLoans = (loansData || []).map((row) => ({
-        ...row,
-        source: "loans",
-        migs_status: classifications[String(row.member?.membership_id || "").trim()] || "unscored",
-      }));
+      const riskMap = {};
+      if (controlNumbers.length > 0) {
+        try {
+          for (let start = 0; start < controlNumbers.length; start += 500) {
+            const { data: riskRows } = await supabase
+              .from("risk_assessments")
+              .select("loan_control_number, risk_probability, risk_class")
+              .in("loan_control_number", controlNumbers.slice(start, start + 500));
+            (riskRows || []).forEach((r) => {
+              if (r.loan_control_number) {
+                riskMap[String(r.loan_control_number).trim()] = r;
+              }
+            });
+          }
+        } catch {
+          // Keep loan approval queue resilient even if risk_assessments fails
+        }
+      }
+
+      const mappedNonMember = (nonMemberData || []).map((row) => {
+        const cn = String(row.control_number || "").trim();
+        return {
+          ...row,
+          source: "non_member",
+          risk_probability: riskMap[cn]?.risk_probability,
+          risk_class: riskMap[cn]?.risk_class,
+        };
+      });
+
+      const mappedLoans = (loansData || []).map((row) => {
+        const cn = String(row.control_number || "").trim();
+        return {
+          ...row,
+          source: "loans",
+          migs_status: classifications[String(row.member?.membership_id || "").trim()] || "unscored",
+          risk_probability: riskMap[cn]?.risk_probability,
+          risk_class: riskMap[cn]?.risk_class,
+        };
+      });
 
       const managerQueue = [...mappedLoans, ...mappedNonMember]
         .filter((loan) => String(loan.loan_status || "").trim().toLowerCase() === "recommended for approval")
@@ -133,6 +167,32 @@ const Loan_Approval = () => {
   // Helper functions for badge styling
   const getMigsStyle = (status) => {
     return status === 'MIGS' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500';
+  };
+
+  const getRiskBadge = (prob) => {
+    if (prob == null || prob === undefined) {
+      return {
+        label: "Unscored",
+        chip: "bg-gray-100 text-gray-500 border border-gray-200",
+      };
+    }
+    const p = Number(prob);
+    if (p > 0.2171) {
+      return {
+        label: "High Risk",
+        chip: "bg-red-50 text-red-700 border border-red-200",
+      };
+    }
+    if (p >= 0.1036) {
+      return {
+        label: "Medium Risk",
+        chip: "bg-amber-50 text-amber-700 border border-amber-200",
+      };
+    }
+    return {
+      label: "Low Risk",
+      chip: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+    };
   };
 
   const queueStats = (() => {
@@ -170,6 +230,8 @@ const Loan_Approval = () => {
       ? "N/A"
       : ({ migs: "MIGS", non_migs: "NON-MIGS", unscored: "Unscored" }[loan.migs_status] || "Unscored");
 
+    const riskInfo = getRiskBadge(loan.risk_probability);
+
     return {
       id: loan.control_number,
       source: loan.source,
@@ -178,6 +240,8 @@ const Loan_Approval = () => {
       amount: loan.loan_amount ? `\u20B1${Number(loan.loan_amount).toLocaleString()}` : "\u20B10",
       term: `${loan.term || 0} Months`,
       status: migsStatus,
+      riskLabel: riskInfo.label,
+      riskChip: riskInfo.chip,
       date: loan.application_date ? new Date(loan.application_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "N/A",
       actions: "Review"
     };
@@ -237,15 +301,16 @@ const Loan_Approval = () => {
                     <th className="p-5 font-bold">Amount</th>
                     <th className="p-5 font-bold">Term</th>
                     <th className="p-5 font-bold">MIGS Status</th>
+                    <th className="p-5 font-bold">Credit Risk</th>
                     <th className="p-5 font-bold">Submission</th>
                     <th className="p-5 font-bold text-right pr-8">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <TableStateRow colSpan={8} variant="loading" label="Loading..." />
+                    <TableStateRow colSpan={9} variant="loading" label="Loading..." />
                   ) : displayLoans.length === 0 ? (
-                    <TableStateRow colSpan={8} variant="empty" icon={Banknote} label="No loans found." />
+                    <TableStateRow colSpan={9} variant="empty" icon={Banknote} label="No loans found." />
                   ) : (
                     paginatedLoans.map((loan, idx) => (
                       <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
@@ -261,6 +326,11 @@ const Loan_Approval = () => {
                         <td className="p-5 text-sm">
                           <span className={`badge-animated px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${getMigsStyle(loan.status)}`}>
                             {loan.status}
+                          </span>
+                        </td>
+                        <td className="p-5 text-sm">
+                          <span className={`badge-animated px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${loan.riskChip}`}>
+                            {loan.riskLabel}
                           </span>
                         </td>
                         <td className="p-5 text-sm text-gray-500">{loan.date}</td>

@@ -165,6 +165,7 @@ const MIGS = () => {
         `Saved classifications for ${total} members as of ${result?.accrual_date}. ${result?.errors?.length ? `(${result.errors.length} errors)` : ""}`,
         result?.errors?.length ? "warning" : "success"
       );
+      await refetch();
     } catch (err) {
       addNotification(err?.message || "Compute failed.", "error");
     } finally {

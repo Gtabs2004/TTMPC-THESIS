@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { supabase } from "../../supabaseClient";
 import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
+import { cachedFetch, getCached, invalidateCache } from "../../utils/pageCache";
 import StaffSidebar from "../StaffSidebar";
 import { bookkeeperNav } from "../StaffSidebar/configs/bookkeeper";
 import { managerNav } from "../StaffSidebar/configs/manager";
@@ -66,30 +68,44 @@ const riskBand = (row) => {
 // without hardcoding the feature list — new features just show their raw
 // name if we forget to add a label.
 const FEATURE_LABELS = {
-  LoanAmount: "Loan Amount",
-  Term: "Term (months)",
-  MonthlyDue: "Monthly Due",
-  Dependents: "Dependents",
-  OccTier: "Occupation Stability",
-  Age: "Age",
-  PriorLoans: "Previous Loans",
-  PriorRefinances: "Previous Renewals",
-  PriorBehind: "Previously Behind",
-  PriorRestructured: "Previously Restructured",
-  PriorPenalties: "Previous Penalties",
-  PriorBorrowed: "Total Previously Borrowed",
-  DebtGrowth: "Debt Growth",
+  LoanAmount: "Principal (LoanAmount)",
+  MonthlyDue: "Monthly Amortization (MonthlyDue)",
+  Savings: "Savings Balance (Savings)",
+  ShareCapital: "Share Capital Points (ShareCapital)",
+  Age: "Borrower Age (Age)",
+  Term: "Loan Term (Term)",
+  PriorBorrowed: "Total Previously Borrowed (PriorBorrowed)",
+  DebtGrowth: "Loan Amount Growth (DebtGrowth)",
   MonthsSinceLastLoan: "Months Since Last Loan",
-  ConcurrentLoans: "Concurrent Loans",
-  ShareCapital: "Share Capital (points)",
-  Savings: "Savings Balance",
+  Groceries: "Grocery Patronage Points (Groceries)",
+  PriorRestructured: "Amount of Restructured (PriorRestructured)",
+  PriorBehind: "Number of Late Payments (PriorBehind)",
+  Dependents: "Number of Dependents (Dependents)",
+  OccTier: "Job Stability Tier (OccTier)",
+  ConcurrentLoans: "Other Active Loans (ConcurrentLoans)",
+  PriorLoans: "Previous Loans Count (PriorLoans)",
+  PriorRefinances: "Previous Renewals (PriorRefinances)",
+  PriorPenalties: "Number of Penalties (PriorPenalties)",
   HasTimeDeposit: "Has Time Deposit",
-  SavingsChange: "Savings Change (yr)",
-  Groceries: "Grocery Patronage (points)",
-  HasSnapshot: "Has Financial Snapshot",
+  SavingsChange: "Annual Savings Growth (SavingsChange)",
+  HasSnapshot: "Has Financial History (HasSnapshot)",
 };
 
 const featureLabel = (feat) => FEATURE_LABELS[feat] || feat;
+
+const renderSplitFeatureLabel = (feat) => {
+  const fullLabel = FEATURE_LABELS[feat] || feat;
+  const match = fullLabel.match(/^(.*?)\s*(\(.*?\))$/);
+  if (match) {
+    return (
+      <span className="block leading-tight">
+        <span className="block">{match[1]}</span>
+        <span className="block text-[9px] text-gray-400 font-normal tracking-normal">{match[2]}</span>
+      </span>
+    );
+  }
+  return <span className="block leading-tight">{fullLabel}</span>;
+};
 
 // Small "?" hover hint that explains a label in plain words.
 const InfoTip = ({ text }) => (
@@ -115,10 +131,10 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
   const portalLabel = portal === "manager" ? "Manager" : portal === "bod" ? "BOD" : "Bookkeeper";
   const navItems = portal === "manager" ? managerNav : portal === "bod" ? bodNav : bookkeeperNav;
 
-  const [rows, setRows] = useState([]);
-  const [modelInfo, setModelInfo] = useState(null);
-  const [modelVersion, setModelVersion] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [rows, setRows] = useState(() => getCached("credit_risk_queue_data")?.rows || []);
+  const [modelInfo, setModelInfo] = useState(() => getCached("credit_risk_model_info") || null);
+  const [modelVersion, setModelVersion] = useState(() => getCached("credit_risk_queue_data")?.modelVersion || null);
+  const [loading, setLoading] = useState(() => !getCached("credit_risk_queue_data"));
   const [loadError, setLoadError] = useState("");
 
   const [search, setSearch] = useState("");
@@ -130,28 +146,43 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
   const [attributionLoading, setAttributionLoading] = useState(false);
   const [attributionError, setAttributionError] = useState("");
 
-  const fetchQueue = async ({ silent = false } = {}) => {
+  const fetchQueue = async ({ silent = false, force = false } = {}) => {
+    if (force) {
+      invalidateCache("credit_risk_queue_data");
+      invalidateCache("credit_risk_model_info");
+    }
+    const hasCache = !!getCached("credit_risk_queue_data");
+    if (!silent && !hasCache) setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/credit-risk/queue`);
-      const json = await res.json();
-      if (!res.ok || !json?.success) {
-        throw new Error(json?.detail || "Failed to load credit risk queue.");
-      }
-      const data = json?.data || {};
-      setRows(Array.isArray(data.rows) ? data.rows : []);
-      setModelVersion(data.model_version || null);
+      const data = await cachedFetch("credit_risk_queue_data", async () => {
+        const res = await fetch(`${API_BASE_URL}/api/credit-risk/queue`);
+        const json = await res.json();
+        if (!res.ok || !json?.success) {
+          throw new Error(json?.detail || "Failed to load credit risk queue.");
+        }
+        const d = json?.data || {};
+        return {
+          rows: Array.isArray(d.rows) ? d.rows : [],
+          modelVersion: d.model_version || null,
+        };
+      }, 120_000);
+      setRows(data.rows);
+      setModelVersion(data.modelVersion);
+
       // Model metadata (accuracy, thresholds, operating point) is served
       // separately so it stays correct across retrainings without a redeploy.
       try {
-        const infoRes = await fetch(`${API_BASE_URL}/api/risk/model-info`);
-        const infoJson = await infoRes.json();
-        if (!infoRes.ok || !infoJson?.success || !infoJson?.data) {
-          throw new Error(infoJson?.detail || "Failed to load credit risk model thresholds.");
-        }
-        setModelInfo(infoJson.data);
+        const infoData = await cachedFetch("credit_risk_model_info", async () => {
+          const infoRes = await fetch(`${API_BASE_URL}/api/risk/model-info`);
+          const infoJson = await infoRes.json();
+          if (!infoRes.ok || !infoJson?.success || !infoJson?.data) {
+            throw new Error(infoJson?.detail || "Failed to load credit risk model thresholds.");
+          }
+          return infoJson.data;
+        }, 120_000);
+        setModelInfo(infoData);
       } catch (err) {
         console.error("credit risk model info load failed", err);
-        setModelInfo(null);
       }
       if (!silent) setLoadError("");
     } catch (err) {
@@ -162,10 +193,10 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
       if (!silent) setLoading(false);
     }
   };
-  useRealtimeRefetch(RT.LOANS, () => fetchQueue({ silent: true }));
+  useRealtimeRefetch(RT.LOANS, () => fetchQueue({ silent: true, force: true }));
 
   useEffect(() => {
-    fetchQueue();
+    fetchQueue({ silent: !!getCached("credit_risk_queue_data") });
   }, []);
 
   useEffect(() => {
@@ -229,6 +260,24 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
     setSelectedLoan(row);
     setAttributionLoading(false);
     setAttributionError("");
+
+    if (row.share_capital_amount == null && row.membership_id) {
+      supabase
+        .from("member")
+        .select("share_capital_amount")
+        .eq("membership_id", row.membership_id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data?.share_capital_amount != null) {
+            setSelectedLoan((current) =>
+              current?.loan_id === row.loan_id
+                ? { ...current, share_capital_amount: Number(data.share_capital_amount) }
+                : current
+            );
+          }
+        });
+    }
+
     if (row.probability == null || row.drivers?.length) return;
 
     setAttributionLoading(true);
@@ -645,26 +694,47 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                 );
               }
 
-              const byFeature = Object.fromEntries(allDrivers.map((driver) => [driver.feature, driver]));
-              const readValue = (feature, kind) => {
-                const driver = byFeature[feature];
-                if (!driver || driver.value == null) return "not recorded";
-                return kind === "peso"
-                  ? formatPeso(driver.value)
-                  : String(Math.round(Number(driver.value) * 100) / 100);
-              };
-              const valuesRead = [
-                ["Loan Amount", readValue("LoanAmount", "peso")],
-                ["Previous Loans", readValue("PriorLoans")],
-                ["Previously Behind", readValue("PriorBehind")],
-                ["Concurrent Loans", readValue("ConcurrentLoans")],
-                ["Share Capital (pts)", readValue("ShareCapital")],
-                ["Grocery (pts)", readValue("Groceries")],
-                ["Savings", readValue("Savings", "peso")],
-                ["Occupation Tier", readValue("OccTier")],
-              ];
-              const shown = allDrivers;
+              const shown = allDrivers.filter(
+                (driver) => driver.direction === "up" || driver.direction === "down"
+              );
               const maxAbs = Math.max(...shown.map((driver) => Math.abs(Number(driver.contribution) || 0)), 1e-9);
+
+              const formatValue = (feature, value) => {
+                if (value == null) return "not recorded";
+                const num = Number(value);
+                if (
+                  feature === "LoanAmount" ||
+                  feature === "MonthlyDue" ||
+                  feature === "Savings" ||
+                  feature === "PriorBorrowed" ||
+                  feature === "SavingsChange"
+                ) {
+                  return formatPeso(num);
+                }
+                if (feature === "Age") {
+                  return `${Math.round(num)} yrs`;
+                }
+                if (feature === "Term" || feature === "MonthsSinceLastLoan") {
+                  return `${Math.round(num)} mos`;
+                }
+                if (feature === "DebtGrowth") {
+                  return `${num.toFixed(2)}x`;
+                }
+                if (feature === "HasTimeDeposit") {
+                  return num === 1 ? "Yes" : num === 0 ? "No" : "not recorded";
+                }
+                if (feature === "ShareCapital") {
+                  const pts = Math.round(num);
+                  const cbu = selectedLoan?.share_capital_amount;
+                  return cbu != null ? `${pts} pts (${formatPeso(cbu)})` : `${pts} pts`;
+                }
+                if (feature === "Groceries") {
+                  const pts = Math.round(num);
+                  const bracket = pts <= 3 ? "≤ ₱20k" : pts <= 5 ? "₱20k–₱30k" : pts <= 7 ? "₱30k–₱40k" : "> ₱40k";
+                  return `${pts} pts (${bracket} spent)`;
+                }
+                return String(Math.round(num * 100) / 100);
+              };
 
               return (
                 <div className="p-6 space-y-6">
@@ -672,51 +742,68 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">
                       Values the model read
                     </p>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                      {valuesRead.map(([label, value]) => (
-                        <div key={label}>
-                          <p className="text-[10px] text-gray-400 uppercase">{label}</p>
-                          <p className="font-semibold text-gray-800">{value}</p>
-                        </div>
-                      ))}
-                    </div>
+                    {shown.length === 0 ? (
+                      <p className="text-xs text-gray-400 italic">
+                        No individual variables contributed significantly to shifting this score.
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-3.5 text-sm">
+                        {shown.map((driver) => (
+                          <div key={driver.feature} className="space-y-0.5">
+                            <div className="text-[10px] text-gray-400 uppercase">
+                              {renderSplitFeatureLabel(driver.feature)}
+                            </div>
+                            <p className="font-semibold text-gray-800">
+                              {formatValue(driver.feature, driver.value)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div>
                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">
                       Risk variables
                     </p>
-                    <div className="space-y-2.5">
-                      {shown.map((driver) => {
-                        const contribution = Number(driver.contribution) || 0;
-                        const pct = (Math.abs(contribution) / maxAbs) * 100;
-                        const isUp = driver.direction === "up";
-                        const isNeutral = driver.direction !== "up" && driver.direction !== "down";
-                        const barColor = isNeutral ? "bg-gray-300" : isUp ? "bg-red-400" : "bg-green-500";
-                        const tagColor = isNeutral ? "text-gray-400" : isUp ? "text-red-600" : "text-green-700";
-                        return (
-                          <div key={driver.feature}>
-                            <div className="flex items-center justify-between mb-0.5 gap-2">
-                              <span className="text-xs text-gray-700 font-medium truncate">
-                                {featureLabel(driver.feature)}
-                              </span>
-                              <span className={`text-[10px] font-bold uppercase shrink-0 ${tagColor}`}>
-                                {isNeutral ? "No risk impact" : isUp ? "Increase Risk" : "Decrease Risk"}
-                              </span>
-                            </div>
-                            <div className="w-full bg-gray-100 rounded-full h-1.5">
-                              <div
-                                className={`${barColor} h-1.5 rounded-full`}
-                                style={{ width: `${pct.toFixed(1)}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <p className="text-[11px] text-gray-400 mt-3">
-                      Red bars indicate Increase Risk and green bars indicate Decrease Risk. Longer bars indicate a stronger contribution.
-                    </p>
+                    {shown.length === 0 ? (
+                      <p className="text-xs text-gray-400 italic">
+                        No individual variables contributed significantly to shifting this score.
+                      </p>
+                    ) : (
+                      <>
+                        <div className="space-y-2.5">
+                          {shown.map((driver) => {
+                            const contribution = Number(driver.contribution) || 0;
+                            const pct = (Math.abs(contribution) / maxAbs) * 100;
+                            const isUp = driver.direction === "up";
+                            const barColor = isUp ? "bg-red-400" : "bg-green-500";
+                            const tagColor = isUp ? "text-red-600" : "text-green-700";
+                            return (
+                              <div key={driver.feature}>
+                                <div className="flex items-center justify-between mb-0.5 gap-2">
+                                  <span className="text-xs text-gray-700 font-medium">
+                                    {featureLabel(driver.feature)}
+                                  </span>
+                                  <span className={`text-[10px] font-bold uppercase shrink-0 ${tagColor}`}>
+                                    {isUp ? "Increase Risk" : "Decrease Risk"}
+                                  </span>
+                                </div>
+                                <div className="w-full bg-gray-100 rounded-full h-1.5">
+                                  <div
+                                    className={`${barColor} h-1.5 rounded-full`}
+                                    style={{ width: `${pct.toFixed(1)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <p className="text-[11px] text-gray-400 mt-3">
+                          Red bars indicate Increase Risk and green bars indicate Decrease Risk. Longer bars indicate a stronger contribution.
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
               );

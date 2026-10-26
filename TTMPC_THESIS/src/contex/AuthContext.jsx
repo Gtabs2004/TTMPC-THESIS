@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from '../supabaseClient';
 import { clearAll as clearMemberDataCache } from '../Member/memberDataCache';
 import { queryClient } from '../lib/queryClient';
+import { clearPageCache } from '../utils/pageCache';
 
 const AuthContext = createContext();
 
@@ -182,7 +183,7 @@ export const AuthContextProvider = ({ children }) => {
     }
 
     // Insert profile row for Treasurer
-    const { data: profileData, error: profileError } = await supabase
+    const { data: _profileData, error: profileError } = await supabase
       .from("member_account")
       .insert([
         {
@@ -332,6 +333,7 @@ export const AuthContextProvider = ({ children }) => {
   const signOut = async () => {
     // Drop all cached member data so the next user doesn't see stale data.
     clearMemberDataCache();
+    clearPageCache();
     sessionStorage.removeItem('_member_login_bundle_cache');
     const { error } = await supabase.auth.signOut();
     if (error) {
@@ -348,7 +350,10 @@ export const AuthContextProvider = ({ children }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       // Covers every sign-out path (manual, revoked token, password reset) so
       // cached dashboard data never carries over to the next user in this tab.
-      if (event === "SIGNED_OUT") queryClient.clear();
+      if (event === "SIGNED_OUT") {
+        queryClient.clear();
+        clearPageCache();
+      }
       setSession(session);
     });
 

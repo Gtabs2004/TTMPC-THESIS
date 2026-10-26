@@ -152,7 +152,6 @@ const LoanApprovalDetails = () => {
   const [docLoading, setDocLoading] = useState(false);
   const [deletingDocPath, setDeletingDocPath] = useState('');
   const [docError, setDocError] = useState('');
-  const [simulatedBalance, setSimulatedBalance] = useState(null);
   const [riskAssessment, setRiskAssessment] = useState(null);
   const [riskLoading, setRiskLoading] = useState(false);
   const [riskError, setRiskError] = useState('');
@@ -400,7 +399,7 @@ const LoanApprovalDetails = () => {
       }
 
       setCoMakerMemberOptions(options);
-    } catch (_err) {
+    } catch {
       setCoMakerMemberOptions([]);
     } finally {
       setCoMakerMemberLoading(false);
@@ -500,7 +499,8 @@ const LoanApprovalDetails = () => {
                 membership_id,
                 first_name,
                 last_name,
-                is_bona_fide
+                is_bona_fide,
+                share_capital_amount
               ),
               loan_type:loan_type_id (
                 name
@@ -739,6 +739,7 @@ const LoanApprovalDetails = () => {
             net_proceeds: data.net_proceeds,
             isRenewal: String(data.application_type || '').toLowerCase() === 'renewal',
           },
+          cbuAmount: data.member?.share_capital_amount != null ? Number(data.member.share_capital_amount) : null,
           risk: {
             prevLoans: { value: 'N/A', label: 'NOT YET COMPUTED', color: 'text-gray-500' },
             delinquency: { value: 'N/A', label: 'NOT YET COMPUTED', color: 'text-gray-500' },
@@ -864,27 +865,6 @@ const LoanApprovalDetails = () => {
     }
   };
 
-  const sendStatusEmail = async ({ toEmail, memberName, status, remarks }) => {
-    // Legacy helper kept for backward compatibility with the membership-style
-    // notification. New loan workflow uses dispatchLoanEmail() below.
-    const emailValue = String(toEmail || '').trim();
-    if (!emailValue) return;
-    try {
-      await fetch(`${API_BASE_URL}/api/send-status-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to_email: emailValue,
-          member_name: memberName || 'Member',
-          status,
-          remarks: remarks || null,
-        }),
-      });
-    } catch (_err) {
-      // Notification failures should not block status updates.
-    }
-  };
-
   // Fire-and-forget loan-status email (Resend). Backend handles transition guards,
   // duplicate protection, recipient resolution, and audit logging. Must NOT throw.
   const dispatchLoanEmail = async ({ stage, action, remarks, overrideMemberEmail, nextApproverEmail }) => {
@@ -931,7 +911,7 @@ const LoanApprovalDetails = () => {
           loan_type: loanDetails.loanType || null,
         }),
       });
-    } catch (_err) {
+    } catch {
       // Notification dispatch must never block the approval workflow.
     }
   };
@@ -1269,7 +1249,7 @@ const LoanApprovalDetails = () => {
           email: String(data.email || '').trim() || item.email,
         };
       }));
-    } catch (_err) {
+    } catch {
       // Keep the selected option values when deep fetch fails.
     }
   };
@@ -1326,7 +1306,6 @@ const LoanApprovalDetails = () => {
           : JSON.stringify(decisionBody?.detail || 'BOD decision failed.');
         throw new Error(detail);
       }
-      const nextStatus = decisionBody.new_status;
 
       addNotification(
         decision === 'approve' ? 'Loan approved by the BOD successfully.' : 'Loan rejected by the BOD.',
@@ -2315,29 +2294,44 @@ const LoanApprovalDetails = () => {
 
             // Technical detail, shown only on request.
             const FEATURE_LABELS = {
-              LoanAmount: 'Loan Amount',
-              Term: 'Term (months)',
-              MonthlyDue: 'Monthly Due',
-              Dependents: 'Dependents',
-              OccTier: 'Occupation Stability',
-              Age: 'Age',
-              PriorLoans: 'Previous Loans',
-              PriorRefinances: 'Previous Renewals',
-              PriorBehind: 'Previously Behind',
-              PriorRestructured: 'Previously Restructured',
-              PriorPenalties: 'Previous Penalties',
-              PriorBorrowed: 'Total Previously Borrowed',
-              DebtGrowth: 'Debt Growth',
+              LoanAmount: 'Principal (LoanAmount)',
+              MonthlyDue: 'Monthly Amortization (MonthlyDue)',
+              Savings: 'Savings Balance (Savings)',
+              ShareCapital: 'Share Capital Points (ShareCapital)',
+              Age: 'Borrower Age (Age)',
+              Term: 'Loan Term (Term)',
+              PriorBorrowed: 'Total Previously Borrowed (PriorBorrowed)',
+              DebtGrowth: 'Loan Amount Growth (DebtGrowth)',
               MonthsSinceLastLoan: 'Months Since Last Loan',
-              ConcurrentLoans: 'Concurrent Loans',
-              ShareCapital: 'Share Capital (points)',
-              Savings: 'Savings Balance',
+              Groceries: 'Grocery Patronage Points (Groceries)',
+              PriorRestructured: 'Amount of Restructured (PriorRestructured)',
+              PriorBehind: 'Number of Late Payments (PriorBehind)',
+              Dependents: 'Number of Dependents (Dependents)',
+              OccTier: 'Job Stability Tier (OccTier)',
+              ConcurrentLoans: 'Other Active Loans (ConcurrentLoans)',
+              PriorLoans: 'Previous Loans Count (PriorLoans)',
+              PriorRefinances: 'Previous Renewals (PriorRefinances)',
+              PriorPenalties: 'Number of Penalties (PriorPenalties)',
               HasTimeDeposit: 'Has Time Deposit',
-              SavingsChange: 'Savings Change (yr)',
-              Groceries: 'Grocery Patronage (points)',
-              HasSnapshot: 'Has Financial Snapshot',
+              SavingsChange: 'Annual Savings Growth (SavingsChange)',
+              HasSnapshot: 'Has Financial History (HasSnapshot)',
             };
-            const detailDrivers = riskAssessment.drivers || [];
+            const renderSplitFeatureLabel = (rawFeature) => {
+              const fullLabel = FEATURE_LABELS[rawFeature] || rawFeature;
+              const match = fullLabel.match(/^(.*?)\s*(\(.*?\))$/);
+              if (match) {
+                return (
+                  <span className="block leading-tight">
+                    <span className="block">{match[1]}</span>
+                    <span className="block text-[9px] text-gray-400 font-normal tracking-normal">{match[2]}</span>
+                  </span>
+                );
+              }
+              return <span className="block leading-tight">{fullLabel}</span>;
+            };
+            const detailDrivers = (riskAssessment.drivers || []).filter(
+              (d) => d.direction === 'up' || d.direction === 'down'
+            );
             const maxAbs = Math.max(...detailDrivers.map((d) => Math.abs(d.contribution)), 1e-9);
 
             return (
@@ -2446,44 +2440,87 @@ const LoanApprovalDetails = () => {
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">
                           Values the model read
                         </p>
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                          {[
-                            ['Loan Amount', features.LoanAmount == null ? '\u2014' : formatCurrency(Number(features.LoanAmount))],
-                            ['Previous Loans', features.PriorLoans ?? '\u2014'],
-                            ['Previously Behind', features.PriorBehind ?? '\u2014'],
-                            ['Concurrent Loans', features.ConcurrentLoans ?? '\u2014'],
-                            ['Share Capital (pts)', features.ShareCapital ?? '\u2014'],
-                            ['Grocery (pts)', features.Groceries ?? '\u2014'],
-                            ['Savings', features.Savings == null ? '\u2014' : formatCurrency(Number(features.Savings))],
-                            ['Occupation Tier', features.OccTier ?? '\u2014'],
-                          ].map(([label, value]) => (
-                            <div key={label}>
-                              <p className="text-[10px] text-gray-400 uppercase">{label}</p>
-                              <p className="font-semibold text-gray-800">{String(value)}</p>
-                            </div>
-                          ))}
-                        </div>
+                        {detailDrivers.length === 0 ? (
+                          <p className="text-xs text-gray-400 italic">
+                            No individual variables contributed significantly to shifting this score.
+                          </p>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                            {detailDrivers.map((d) => {
+                              const formatValue = (feature, value) => {
+                                if (value == null) return '\u2014';
+                                const num = Number(value);
+                                if (
+                                  feature === 'LoanAmount' ||
+                                  feature === 'MonthlyDue' ||
+                                  feature === 'Savings' ||
+                                  feature === 'PriorBorrowed' ||
+                                  feature === 'SavingsChange'
+                                ) {
+                                  return formatCurrency(num);
+                                }
+                                if (feature === 'Age') {
+                                  return `${Math.round(num)} yrs`;
+                                }
+                                if (feature === 'Term' || feature === 'MonthsSinceLastLoan') {
+                                  return `${Math.round(num)} mos`;
+                                }
+                                if (feature === 'DebtGrowth') {
+                                  return `${num.toFixed(2)}x`;
+                                }
+                                if (feature === 'HasTimeDeposit') {
+                                  return num === 1 ? 'Yes' : num === 0 ? 'No' : '\u2014';
+                                }
+                                if (feature === 'ShareCapital') {
+                                  const pts = Math.round(num);
+                                  const cbu = loanDetails?.cbuAmount;
+                                  return cbu != null ? `${pts} pts (${formatCurrency(cbu)})` : `${pts} pts`;
+                                }
+                                if (feature === 'Groceries') {
+                                  const pts = Math.round(num);
+                                  const bracket = pts <= 3 ? '≤ ₱20k' : pts <= 5 ? '₱20k–₱30k' : pts <= 7 ? '₱30k–₱40k' : '> ₱40k';
+                                  return `${pts} pts (${bracket} spent)`;
+                                }
+                                return String(Math.round(num * 100) / 100);
+                              };
+
+                              return (
+                                <div key={d.feature} className="space-y-0.5">
+                                  <div className="text-[10px] text-gray-400 uppercase">
+                                    {renderSplitFeatureLabel(d.feature)}
+                                  </div>
+                                  <p className="font-semibold text-gray-800">
+                                    {formatValue(d.feature, d.value)}
+                                  </p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
 
-                      {detailDrivers.length > 0 && (
-                        <div className="border border-gray-200 rounded-xl p-4">
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">
-                            Risk variables
+                      <div className="border border-gray-200 rounded-xl p-4">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">
+                          Risk variables
+                        </p>
+                        {detailDrivers.length === 0 ? (
+                          <p className="text-xs text-gray-400 italic">
+                            No individual variables contributed significantly to shifting this score.
                           </p>
+                        ) : (
                           <div className="space-y-2.5">
                             {detailDrivers.map((d) => {
                               const pct = maxAbs > 0 ? (Math.abs(d.contribution) / maxAbs) * 100 : 0;
                               const isUp = d.direction === 'up';
-                              const isNeutral = d.direction === 'neutral';
-                              const barColor = isNeutral ? 'bg-gray-300' : isUp ? 'bg-red-400' : 'bg-green-500';
+                              const barColor = isUp ? 'bg-red-400' : 'bg-green-500';
                               return (
                                 <div key={d.feature}>
                                   <div className="flex items-center justify-between mb-0.5 gap-2">
-                                    <span className="text-xs text-gray-700 font-medium truncate">
+                                    <span className="text-xs text-gray-700 font-medium">
                                       {FEATURE_LABELS[d.feature] || d.feature}
                                     </span>
-                                    <span className={`text-[10px] font-bold uppercase shrink-0 ${isNeutral ? 'text-gray-400' : isUp ? 'text-red-600' : 'text-green-700'}`}>
-                                      {isNeutral ? 'No risk impact' : isUp ? 'Increase Risk' : 'Decrease Risk'}
+                                    <span className={`text-[10px] font-bold uppercase shrink-0 ${isUp ? 'text-red-600' : 'text-green-700'}`}>
+                                      {isUp ? 'Increase Risk' : 'Decrease Risk'}
                                     </span>
                                   </div>
                                   <div className="w-full bg-gray-100 rounded-full h-1.5">
@@ -2493,8 +2530,8 @@ const LoanApprovalDetails = () => {
                               );
                             })}
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -3151,12 +3188,5 @@ const LoanApprovalDetails = () => {
     </div>
   );
 };
-
-  const parseCurrency = (value) => {
-    if (value === null || value === undefined) return 0;
-    const cleaned = String(value).replace(/[^0-9.-]+/g, '');
-    const n = Number(cleaned);
-    return Number.isFinite(n) ? n : 0;
-  };
 
 export default LoanApprovalDetails;
