@@ -41,18 +41,6 @@ import {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
-const CustomCheckbox = ({ checked, onChange, label }) => (
-  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer mb-2 w-fit">
-    <input
-      type="checkbox"
-      checked={checked}
-      onChange={onChange}
-      className="w-4 h-4 rounded border-gray-300 text-member-green focus:ring-member-green cursor-pointer"
-    />
-    <span>{label}</span>
-  </label>
-);
-
 const EMPTY_CO_MAKERS = [
   { membership_number_id: '', name: '', id_no: '', address: '', mobile: '', email: '' },
   { membership_number_id: '', name: '', id_no: '', address: '', mobile: '', email: '' },
@@ -151,7 +139,6 @@ const LoanApprovalDetails = () => {
   const [coMakerActiveOption, setCoMakerActiveOption] = useState([-1, -1]);
   const [coMakerMemberOptions, setCoMakerMemberOptions] = useState([]);
   const [coMakerMemberLoading, setCoMakerMemberLoading] = useState(false);
-  const [sendEmail, setSendEmail] = useState(true);
   // BOD-specific approval inputs
   const [bodResolutionNo, setBodResolutionNo] = useState('');
   const [bodResolutionDate, setBodResolutionDate] = useState('');
@@ -1162,7 +1149,6 @@ const LoanApprovalDetails = () => {
     setActionError('');
     setRemarks('');
     setBookkeeperInternalRemarks('');
-    setSendEmail(true);
   };
 
   const updateCoMakerField = (index, field, value) => {
@@ -1574,55 +1560,45 @@ const LoanApprovalDetails = () => {
       // the /api/cashier/disbursements/{loan_id}/disburse endpoint.
       if (isBookkeeperFlow && modalType === 'recommend') {
         dispatchInAppNotification({ recipientRole: 'manager', notificationType: 'recommend' });
-        if (sendEmail !== false) {
-          dispatchLoanEmail({
-            stage: 'bookkeeper',
-            action: 'recommend',
-            remarks: remarks?.trim() || null,
-            overrideMemberEmail: loanDetails?.summary?.memberEmail || null,
-          });
-        }
+        dispatchLoanEmail({
+          stage: 'bookkeeper',
+          action: 'recommend',
+          remarks: remarks?.trim() || null,
+          overrideMemberEmail: loanDetails?.summary?.memberEmail || null,
+        });
       } else if (isBookkeeperFlow && modalType === 'reject') {
         dispatchInAppNotification({ recipientRole: 'manager', notificationType: 'decline' });
-        if (sendEmail !== false) {
-          dispatchLoanEmail({
-            stage: 'bookkeeper',
-            action: 'reject',
-            remarks: remarks?.trim() || null,
-            overrideMemberEmail: loanDetails?.summary?.memberEmail || null,
-          });
-        }
+        dispatchLoanEmail({
+          stage: 'bookkeeper',
+          action: 'reject',
+          remarks: remarks?.trim() || null,
+          overrideMemberEmail: loanDetails?.summary?.memberEmail || null,
+        });
       } else if (!isBookkeeperFlow && modalType === 'proceed') {
         dispatchInAppNotification({ recipientRole: 'treasurer', notificationType: 'approve' });
-        if (sendEmail !== false) {
-          dispatchLoanEmail({
-            stage: 'manager',
-            action: 'approve',
-            remarks: remarks?.trim() || null,
-            overrideMemberEmail: loanDetails?.summary?.memberEmail || null,
-          });
-        }
+        dispatchLoanEmail({
+          stage: 'manager',
+          action: 'approve',
+          remarks: remarks?.trim() || null,
+          overrideMemberEmail: loanDetails?.summary?.memberEmail || null,
+        });
       } else if (!isBookkeeperFlow && modalType === 'reject') {
         dispatchInAppNotification({ recipientRole: 'bookkeeper', notificationType: 'reject' });
-        if (sendEmail !== false) {
-          dispatchLoanEmail({
-            stage: 'manager',
-            action: 'reject',
-            remarks: remarks?.trim() || null,
-            overrideMemberEmail: loanDetails?.summary?.memberEmail || null,
-          });
-        }
+        dispatchLoanEmail({
+          stage: 'manager',
+          action: 'reject',
+          remarks: remarks?.trim() || null,
+          overrideMemberEmail: loanDetails?.summary?.memberEmail || null,
+        });
       } else if (!isBookkeeperFlow && modalType === 'revise') {
         dispatchInAppNotification({ recipientRole: 'bookkeeper', notificationType: 'revise' });
-        if (sendEmail !== false) {
-          dispatchLoanEmail({
-            stage: 'manager',
-            action: 'revise',
-            remarks: remarks?.trim() || null,
-            overrideMemberEmail: loanDetails?.summary?.memberEmail || null,
-          });
-        }
-      } else if (isBookkeeperFlow && modalType === 'revise' && sendEmail !== false) {
+        dispatchLoanEmail({
+          stage: 'manager',
+          action: 'revise',
+          remarks: remarks?.trim() || null,
+          overrideMemberEmail: loanDetails?.summary?.memberEmail || null,
+        });
+      } else if (isBookkeeperFlow && modalType === 'revise') {
         dispatchLoanEmail({
           stage: 'bookkeeper',
           action: 'revise',
@@ -3158,13 +3134,7 @@ const LoanApprovalDetails = () => {
         {activeModal !== 'bod_approve' && activeModal !== 'bod_reject' && (
           <div className="mt-6">
             <h4 className="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-3">Notification Options</h4>
-            <div className="flex flex-col gap-2">
-              <CustomCheckbox
-                checked={sendEmail}
-                onChange={() => setSendEmail((prev) => !prev)}
-                label="Send email update"
-              />
-            </div>
+            <p className="text-sm text-gray-700">The member will be notified of this decision by email.</p>
           </div>
         )}
       </ConfirmDialog>

@@ -21,7 +21,6 @@ const MemberApprovalDetails = () => {
   // Modal State
   const [activeModal, setActiveModal] = useState(null); // 'revise', 'proceed', or null
   const [remarks, setRemarks] = useState('');
-  const [sendEmail, setSendEmail] = useState(true);
   const [memberRow, setMemberRow] = useState(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
@@ -343,7 +342,6 @@ const MemberApprovalDetails = () => {
     if (notifying) return;
     setActiveModal(null);
     setRemarks('');
-    setSendEmail(true);
     setActionError('');
     setNotifyMessage('');
   };
@@ -467,13 +465,9 @@ const MemberApprovalDetails = () => {
     setSaving(false);
     setNotifying(true);
     try {
-      if (sendEmail) {
-        setNotifyMessage('Sending email notification...');
-        await sendResendEmail(nextStatus);
-        setNotifyMessage('Email notification sent. Returning to member approvals...');
-      } else {
-        setNotifyMessage('Email skipped. Returning to member approvals...');
-      }
+      setNotifyMessage('Sending email notification...');
+      await sendResendEmail(nextStatus);
+      setNotifyMessage('Email notification sent. Returning to member approvals...');
     } catch (emailError) {
       console.error(emailError);
       setNotifyMessage(`Status updated, but email failed: ${emailError.message}`);
@@ -539,15 +533,6 @@ const MemberApprovalDetails = () => {
       </div>
     );
   }
-
-  const CustomCheckbox = ({ checked, onChange, label }) => (
-    <div onClick={onChange} className="flex items-center gap-2 cursor-pointer mb-2 w-fit">
-      <div className={`w-4 h-4 rounded flex items-center justify-center transition-colors ${checked ? 'bg-member-green' : 'border border-gray-300 bg-white'}`}>
-        {checked && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
-      </div>
-      <span className="text-sm text-gray-700">{label}</span>
-    </div>
-  );
 
   return (
     <div className="animate-page-in p-8 bg-gray-50 min-h-screen relative max-w-7xl mx-auto">
@@ -849,11 +834,7 @@ const MemberApprovalDetails = () => {
 
             <div className="mb-8">
               <h4 className="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-3">Notification Options</h4>
-              <CustomCheckbox 
-                checked={sendEmail} 
-                onChange={() => setSendEmail(!sendEmail)} 
-                label="Send Email Notification" 
-              />
+              <p className="text-sm text-gray-700">The applicant will be notified of this decision by email.</p>
             </div>
 
             <div className="flex justify-center gap-3 mt-4">

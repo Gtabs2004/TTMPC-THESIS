@@ -79,18 +79,6 @@ const normalizeSupportingDocuments = (rawPayload) => {
     .filter((entry) => entry.storage_path);
 };
 
-const CustomCheckbox = ({ checked, onChange, label }) => (
-  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer mb-2 w-fit">
-    <input
-      type="checkbox"
-      checked={checked}
-      onChange={onChange}
-      className="w-4 h-4 rounded border-gray-300 text-member-green focus:ring-member-green cursor-pointer"
-    />
-    <span>{label}</span>
-  </label>
-);
-
 const QuickStat = ({ label, value, accent = false }) => (
   <div
     className={`rounded-lg border px-3 py-2 ${
@@ -120,7 +108,6 @@ const Treasurer_ApprovalDetails = () => {
   const [actionError, setActionError] = useState('');
   const [activeModal, setActiveModal] = useState(null);
   const [remarks, setRemarks] = useState('');
-  const [sendEmail, setSendEmail] = useState(true);
   const [loanDetails, setLoanDetails] = useState(null);
   const [vaultBalance, setVaultBalance] = useState(null);
 
@@ -625,7 +612,6 @@ const Treasurer_ApprovalDetails = () => {
     setActiveModal(null);
     setActionError('');
     setRemarks('');
-    setSendEmail(true);
   };
 
   const applyLoanStatusUpdate = async (modalType) => {
