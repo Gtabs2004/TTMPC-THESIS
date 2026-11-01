@@ -4670,6 +4670,24 @@ def create_cashier_cbu_deposit(
         # fixed once (see cbu_backup_*.json).
         deposit_date = (payload.transaction_date or datetime.utcnow()).date()
 
+        # Backdating guard: a deposit dated before the member's current latest
+        # CBU row silently loses the "current balance" race everywhere that
+        # picks the latest row by transaction_date (this endpoint, the member
+        # dashboard, the Cashier CBU list) — the earlier-dated row's
+        # ending_share_capital never surfaces even though it posted later in
+        # real time. Mirrors the future-dated guard above in spirit: both are
+        # the same "transaction_date lies about real order" failure mode.
+        latest_cbu_date_str = str((latest_cbu_row or {}).get("transaction_date") or "")[:10]
+        if latest_cbu_date_str and deposit_date.isoformat() < latest_cbu_date_str:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Transaction date {deposit_date.isoformat()} is earlier than this "
+                    f"member's latest recorded CBU entry ({latest_cbu_date_str}). Use "
+                    "today's date or later, or correct the existing entry first."
+                ),
+            )
+
         # Dedup guard: reject an identical deposit (same member, same date,
         # same amount) already on record. Cashier-entered rows carry no
         # source_* key the way loan/payment/ISC writers do, so a double-click
@@ -17044,13 +17062,18 @@ def _seed_initial_capital_build_up(application_id: str, confirm_result: Any) -> 
     if not member_uuid:
         return
 
-    # Already seeded?
+    # Already seeded? applicationConfirmation.py's confirm_membership() seeds
+    # the same first CBU row (as deposit_account="Initial Paid-Up Capital",
+    # mixed case) before this function ever runs. Matching on the exact
+    # "INITIAL_PAID_UP_CAPITAL" string here missed that row — case mismatch —
+    # so this always re-seeded a duplicate on top of it. Any existing CBU row
+    # for the member means seeding already happened (same guard
+    # applicationConfirmation.py uses), so check presence, not an exact label.
     try:
         existing = (
             supabase.table("capital_build_up")
             .select("id")
             .eq("member_id", member_uuid)
-            .eq("deposit_account", "INITIAL_PAID_UP_CAPITAL")
             .limit(1)
             .execute()
         )
