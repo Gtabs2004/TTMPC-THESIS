@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
@@ -156,15 +156,49 @@ const BookkeeperLoanApproval = () => {
 
       if (nonMemberError) throw nonMemberError;
 
-      const mappedNonMember = (nonMemberData || []).map((row) => ({
-        ...row,
-        source: "non_member",
-      }));
+      const controlNumbers = [
+        ...(loansData || []).map((l) => l.control_number),
+        ...(nonMemberData || []).map((l) => l.control_number),
+      ].filter(Boolean);
 
-      const mappedLoans = (loansData || []).map((row) => ({
-        ...row,
-        source: "loans",
-      }));
+      const riskMap = {};
+      if (controlNumbers.length > 0) {
+        try {
+          for (let start = 0; start < controlNumbers.length; start += 500) {
+            const { data: riskRows } = await supabase
+              .from("risk_assessments")
+              .select("loan_control_number, risk_probability, risk_class")
+              .in("loan_control_number", controlNumbers.slice(start, start + 500));
+            (riskRows || []).forEach((r) => {
+              if (r.loan_control_number) {
+                riskMap[String(r.loan_control_number).trim()] = r;
+              }
+            });
+          }
+        } catch {
+          // Keep resilient
+        }
+      }
+
+      const mappedNonMember = (nonMemberData || []).map((row) => {
+        const cn = String(row.control_number || "").trim();
+        return {
+          ...row,
+          source: "non_member",
+          risk_probability: riskMap[cn]?.risk_probability,
+          risk_class: riskMap[cn]?.risk_class,
+        };
+      });
+
+      const mappedLoans = (loansData || []).map((row) => {
+        const cn = String(row.control_number || "").trim();
+        return {
+          ...row,
+          source: "loans",
+          risk_probability: riskMap[cn]?.risk_probability,
+          risk_class: riskMap[cn]?.risk_class,
+        };
+      });
 
       const combinedQueue = sortQueueRows([...mappedLoans, ...mappedNonMember]
         .filter((loan) => {
@@ -193,6 +227,32 @@ const BookkeeperLoanApproval = () => {
 
   const getMigsStyle = (status) => {
     return status === "MIGS" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500";
+  };
+
+  const getRiskBadge = (prob) => {
+    if (prob == null || prob === undefined) {
+      return {
+        label: "Unscored",
+        chip: "bg-gray-100 text-gray-500 border border-gray-200",
+      };
+    }
+    const p = Number(prob);
+    if (p > 0.2171) {
+      return {
+        label: "High Risk",
+        chip: "bg-red-50 text-red-700 border border-red-200",
+      };
+    }
+    if (p >= 0.1036) {
+      return {
+        label: "Medium Risk",
+        chip: "bg-amber-50 text-amber-700 border border-amber-200",
+      };
+    }
+    return {
+      label: "Low Risk",
+      chip: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+    };
   };
 
   const getLoanStatusBadge = (status) => {
@@ -241,6 +301,7 @@ const BookkeeperLoanApproval = () => {
       ? "N/A"
       : (loan.migs_status || "Unscored");
     const isRenewal = String(loan.application_type || "").trim().toLowerCase() === "renewal";
+    const riskInfo = getRiskBadge(loan.risk_probability);
 
     return {
       id: loan.control_number,
@@ -251,7 +312,9 @@ const BookkeeperLoanApproval = () => {
       amount: loan.loan_amount ? `\u20B1${Number(loan.loan_amount).toLocaleString()}` : "\u20B10",
       term: `${loan.term || 0} Months`,
       status: migsStatus,
-       loanStatus: loanStatus,
+      riskLabel: riskInfo.label,
+      riskChip: riskInfo.chip,
+      loanStatus: loanStatus,
       date: formatSubmissionDate(loan.application_date),
       submittedAt: loan.application_date || null,
       actions: "Review",
@@ -366,15 +429,16 @@ const BookkeeperLoanApproval = () => {
             <div>
               <table className="w-full table-fixed text-left border-collapse">
                 <colgroup>
+                  <col className="w-[12%]" />
                   <col className="w-[14%]" />
-                  <col className="w-[15%]" />
-                  <col className="w-[12%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[8%]" />
+                  <col className="w-[11%]" />
                   <col className="w-[9%]" />
-                  <col className="w-[12%]" />
+                  <col className="w-[7%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[11%]" />
                   <col className="w-[10%]" />
-                  <col className="w-[10%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[9%]" />
                 </colgroup>
                 <thead>
                   <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
@@ -384,6 +448,7 @@ const BookkeeperLoanApproval = () => {
                     <th className="px-3 py-4 font-bold">Amount</th>
                     <th className="px-3 py-4 font-bold">Term</th>
                     <th className="px-3 py-4 font-bold">MIGS Status</th>
+                    <th className="px-3 py-4 font-bold">Credit Risk</th>
                     <th className="px-3 py-4 font-bold">Loan Status</th>
                     <th className="px-3 py-4 font-bold">Submission</th>
                     <th className="px-3 py-4 font-bold text-right">Actions</th>
@@ -391,16 +456,16 @@ const BookkeeperLoanApproval = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <TableStateRow colSpan={9} variant="loading" label="Loading..." />
+                    <TableStateRow colSpan={10} variant="loading" label="Loading..." />
                   ) : fetchError ? (
                     <tr>
-                      <td colSpan="9" className="px-3 py-4 text-center text-red-600">
+                      <td colSpan="10" className="px-3 py-4 text-center text-red-600">
                         Failed to load loans: {fetchError}
                       </td>
                     </tr>
                   ) : filteredLoans.length === 0 ? (
                     <TableStateRow
-                      colSpan={9}
+                      colSpan={10}
                       variant="empty"
                       icon={ClipboardList}
                       label="No loans found."
@@ -440,6 +505,14 @@ const BookkeeperLoanApproval = () => {
                         </td>
                         <td className="px-3 py-4 text-sm">
                           <span
+                            className={`inline-block max-w-full truncate px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide align-middle ${loan.riskChip}`}
+                            title={loan.riskLabel}
+                          >
+                            {loan.riskLabel}
+                          </span>
+                        </td>
+                        <td className="px-3 py-4 text-sm">
+                          <span
                             className={`inline-block max-w-full truncate px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide align-middle ${getLoanStatusBadge(loan.loanStatus)}`}
                             title={formatLoanStatus(loan.loanStatus)}
                           >
@@ -469,9 +542,9 @@ const BookkeeperLoanApproval = () => {
                         <td className="px-3 py-4 text-sm"></td>
                         <td className="px-3 py-4 text-sm"></td>
                         <td className="px-3 py-4 text-sm"></td>
+                        <td className="px-3 py-4 text-sm"></td>
                       </tr>
-                    ))
-                  }
+                    ))}
                 </tbody>
               </table>
             </div>

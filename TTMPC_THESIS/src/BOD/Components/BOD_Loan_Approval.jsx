@@ -70,7 +70,29 @@ const BOD_Loan_Approval = () => {
         .eq("loan_status", "recommended for bod approval")
         .order("application_date", { ascending: false });
       if (error) throw error;
-      setLoans(data || []);
+      const controlNumbers = (data || []).map((l) => l.control_number).filter(Boolean);
+      const riskMap = {};
+      if (controlNumbers.length > 0) {
+        try {
+          const { data: riskRows } = await supabase
+            .from("risk_assessments")
+            .select("loan_control_number, risk_probability, risk_class")
+            .in("loan_control_number", controlNumbers);
+          (riskRows || []).forEach((r) => {
+            if (r.loan_control_number) {
+              riskMap[String(r.loan_control_number).trim()] = r;
+            }
+          });
+        } catch {
+          // Keep resilient
+        }
+      }
+      const mapped = (data || []).map((l) => ({
+        ...l,
+        risk_probability: riskMap[String(l.control_number).trim()]?.risk_probability,
+        risk_class: riskMap[String(l.control_number).trim()]?.risk_class,
+      }));
+      setLoans(mapped);
 
       // Average high-value (BOD-level) Consolidated applications per month
       // over the last AVG_WINDOW_MONTHS months, current month included. Keyed
@@ -104,6 +126,32 @@ const BOD_Loan_Approval = () => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const getRiskBadge = (prob) => {
+    if (prob == null || prob === undefined) {
+      return {
+        label: "Unscored",
+        chip: "bg-gray-100 text-gray-500 border border-gray-200",
+      };
+    }
+    const p = Number(prob);
+    if (p > 0.2171) {
+      return {
+        label: "High Risk",
+        chip: "bg-red-50 text-red-700 border border-red-200",
+      };
+    }
+    if (p >= 0.1036) {
+      return {
+        label: "Medium Risk",
+        chip: "bg-amber-50 text-amber-700 border border-amber-200",
+      };
+    }
+    return {
+      label: "Low Risk",
+      chip: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+    };
+  };
 
   const filtered = loans.filter((l) => {
     const key = search.trim().toLowerCase();
@@ -152,16 +200,18 @@ const BOD_Loan_Approval = () => {
                   <th className="p-5 font-bold">Amount</th>
                   <th className="p-5 font-bold">Term</th>
                   <th className="p-5 font-bold">Submitted</th>
+                  <th className="p-5 font-bold">Credit Risk</th>
                   <th className="p-5 font-bold text-right pr-8">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <TableStateRow colSpan={7} variant="loading" label="Loading..." />
+                  <TableStateRow colSpan={8} variant="loading" label="Loading..." />
                 ) : filtered.length === 0 ? (
-                  <TableStateRow colSpan={7} variant="empty" icon={CreditCard} label="No high-value loans awaiting BOD approval." />
+                  <TableStateRow colSpan={8} variant="empty" icon={CreditCard} label="No high-value loans awaiting BOD approval." />
                 ) : filtered.map((loan) => {
                   const memberName = `${loan.member?.first_name || ""} ${loan.member?.last_name || ""}`.trim() || "Unknown Member";
+                  const risk = getRiskBadge(loan.risk_probability);
                   return (
                     <tr key={loan.control_number} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                       <td className="p-5 text-sm text-gray-500 font-medium">{loan.control_number}</td>
@@ -174,6 +224,11 @@ const BOD_Loan_Approval = () => {
                       <td className="p-5 text-sm font-bold text-gray-900">{formatCurrency(loan.loan_amount)}</td>
                       <td className="p-5 text-sm text-gray-500">{loan.term || 0} Months</td>
                       <td className="p-5 text-sm text-gray-500">{formatDate(loan.application_date)}</td>
+                      <td className="p-5 text-sm">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${risk.chip}`}>
+                          {risk.label}
+                        </span>
+                      </td>
                       <td className="p-5 text-sm text-right pr-8">
                         <TableActionButton
                           onClick={() => navigate(`/bod-loan-approval/${encodeURIComponent(loan.control_number)}`)}

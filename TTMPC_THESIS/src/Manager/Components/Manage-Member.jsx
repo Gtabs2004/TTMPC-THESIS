@@ -1,7 +1,8 @@
-﻿import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
+import { cachedFetch, getCached, invalidateCache } from "../../utils/pageCache";
 import StaffSidebar from "../../components/StaffSidebar";
 import { managerNav } from "../../components/StaffSidebar/configs/manager";
 import { UserAuth } from "../../contex/AuthContext";
@@ -30,35 +31,40 @@ const ITEMS_PER_PAGE = 10;
 const Manager_Manage_Member = () => {
     const navigate = useNavigate();
   const { addNotification } = useNotification();
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [rows, setRows] = useState(() => getCached("members_personal_data_sheet")?.data || []);
+  const [loading, setLoading] = useState(() => !getCached("members_personal_data_sheet"));
   const [query, setQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [migsByMember, setMigsByMember] = useState({});
-
-
+  const [migsByMember, setMigsByMember] = useState(() => getCached("migs_classifications_map")?.data || {});
 
   const rtVersion = useRealtimeVersion(RT.MEMBERS);
   const rtSeen = useRef(rtVersion);
   useEffect(() => {
-    const silent = rtSeen.current !== rtVersion;
+    const isRealtime = rtSeen.current !== rtVersion;
     rtSeen.current = rtVersion;
     async function loadData() {
-      if (!silent) setLoading(true);
+      if (isRealtime) {
+        invalidateCache("members_personal_data_sheet");
+        invalidateCache("migs_classifications_map");
+      }
+      const hasCache = !!getCached("members_personal_data_sheet");
+      if (!isRealtime && !hasCache) setLoading(true);
       try {
-        const response = await fetch(`${API_BASE_URL}/api/personal_data_sheet`, { method: "GET", headers: { Accept: "application/json" } });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok || !payload?.success) {
-          throw new Error(payload?.detail || payload?.message || "Failed to load personal datasheet.");
-        }
+        const payload = await cachedFetch("members_personal_data_sheet", async () => {
+          const response = await fetch(`${API_BASE_URL}/api/personal_data_sheet`, { method: "GET", headers: { Accept: "application/json" } });
+          const res = await response.json().catch(() => ({}));
+          if (!response.ok || !res?.success) {
+            throw new Error(res?.detail || res?.message || "Failed to load personal datasheet.");
+          }
+          return res;
+        }, 120_000);
         setRows(Array.isArray(payload.data) ? payload.data : []);
-        addNotification("Member data loaded successfully", "success");
       } catch (err) {
-        if (silent) return;
+        if (isRealtime) return;
         addNotification(err?.message || "Unable to load personal datasheet.", "error");
         setRows([]);
       } finally {
-        if (!silent) setLoading(false);
+        if (!isRealtime) setLoading(false);
       }
     }
     loadData();
@@ -68,9 +74,15 @@ const Manager_Manage_Member = () => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/migs/classifications`, { headers: { Accept: "application/json" } });
-        const payload = await res.json().catch(() => ({}));
-        if (!cancelled && res.ok && payload?.success) {
+        const payload = await cachedFetch("migs_classifications_map", async () => {
+          const res = await fetch(`${API_BASE_URL}/api/migs/classifications`, { headers: { Accept: "application/json" } });
+          const pl = await res.json().catch(() => ({}));
+          if (!res.ok || !pl?.success) {
+            throw new Error("MIGS classifications load failed");
+          }
+          return pl;
+        }, 120_000);
+        if (!cancelled && payload?.data) {
           setMigsByMember(payload.data || {});
         }
       } catch {

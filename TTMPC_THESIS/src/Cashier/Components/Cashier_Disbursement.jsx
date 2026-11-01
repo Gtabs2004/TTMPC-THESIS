@@ -700,23 +700,23 @@ const Cashier_Disbursement = () => {
             </div>
 
             <div className="px-6 py-5 space-y-4">
-              <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="grid grid-cols-2 gap-3 text-base">
                 <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
-                  <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Member</p>
+                  <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold">Member</p>
                   <p className="font-semibold text-gray-900 mt-0.5">{previewLoan.member_name}</p>
                 </div>
                 <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
-                  <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Loan Type</p>
+                  <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold">Loan Type</p>
                   <p className="font-semibold text-gray-900 mt-0.5">{toTitleCase(previewLoan.loan_type)}</p>
                 </div>
                 <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
-                  <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Principal</p>
+                  <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold">Principal</p>
                   <p className="font-bold text-gray-900 mt-0.5">
                     {formatCurrency(previewLoan.principal_amount || previewLoan.loan_amount)}
                   </p>
                 </div>
                 <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
-                  <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Term</p>
+                  <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold">Term</p>
                   <p className="font-semibold text-gray-900 mt-0.5">
                     {previewLoan.term_months || previewLoan.term || "—"} months
                   </p>
@@ -739,10 +739,10 @@ const Cashier_Disbursement = () => {
 
               {previewDeductions && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-                  <p className="text-[10px] uppercase tracking-wider text-amber-800 font-semibold mb-2">
+                  <p className="text-xs uppercase tracking-wider text-amber-800 font-semibold mb-2">
                     Deductions Breakdown
                   </p>
-                  <div className="space-y-1.5 text-xs text-gray-800">
+                  <div className="space-y-1.5 text-sm text-gray-800">
                     <div className="flex justify-between">
                       <span>Service Fee <span className="text-gray-500">(₱100 / ₱50,000)</span></span>
                       <span className="font-mono font-semibold">
@@ -783,14 +783,14 @@ const Cashier_Disbursement = () => {
                         </span>
                       </div>
                     )}
-                    <div className="flex justify-between text-sm pt-1">
+                    <div className="flex justify-between text-base pt-1">
                       <span className="font-bold">Net Cash to Release</span>
                       <span className="font-mono font-bold text-primary">
                         {formatCurrency(previewDeductions?.net_cash_out ?? previewDeductions?.net_proceeds)}
                       </span>
                     </div>
                   </div>
-                  <p className="mt-2 text-[10px] text-amber-700">
+                  <p className="mt-2 text-xs text-amber-700">
                     The 2% CBU retention will be credited to the member's Capital Build-Up ledger on release.
                     {previewDeductions?.is_renewal && previewDeductions?.renewal_payoff > 0
                       ? " The renewal payoff is an internal offset — it never physically leaves the vault."

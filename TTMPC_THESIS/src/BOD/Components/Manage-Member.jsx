@@ -1,7 +1,8 @@
-﻿import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
+import { cachedFetch, getCached, invalidateCache } from "../../utils/pageCache";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bodNav } from "../../components/StaffSidebar/configs/bod";
 import { UserAuth } from "../../contex/AuthContext";
@@ -40,91 +41,80 @@ const formatDisplayDate = (value) => {
 const BOD_Manage_Member = () => {
     const navigate = useNavigate();
   const { addNotification } = useNotification();
-  const [rows, setRows] = useState([]);
-    const [loadError, setLoadError] = useState("");
-    const [loading, setLoading] = useState(false);
+  const [rows, setRows] = useState(() => getCached("bod_manage_members_bundle")?.memberRows || []);
+  const [loadError, setLoadError] = useState("");
+  const [loading, setLoading] = useState(() => !getCached("bod_manage_members_bundle"));
   const [query, setQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [loanSummaryByMemberId, setLoanSummaryByMemberId] = useState({});
-  const [terminatedByMemberId, setTerminatedByMemberId] = useState({});
+  const [loanSummaryByMemberId, setLoanSummaryByMemberId] = useState(() => getCached("bod_manage_members_bundle")?.loanSummaryByMemberId || {});
+  const [terminatedByMemberId, setTerminatedByMemberId] = useState(() => getCached("bod_manage_members_bundle")?.terminatedByMemberId || {});
   const [terminatedQuery, setTerminatedQuery] = useState("");
   const [terminatedPage, setTerminatedPage] = useState(1);
-
-
 
   const rtVersion = useRealtimeVersion(RT.MEMBERS);
   const rtSeen = useRef(rtVersion);
   useEffect(() => {
-    const silent = rtSeen.current !== rtVersion;
+    const isRealtime = rtSeen.current !== rtVersion;
     rtSeen.current = rtVersion;
     async function loadData() {
-      if (!silent) setLoading(true);
-      setLoadError("");
+      if (isRealtime) invalidateCache("bod_manage_members_bundle");
+      const hasCache = !!getCached("bod_manage_members_bundle");
+      if (!isRealtime && !hasCache) setLoading(true);
+      if (!isRealtime) setLoadError("");
 
       try {
-        // member-loan-summary returns only {activeCount, paidCount} per
-        // member (reusing manage-loans' own cache server-side) instead of
-        // this page pulling the full manage-loans payload — payment_history,
-        // schedules, member/loan_type joins — just to derive two counts.
-        // terminated-members is the same "small sidecar fetch" pattern as
-        // member-loan-summary — it returns just enough (per membership_id)
-        // to split the already-fetched personal_data_sheet rows into Active
-        // vs Terminated, instead of a second full member fetch.
-        const [memberRes, loanSummaryRes, terminatedRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/personal_data_sheet`, { method: "GET", headers: { Accept: "application/json" } }),
-          fetch(`${API_BASE_URL}/api/bod/member-loan-summary`, { method: "GET", headers: { Accept: "application/json" } }),
-          fetch(`${API_BASE_URL}/api/bod/terminated-members`, { method: "GET", headers: { Accept: "application/json" } }),
-        ]);
+        const bundle = await cachedFetch("bod_manage_members_bundle", async () => {
+          const [memberRes, loanSummaryRes, terminatedRes] = await Promise.all([
+            fetch(`${API_BASE_URL}/api/personal_data_sheet`, { method: "GET", headers: { Accept: "application/json" } }),
+            fetch(`${API_BASE_URL}/api/bod/member-loan-summary`, { method: "GET", headers: { Accept: "application/json" } }),
+            fetch(`${API_BASE_URL}/api/bod/terminated-members`, { method: "GET", headers: { Accept: "application/json" } }),
+          ]);
 
-        const [memberPayload, loanSummaryPayload, terminatedPayload] = await Promise.all([
-          memberRes.json().catch(() => null),
-          loanSummaryRes.json().catch(() => null),
-          terminatedRes.json().catch(() => null),
-        ]);
-        const requirePayload = (response, payload, label) => {
-          if (!response.ok || !payload?.success) {
-            const detail = payload?.detail || payload?.message || `request failed (${response.status})`;
-            throw new Error(`${label}: ${detail}`);
-          }
-          return payload;
-        };
-        const memberData = requirePayload(memberRes, memberPayload, "Member list");
-        const loanSummaryData = requirePayload(loanSummaryRes, loanSummaryPayload, "Loan summary");
-        const terminatedData = requirePayload(terminatedRes, terminatedPayload, "Terminated members");
-
-        if (!Array.isArray(memberData.data)) {
-          throw new Error("Member list: the server returned an invalid data format.");
-        }
-        if (!loanSummaryData.data || typeof loanSummaryData.data !== "object" || Array.isArray(loanSummaryData.data)) {
-          throw new Error("Loan summary: the server returned an invalid data format.");
-        }
-        if (!terminatedData.data || typeof terminatedData.data !== "object" || Array.isArray(terminatedData.data)) {
-          throw new Error("Terminated members: the server returned an invalid data format.");
-        }
-
-        const memberRows = memberData.data;
-        const loanSummaryByMember = loanSummaryData.data;
-        const terminatedByMember = terminatedData.data;
-
-        const nextSummary = {};
-        Object.entries(loanSummaryByMember).forEach(([memberId, counts]) => {
-          nextSummary[memberId] = {
-            activeCount: Number(counts?.active_count || 0),
-            paidCount: Number(counts?.paid_count || 0),
+          const [memberPayload, loanSummaryPayload, terminatedPayload] = await Promise.all([
+            memberRes.json().catch(() => null),
+            loanSummaryRes.json().catch(() => null),
+            terminatedRes.json().catch(() => null),
+          ]);
+          const requirePayload = (response, payload, label) => {
+            if (!response.ok || !payload?.success) {
+              const detail = payload?.detail || payload?.message || `request failed (${response.status})`;
+              throw new Error(`${label}: ${detail}`);
+            }
+            return payload;
           };
-        });
+          const memberData = requirePayload(memberRes, memberPayload, "Member list");
+          const loanSummaryData = requirePayload(loanSummaryRes, loanSummaryPayload, "Loan summary");
+          const terminatedData = requirePayload(terminatedRes, terminatedPayload, "Terminated members");
 
-        setRows(memberRows);
-        setLoanSummaryByMemberId(nextSummary);
-        setTerminatedByMemberId(terminatedByMember);
+          const memberRows = Array.isArray(memberData.data) ? memberData.data : [];
+          const loanSummaryByMember = loanSummaryData.data || {};
+          const terminatedByMember = terminatedData.data || {};
+
+          const nextSummary = {};
+          Object.entries(loanSummaryByMember).forEach(([memberId, counts]) => {
+            nextSummary[memberId] = {
+              activeCount: Number(counts?.active_count || 0),
+              paidCount: Number(counts?.paid_count || 0),
+            };
+          });
+
+          return {
+            memberRows,
+            loanSummaryByMemberId: nextSummary,
+            terminatedByMemberId: terminatedByMember,
+          };
+        }, 120_000);
+
+        setRows(bundle.memberRows);
+        setLoanSummaryByMemberId(bundle.loanSummaryByMemberId);
+        setTerminatedByMemberId(bundle.terminatedByMemberId);
         setLoadError("");
-        addNotification("Member data loaded successfully", "success");
       } catch (err) {
         const message = err?.message || "Unable to load Manage Member data.";
         setLoadError(message);
-        if (!silent) addNotification(message, "error");
+        if (!isRealtime) addNotification(message, "error");
       } finally {
-        if (!silent) setLoading(false);
+        if (!isRealtime) setLoading(false);
       }
     }
 

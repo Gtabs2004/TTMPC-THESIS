@@ -8,6 +8,8 @@ import TableStateRow from "../../components/TableStateRow";
 import StaffSidebar from "../../components/StaffSidebar";
 import { treasurerNav } from "../../components/StaffSidebar/configs/treasurer";
 import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
+import { cachedFetch, getCached } from "../../utils/pageCache";
 import {
   Search,
   Wallet,
@@ -87,7 +89,9 @@ const Treasurer_Payments = () => {
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
 
-  const [ledger, setLedger] = useState({
+  const cacheKey = `treasurer_cash_ledger_${startDate}_${endDate}_${typeFilter || "all"}`;
+  const _cached = getCached(cacheKey);
+  const [ledger, setLedger] = useState(() => _cached || {
     entries: [],
     total_count: 0,
     total_debit: 0,
@@ -95,13 +99,14 @@ const Treasurer_Payments = () => {
     net: 0,
     window: { start: "", end: "" },
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !_cached);
   const [loadError, setLoadError] = useState("");
 
   // `silent` = realtime refresh: keep the current page and the rows on
   // screen, no spinner, and don't replace good data with an error.
-  const fetchLedger = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) {
+  const fetchLedger = useCallback(async ({ silent = false, force = false } = {}) => {
+    const key = `treasurer_cash_ledger_${startDate}_${endDate}_${typeFilter || "all"}`;
+    if (!silent && !getCached(key)) {
       setLoading(true);
       setLoadError("");
     }
@@ -113,21 +118,32 @@ const Treasurer_Payments = () => {
         offset: "0",
       });
       if (typeFilter) params.set("type_filter", typeFilter);
-      const r = await fetch(`${API_BASE_URL}/api/treasurer/cash-ledger?${params.toString()}`);
-      const payload = await r.json();
-      if (!r.ok || !payload?.success) {
-        throw new Error(payload?.detail || "Failed to load ledger.");
-      }
-      setLedger(payload.data);
+      const data = await cachedFetch(
+        key,
+        async () => {
+          const r = await fetch(`${API_BASE_URL}/api/treasurer/cash-ledger?${params.toString()}`);
+          const payload = await r.json();
+          if (!r.ok || !payload?.success) {
+            throw new Error(payload?.detail || "Failed to load ledger.");
+          }
+          return payload.data;
+        },
+        { ttlMs: 120_000, force }
+      );
+      setLedger(data);
       if (!silent) setPage(1);
     } catch (e) {
       if (!silent) setLoadError(e?.message || "Unable to load ledger.");
+      if (!getCached(key)) {
+        setLedger({ entries: [], total_count: 0, total_debit: 0, total_credit: 0, net: 0, window: { start: "", end: "" } });
+      }
     } finally {
       if (!silent) setLoading(false);
     }
   }, [startDate, endDate, typeFilter]);
 
   useEffect(() => { fetchLedger(); }, [fetchLedger]);
+  useRealtimeRefetch(RT.PAYMENTS, () => fetchLedger({ silent: true, force: true }));
   // The tables /api/treasurer/cash-ledger reads from.
   useRealtimeRefetch(
     [

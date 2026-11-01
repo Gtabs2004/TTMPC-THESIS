@@ -1,7 +1,8 @@
-﻿import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { useRealtimeVersion } from "../hooks/useRealtimeRefetch";
 import { RT } from "../lib/realtimeSync";
+import { cachedFetch, getCached, invalidateCache } from "../utils/pageCache";
 import StaffSidebar from "../components/StaffSidebar";
 import { secretaryNav } from "../components/StaffSidebar/configs/secretary";
 import { UserAuth } from "../contex/AuthContext";
@@ -27,7 +28,6 @@ import {
   Archive,
   ShieldCheck,
 } from 'lucide-react';
-import logo from "../assets/img/ttmpc logo.png";
 import NotificationBell from "../components/NotificationBell";
 import { TableToolbar } from "../components/TableToolbar";
 import TableActionButton from "../components/TableActionButton";
@@ -56,8 +56,8 @@ const StatusBadge = ({ status }) => {
 const Secretary_Records = () => {
     const navigate = useNavigate();
   const { addNotification } = useNotification();
-  const [records, setRecords] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [records, setRecords] = useState(() => getCached("secretary_membership_records")?.data || []);
+  const [loading, setLoading] = useState(() => !getCached("secretary_membership_records"));
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
@@ -73,33 +73,37 @@ const Secretary_Records = () => {
   const rtVersion = useRealtimeVersion(RT.MEMBERS);
   const rtSeen = useRef(rtVersion);
   useEffect(() => {
-    const silent = rtSeen.current !== rtVersion;
+    const isRealtime = rtSeen.current !== rtVersion;
     rtSeen.current = rtVersion;
     async function loadRecords() {
-      if (!silent) setLoading(true);
+      if (isRealtime) invalidateCache("secretary_membership_records");
+      const hasCache = !!getCached("secretary_membership_records");
+      if (!isRealtime && !hasCache) setLoading(true);
       try {
-        const response = await fetch(`${API_BASE_URL}/api/secretary/membership-records`, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok || !payload?.success) {
-          throw new Error(payload?.detail || payload?.message || "Failed to load membership records.");
-        }
+        const payload = await cachedFetch("secretary_membership_records", async () => {
+          const response = await fetch(`${API_BASE_URL}/api/secretary/membership-records`, {
+            method: "GET",
+            headers: { Accept: "application/json" },
+          });
+          const pl = await response.json().catch(() => ({}));
+          if (!response.ok || !pl?.success) {
+            throw new Error(pl?.detail || pl?.message || "Failed to load membership records.");
+          }
+          return pl;
+        }, 120_000);
 
         setRecords(Array.isArray(payload.data) ? payload.data : []);
-        addNotification("Membership records loaded successfully", "success");
       } catch (err) {
-        if (silent) return;
+        if (isRealtime) return;
         addNotification(err?.message || "Unable to load membership records.", "error");
         setRecords([]);
       } finally {
-        if (!silent) setLoading(false);
+        if (!isRealtime) setLoading(false);
       }
     }
 
     loadRecords();
-  }, [addNotification, rtVersion]);
+  }, [rtVersion]);
 
   const filteredRecords = useMemo(() => {
     const key = String(searchQuery || "").trim().toLowerCase();

@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
+import { cachedFetch, getCached } from "../../utils/pageCache";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bodNav } from "../../components/StaffSidebar/configs/bod";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import NotificationBell from "../../components/NotificationBell";
@@ -160,13 +161,12 @@ const MONTH_NAMES = [
 ];
 
 const BOD_Manage_Loans = () => {
-    const navigate = useNavigate();
   const [activeFilter, setActiveFilter] = useState("All");
   const [yearFilter, setYearFilter] = useState("All");
   const [monthFilter, setMonthFilter] = useState("All");
   const [searchTerm, setSearchTerm] = useState("");
-  const [loans, setLoans] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loans, setLoans] = useState(() => getCached("manage_loans_master_rows") || []);
+  const [loading, setLoading] = useState(() => !getCached("manage_loans_master_rows"));
   const [loadError, setLoadError] = useState("");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 5;
@@ -315,26 +315,32 @@ const BOD_Manage_Loans = () => {
     return totals;
   }, [filteredLoans]);
 
-  const fetchManageLoans = async ({ silent = false } = {}) => {
-    if (!silent) setLoading(true);
+  const fetchManageLoans = async ({ silent = false, force = false } = {}) => {
+    if (!silent && !getCached("manage_loans_master_rows")) setLoading(true);
     if (!silent) setLoadError("");
     try {
-      const response = await fetch(`${API_BASE_URL}/api/bookkeeper/manage-loans`);
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload?.success) {
-        throw new Error(payload?.detail || payload?.message || "Failed to load loan ledger data.");
-      }
-      const rows = Array.isArray(payload?.data?.rows) ? payload.data.rows : [];
+      const rows = await cachedFetch(
+        "manage_loans_master_rows",
+        async () => {
+          const response = await fetch(`${API_BASE_URL}/api/bookkeeper/manage-loans`);
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok || !payload?.success) {
+            throw new Error(payload?.detail || payload?.message || "Failed to load loan ledger data.");
+          }
+          return Array.isArray(payload?.data?.rows) ? payload.data.rows : [];
+        },
+        { ttlMs: 120_000, force }
+      );
       setLoans(rows);
     } catch (err) {
       if (silent) return;
       setLoadError(err?.message || "Unable to load loan ledger data.");
-      setLoans([]);
+      if (!getCached("manage_loans_master_rows")) setLoans([]);
     } finally {
       if (!silent) setLoading(false);
     }
   };
-  useRealtimeRefetch(RT.LOANS, () => fetchManageLoans({ silent: true }));
+  useRealtimeRefetch(RT.LOANS, () => fetchManageLoans({ silent: true, force: true }));
 
   useEffect(() => {
     fetchManageLoans();

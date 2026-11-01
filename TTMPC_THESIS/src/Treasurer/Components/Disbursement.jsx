@@ -1,7 +1,8 @@
-﻿import React, { useMemo, useEffect, useState, useCallback } from "react";
+import React, { useMemo, useEffect, useState, useCallback } from "react";
 import { useNotification } from "../../contex/NotificationContext";
 import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
+import { cachedFetch, getCached } from "../../utils/pageCache";
 import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
@@ -47,7 +48,7 @@ const PRIORITY_RULES = [
   { rank: 6, label: "Non-member Bonus Loan", note: "Non-members", match: (r) => r.type === "Bonus" && r.migs === "Non-Member" },
 ];
 
-const rankTone = {
+const _rankTone = {
   1: "bg-red-50 text-red-700 ring-red-200",
   2: "bg-orange-50 text-orange-700 ring-orange-200",
   3: "bg-amber-50 text-amber-700 ring-amber-200",
@@ -63,57 +64,67 @@ const computeRank = (row) => {
 };
 
 const Disbursements = () => {
-  const { addNotification } = useNotification();
+  const { addNotification: _addNotification } = useNotification();
   const [activeLoan, setActiveLoan] = useState(null);
   const [showTimeline, setShowTimeline] = useState(false);
-  const [showPriorityLegend, setShowPriorityLegend] = useState(true);
+  const [_showPriorityLegend, _setShowPriorityLegend] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
-  const [rows, setRows] = useState([]);
-  const [summary, setSummary] = useState({ total_released_count: 0, total_released_amount: 0, released_today_amount: 0 });
-  const [isLoading, setIsLoading] = useState(false);
+  const _cached = getCached("treasurer_released_loans_bundle");
+  const [rows, setRows] = useState(() => _cached?.rows || []);
+  const [summary, setSummary] = useState(() => _cached?.summary || { total_released_count: 0, total_released_amount: 0, released_today_amount: 0 });
+  const [isLoading, setIsLoading] = useState(() => !_cached);
   const [errorMessage, setErrorMessage] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
-  const bannerNotice = "Read-only view. Only loans released by the Cashier are shown here for treasury monitoring and audit.";
+  const _bannerNotice = "Read-only view. Only loans released by the Cashier are shown here for treasury monitoring and audit.";
 
-  const fetchReleasedLoans = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) {
+  const fetchReleasedLoans = useCallback(async ({ silent = false, force = false } = {}) => {
+    if (!silent && !getCached("treasurer_released_loans_bundle")) {
       setIsLoading(true);
       setErrorMessage("");
     }
     try {
-      const response = await fetch(`${API_BASE_URL}/api/treasurer/disbursements/released-loans`, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(result?.detail || result?.message || "Failed to fetch released loans.");
-      }
-      const data = Array.isArray(result?.data) ? result.data : [];
-      setRows(
-        data.map((r) => ({
-          id: r.loan_id,
-          name: r.member_name,
-          code: r.member_id || "—",
-          type: r.loan_type,
-          migs: r.migs,
-          amount: Number(r.amount || 0),
-          method: r.method || "Cash",
-          approvedDate: r.approved_date,
-          releasedDate: r.released_date,
-          releasedBy: r.released_by || "Cashier",
-          hasDocuments: Boolean(r.has_documents),
-          documentCount: Number(r.document_count || 0),
-          status: r.status || "Released",
-        }))
+      const bundle = await cachedFetch(
+        "treasurer_released_loans_bundle",
+        async () => {
+          const response = await fetch(`${API_BASE_URL}/api/treasurer/disbursements/released-loans`, {
+            method: "GET",
+            headers: { Accept: "application/json" },
+          });
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(result?.detail || result?.message || "Failed to fetch released loans.");
+          }
+          const data = Array.isArray(result?.data) ? result.data : [];
+          const formattedRows = data.map((r) => ({
+            id: r.loan_id,
+            name: r.member_name,
+            code: r.member_id || "—",
+            type: r.loan_type,
+            migs: r.migs,
+            amount: Number(r.amount || 0),
+            method: r.method || "Cash",
+            approvedDate: r.approved_date,
+            releasedDate: r.released_date,
+            releasedBy: r.released_by || "Cashier",
+            hasDocuments: Boolean(r.has_documents),
+            documentCount: Number(r.document_count || 0),
+            status: r.status || "Released",
+          }));
+          return {
+            rows: formattedRows,
+            summary: result?.summary || { total_released_count: 0, total_released_amount: 0, released_today_amount: 0 },
+          };
+        },
+        { ttlMs: 120_000, force }
       );
-      if (result?.summary) setSummary(result.summary);
+      setRows(bundle.rows);
+      if (bundle.summary) setSummary(bundle.summary);
     } catch (err) {
       if (silent) return;
       setErrorMessage(err.message || "Unable to load released loans.");
-      setRows([]);
+      if (!getCached("treasurer_released_loans_bundle")) setRows([]);
     } finally {
       if (!silent) setIsLoading(false);
     }
@@ -122,7 +133,7 @@ const Disbursements = () => {
   useEffect(() => {
     fetchReleasedLoans();
   }, [fetchReleasedLoans]);
-  useRealtimeRefetch(RT.LOANS, () => fetchReleasedLoans({ silent: true }));
+  useRealtimeRefetch(RT.LOANS, () => fetchReleasedLoans({ silent: true, force: true }));
 
   const formatCurrency = (n) =>
     new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 2 }).format(n || 0);
@@ -354,7 +365,7 @@ const Disbursements = () => {
                   { label: "Bookkeeper Verifies", detail: "Compliance check", icon: Check, tone: "bg-gray-800 text-white" },
                   { label: "Cashier Releases", detail: "Funds disbursed", icon: Wallet, tone: "bg-gray-800 text-white" },
                   { label: "Treasury Logs", detail: "Ledger updated", icon: CheckCircle2, tone: "bg-primary-deep text-white ring-4 ring-green-50" },
-                ].map((step, idx) => {
+                ].map((step) => {
                   const StepIcon = step.icon;
                   return (
                     <div key={step.label} className="relative z-10 flex flex-col items-center text-center">

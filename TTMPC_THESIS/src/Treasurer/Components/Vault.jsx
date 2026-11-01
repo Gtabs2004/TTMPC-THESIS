@@ -25,6 +25,7 @@ import {
 import { FORECAST_LOAN_TYPE_COLORS } from "../../lib/chartColors";
 import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
 import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { cachedFetch, getCached, invalidateCache } from "../../utils/pageCache";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 // Shared with LoanDemandForecastCard.jsx via chartColors.js — both forecast
@@ -125,16 +126,16 @@ const Vault = () => {
   const { session } = UserAuth();
   const { addNotification } = useNotification();
 
-  const [balance, setBalance] = useState({ current_balance: 0, last_updated_at: null, entry_count: 0 });
-  const [entries, setEntries] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [balance, setBalance] = useState(() => getCached("vault_balance_data")?.balance || { current_balance: 0, last_updated_at: null, entry_count: 0 });
+  const [entries, setEntries] = useState(() => getCached("vault_balance_data")?.entries || []);
+  const [loading, setLoading] = useState(() => !getCached("vault_balance_data"));
   const [error, setError] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [typeFilter, setTypeFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const [monthlyForecast, setMonthlyForecast] = useState([]); // Next month's forecast by loan type
-  const [reservedCash, setReservedCash] = useState(0); // approved/ready-for-disbursement loans not yet released
-  const [forecastLoading, setForecastLoading] = useState(false);
+  const [monthlyForecast, setMonthlyForecast] = useState(() => getCached("vault_monthly_forecast")?.rows || []);
+  const [reservedCash, setReservedCash] = useState(() => getCached("vault_monthly_forecast")?.committed ?? 0);
+  const [forecastLoading, setForecastLoading] = useState(() => !getCached("vault_monthly_forecast"));
   const [forecastError, setForecastError] = useState("");
   const [forecastUpdatedAt, setForecastUpdatedAt] = useState(null);
 
@@ -143,23 +144,31 @@ const Vault = () => {
   // -------------------------------------------------------------------------
   // `silent` = realtime refresh while the page is open: no spinner, and a
   // failed refresh keeps the figures already on screen.
-  const fetchData = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) {
+  const fetchData = useCallback(async ({ silent = false, force = false } = {}) => {
+    if (force) invalidateCache("vault_balance_data");
+    const hasCache = !!getCached("vault_balance_data");
+    if (!silent && !hasCache) {
       setLoading(true);
       setError("");
     }
     try {
-      const [balRes, entriesRes] = await Promise.all([
-        supabase.from("vault_balance_v").select("*").limit(1).maybeSingle(),
-        supabase.from("vault_entries")
-          .select("id,amount,change_type,note,reference_id,entered_by,entered_at")
-          .order("entered_at", { ascending: false })
-          .limit(100),
-      ]);
-      if (balRes.error) throw balRes.error;
-      if (entriesRes.error) throw entriesRes.error;
-      setBalance(balRes.data || { current_balance: 0, last_updated_at: null, entry_count: 0 });
-      setEntries(entriesRes.data || []);
+      const data = await cachedFetch("vault_balance_data", async () => {
+        const [balRes, entriesRes] = await Promise.all([
+          supabase.from("vault_balance_v").select("*").limit(1).maybeSingle(),
+          supabase.from("vault_entries")
+            .select("id,amount,change_type,note,reference_id,entered_by,entered_at")
+            .order("entered_at", { ascending: false })
+            .limit(100),
+        ]);
+        if (balRes.error) throw balRes.error;
+        if (entriesRes.error) throw entriesRes.error;
+        return {
+          balance: balRes.data || { current_balance: 0, last_updated_at: null, entry_count: 0 },
+          entries: entriesRes.data || [],
+        };
+      }, 120_000);
+      setBalance(data.balance);
+      setEntries(data.entries);
     } catch (err) {
       if (!silent) setError(err?.message || "Failed to load vault data.");
     } finally {
@@ -178,55 +187,61 @@ const Vault = () => {
   // Cash planning uses `upper` (upper 80% CI, the model/API default) as the
   // "need" to prepare for — point estimate is shown only as "likely" and
   // upper95 only as the "stress case". See 2026-10-21_cash_forecast_addition.md.
-  const fetchForecast = useCallback(async () => {
-    setForecastLoading(true);
-    setForecastError("");
+  const fetchForecast = useCallback(async ({ force = false } = {}) => {
+    if (force) {
+      invalidateCache("vault_monthly_forecast");
+    }
+    const hasCache = !!getCached("vault_monthly_forecast");
+    if (!hasCache) {
+      setForecastLoading(true);
+      setForecastError("");
+    }
     try {
-      const results = await Promise.all(
-        FORECAST_LOAN_TYPES.map(async (t) => {
-          const res = await fetch(
-            `${API_BASE_URL}/api/analytics/demand/forecast?loan_type=${t.value}&months_from_today=${FORECAST_MONTHS_AHEAD}`,
-            { headers: { Accept: "application/json" } },
-          );
-          const payload = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(payload?.detail || `Failed to fetch ${t.label} forecast.`);
-          const fcArray = (payload?.data?.forecast || payload?.forecast || []);
-          return [t.value, fcArray];
-        }),
-      );
+      const forecastBundle = await cachedFetch("vault_monthly_forecast", async () => {
+        const results = await Promise.all(
+          FORECAST_LOAN_TYPES.map(async (t) => {
+            const res = await fetch(
+              `${API_BASE_URL}/api/analytics/demand/forecast?loan_type=${t.value}&months_from_today=${FORECAST_MONTHS_AHEAD}`,
+              { headers: { Accept: "application/json" } },
+            );
+            const payload = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(payload?.detail || `Failed to fetch ${t.label} forecast.`);
+            const fcArray = (payload?.data?.forecast || payload?.forecast || []);
+            return [t.value, fcArray];
+          }),
+        );
 
-      // Merge the three per-type arrays into one row per period (YYYY-MM).
-      const byPeriod = new Map();
-      for (const [typeValue, fcArray] of results) {
-        for (const row of fcArray) {
-          const key = String(row.period || "").slice(0, 7); // YYYY-MM
-          if (!byPeriod.has(key)) byPeriod.set(key, { period: key });
-          byPeriod.get(key)[typeValue] = {
-            predicted: row.predicted,
-            upper: row.upper,
-            upper95: row.upper95,
-          };
+        // Merge the three per-type arrays into one row per period (YYYY-MM).
+        const byPeriod = new Map();
+        for (const [typeValue, fcArray] of results) {
+          for (const row of fcArray) {
+            const key = String(row.period || "").slice(0, 7); // YYYY-MM
+            if (!byPeriod.has(key)) byPeriod.set(key, { period: key });
+            byPeriod.get(key)[typeValue] = {
+              predicted: row.predicted,
+              upper: row.upper,
+              upper95: row.upper95,
+            };
+          }
         }
-      }
-      const now = new Date();
-      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-      const nextMonthKey = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}`;
-      const rows = Array.from(byPeriod.values())
-        .filter((row) => row.period === nextMonthKey);
-      setMonthlyForecast(rows);
+        const now = new Date();
+        const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        const nextMonthKey = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}`;
+        const rows = Array.from(byPeriod.values())
+          .filter((row) => row.period === nextMonthKey);
 
-      // Cash already spoken for: the NET cash out of loans in "ready for
-      // disbursement" (Treasurer-approved, awaiting the Cashier's release), from
-      // the same _compute_vault_available() the approval screens judge against.
-      // Released loans are already out of the vault; loans still "to be
-      // disbursed" are not reserved yet.
-      const reservedRes = await fetch(
-        `${API_BASE_URL}/api/treasurer/vault/available`,
-        { headers: { Accept: "application/json" } },
-      );
-      const reservedPayload = await reservedRes.json().catch(() => ({}));
-      setReservedCash(reservedRes.ok ? Number(reservedPayload?.data?.committed || 0) : 0);
+        const reservedRes = await fetch(
+          `${API_BASE_URL}/api/treasurer/vault/available`,
+          { headers: { Accept: "application/json" } },
+        );
+        const reservedPayload = await reservedRes.json().catch(() => ({}));
+        const committed = reservedRes.ok ? Number(reservedPayload?.data?.committed || 0) : 0;
 
+        return { rows, committed };
+      }, 120_000);
+
+      setMonthlyForecast(forecastBundle.rows);
+      setReservedCash(forecastBundle.committed);
       setForecastUpdatedAt(new Date());
     } catch (err) {
       setForecastError(err?.message || "Failed to load forecast.");
@@ -240,7 +255,7 @@ const Vault = () => {
   // "Refresh forecast" re-pulls the forecast AND the vault balance it is
   // compared against, so the verdict reflects what is in the vault right now.
   const handleRefreshForecast = useCallback(
-    () => Promise.all([fetchForecast(), fetchData({ silent: true })]),
+    () => Promise.all([fetchForecast({ force: true }), fetchData({ silent: true, force: true })]),
     [fetchForecast, fetchData],
   );
 
