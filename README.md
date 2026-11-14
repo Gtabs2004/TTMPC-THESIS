@@ -58,7 +58,7 @@ to enable **data-driven decision-making and proactive financial management**.
     </tr>
     <tr>
       <td>Loan Demand Forecasting</td>
-      <td>Seasonal ARIMA (SARIMAX) time-series models per loan type, producing 12-month forecasts with confidence intervals for liquidity planning</td>
+      <td>12-month Moving Average (Consolidated & Emergency) and Seasonal Naive (Bonus Loan) time-series models producing monthly disbursement forecasts for cooperative liquidity planning</td>
     </tr>
     <tr>
       <td>Debt Capacity Framework</td>
