@@ -38,8 +38,8 @@ to enable **data-driven decision-making and proactive financial management**.
 
 ## 📊 Key Analytical & Operational Discoveries
 Prior to system deployment, an audit of 7 years of historical cooperative ledgers (932 loans, 237 members) and time-series disbursement patterns revealed critical operational insights:
-*Identified orphan records and future-dated payments across 432 loan accounts, correcting the cooperative's distorted loan delinquency rate from **85.85% down to an actual 38.7%**.
-*Discovered that 70% of fully paid loans were only paid by applying for a larger loan (renewal) which hides debt accumulation in 60% of repeat borrowers. 
+* Identified orphan records and future-dated payments across 432 loan accounts, correcting the cooperative's distorted loan delinquency rate from **85.85% down to an actual 38.7%**.
+* Discovered that 70% of fully paid loans were only paid by applying for a larger loan (renewal) which hides debt accumulation in 60% of repeat borrowers. 
 
 
 ## 🧠 Intelligent System Capabilities
