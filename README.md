@@ -40,8 +40,8 @@ to enable **data-driven decision-making and proactive financial management**.
 Prior to system deployment, an audit of 7 years of historical cooperative ledgers (932 loans, 237 members) and time-series disbursement patterns revealed critical operational insights:
 * Identified orphan records and future-dated payments across 432 loan accounts, correcting the cooperative's distorted loan delinquency rate from **85.85% down to an actual 38.7%**.
 * Discovered that 70% of fully paid loans were only paid by applying for a larger loan (renewal) which hides debt accumulation in 60% of repeat borrowers.
-* Deployed a 21-varibale risk prediction model (**ROC-AUC: 0.659**) to help officers understand what drives risk before approving applications.
-* Modeled loan demand forecasting model, finding that a 12-month Moving Average and Seasoncal Naive baseline reduced forecast by **16%–47%** compared to standard SARIMA, giving the Treasurer predictable monthly cash-reserve expectations.
+* Deployed a 21-variable risk prediction model (**ROC-AUC: 0.659**) to help officers understand what drives risk before approving loan applications.
+* Modeled a loan demand forecasting model from disbursement data, finding that a 12-month Moving Average and Seasonal Naive baseline reduced forecast by **16%–47%** compared to standard SARIMA, giving the Treasurer predictable monthly cash-reserve expectations.
 
 
 ## 🧠 Intelligent System Capabilities
